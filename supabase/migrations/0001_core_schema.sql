@@ -178,6 +178,25 @@ as $$
   );
 $$;
 
+
+-- Automatically make the creator the first owner of a newly created store.
+create function public.add_store_creator_as_owner()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $
+begin
+  insert into public.store_memberships (store_id, user_id, role)
+  values (new.id, (select auth.uid()), 'owner');
+  return new;
+end;
+$;
+
+create trigger stores_add_creator_as_owner
+  after insert on public.stores
+  for each row execute function public.add_store_creator_as_owner();
+
 alter table public.stores enable row level security;
 alter table public.store_memberships enable row level security;
 alter table public.store_domains enable row level security;
