@@ -68,3 +68,16 @@ Full multi-module billing, complete marketplace, inventory, CRM, and all integra
 3. Add core organization and entitlement abstractions before introducing paid module gating.
 4. Integrate the first data source only after confirming permitted access and technical viability.
 5. Expand module-by-module with API contracts, migration strategy, tests, and observability.
+
+
+## Bootstrap / no-funding constraint (critical)
+
+The project currently has no development budget. Price Checker must be the first revenue-generating module and help fund subsequent development. Therefore:
+
+- Prioritize a sellable, useful narrow MVP over broad platform completeness.
+- Prefer existing hosting, open-source libraries, and free tiers where viable; avoid paid APIs, plugins, and infrastructure until customer revenue or a confirmed need justifies them.
+- Validate willingness to pay before investing in costly marketplace data access.
+- Offer a transparent early-access / founding-customer plan. Be explicit about supported sources and limits; do not sell a promise of comprehensive real-time marketplace coverage before data access is secured.
+- Revenue from Price Checker funds the next modules and platform hardening in stages.
+- Do not build the entire suite upfront. Implement the shared architecture incrementally as each paid module is justified.
+- Track direct costs (hosting, source/data access, payment fees, support) against subscription revenue so pricing can fund operations and development.
