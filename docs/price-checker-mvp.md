@@ -39,3 +39,20 @@ Launch a useful, paid-first product pricing calculator for South African reselle
 
 ## Security
 Never commit API keys, payment secrets, database credentials, customer data or environment files.
+
+
+## One-week delivery plan (working target)
+
+The first seven-day release should be a usable MVP, not a promise of complete marketplace-wide automated crawling.
+
+- **Day 1 — Calculator hardening:** extract calculations into a pure helper, handle invalid/zero inputs and impossible target margins, and review responsive UI.
+- **Day 2 — Product lookup UX:** product name / barcode entry, result state, and a clear path for supported sources. No fabricated live results.
+- **Day 3 — Comparison records:** define a consistent product/listing schema (product identifier, seller, marketplace, price, delivery, availability, source URL, observed timestamp, match quality).
+- **Day 4 — Source integration spike:** confirm approved access and data collection approach for the first marketplace/source. Implement only when the source permits it.
+- **Day 5 — Comparison results:** show sourced listings with delivery-inclusive total, timestamp, source link, and exact/similar match labels.
+- **Day 6 — QA:** test responsive layouts, arithmetic, empty/error states, stale source data and accessibility.
+- **Day 7 — Demo release:** deploy a testable version, document what's live versus simulated, and collect early-user feedback.
+
+### Release boundary
+
+The MVP can only display live comparisons for sources for which access is configured and allowed. Until then, the product lookup should clearly say that results are unavailable rather than showing invented prices. Subscription payments, user accounts, alerts, and AI matching remain outside the first week's critical path unless the core comparison source is confirmed early.
