@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { calculatePrice } from "@/lib/price-calculator";
 import BarcodeScanner from "@/components/price-checker/BarcodeScanner";
 
@@ -10,6 +10,16 @@ const money = (value: number) =>
     currency: "ZAR",
     maximumFractionDigits: 2,
   }).format(value);
+
+type SavedProduct = {
+  id: string;
+  name: string;
+  barcode: string;
+  buyingCost: number;
+  sellingPrice: number;
+  otherCosts: number;
+  savedAt: string;
+};
 
 type Marketplace = {
   name: string;
@@ -30,7 +40,7 @@ export default function PriceCheckerPage() {
   const [sellingPrice, setSellingPrice] = useState("0");
   const [otherCosts, setOtherCosts] = useState("0");
   const [marketplaces, setMarketplaces] = useState(initialMarketplaces);
-  const [saved, setSaved] = useState<string[]>([]);
+  const [saved, setSaved] = useState<SavedProduct[]>([]);
   const [savedReady, setSavedReady] = useState(false);
 
   useEffect(() => {
@@ -38,8 +48,18 @@ export default function PriceCheckerPage() {
       const stored = window.localStorage.getItem("ekhaya-price-checker-saved-v1");
       if (stored) {
         const parsed: unknown = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.every((item) => typeof item === "string")) {
-          setSaved(parsed.slice(0, 5));
+        if (Array.isArray(parsed)) {
+          const valid = parsed.flatMap((item): SavedProduct[] => {
+            if (typeof item === "string") {
+              return [{ id: item.toLocaleLowerCase(), name: item, barcode: "", buyingCost: 0, sellingPrice: 0, otherCosts: 0, savedAt: "" }];
+            }
+            if (item && typeof item === "object" && "name" in item && typeof item.name === "string") {
+              const p = item as Partial<SavedProduct>;
+              return [{ id: typeof p.id === "string" ? p.id : p.name.toLocaleLowerCase(), name: p.name, barcode: typeof p.barcode === "string" ? p.barcode : "", buyingCost: Number(p.buyingCost) || 0, sellingPrice: Number(p.sellingPrice) || 0, otherCosts: Number(p.otherCosts) || 0, savedAt: typeof p.savedAt === "string" ? p.savedAt : "" }];
+            }
+            return [];
+          });
+          setSaved(valid.slice(0, 5));
         }
       }
     } catch {
@@ -99,7 +119,7 @@ export default function PriceCheckerPage() {
       setNotice("Enter a product name or barcode first.");
       return;
     }
-    if (saved.some((item) => item.toLocaleLowerCase() === key.toLocaleLowerCase())) {
+    if (saved.some((item) => item.name.toLocaleLowerCase() === key.toLocaleLowerCase())) {
       setNotice("This product is already in your saved list.");
       return;
     }
@@ -107,8 +127,17 @@ export default function PriceCheckerPage() {
       setNotice("You have reached the 5-product free allowance. Paid product limits will be added after billing is ready.");
       return;
     }
-    setSaved((current) => [...current, key]);
-    setNotice("Saved to your 5-product free list.");
+    const product: SavedProduct = {
+      id: `${key.toLocaleLowerCase()}-${Date.now()}`,
+      name: key,
+      barcode: /^\\d{8,14}$/.test(key) ? key : "",
+      buyingCost: Math.max(0, Number(buyingCost) || 0),
+      sellingPrice: Math.max(0, Number(sellingPrice) || 0),
+      otherCosts: Math.max(0, Number(otherCosts) || 0),
+      savedAt: new Date().toISOString(),
+    };
+    setSaved((current) => [...current, product]);
+    setNotice("Saved product details and current cost assumptions.");
   }
 
   return (
@@ -172,7 +201,7 @@ export default function PriceCheckerPage() {
 
       <section className="saved panel">
         <div className="section-head"><div><span className="step">FREE ALLOWANCE</span><h2>Saved products <span className="count">{saved.length} / 5</span></h2></div><button className="secondary" onClick={saveProduct}>Save product</button></div>
-        {saved.length ? <ul>{saved.map((item) => <li key={item}><span>{item}</span><button className="remove" type="button" aria-label={`Remove ${item} from saved products`} onClick={() => { setSaved((current) => current.filter((savedItem) => savedItem !== item)); setNotice(`${item} removed from saved products.`); }}>Remove</button></li>)}</ul> : <p className="muted">Your saved products will appear here. Free access includes up to 5 saved products.</p>}
+        {saved.length ? <ul>{saved.map((item) => <li key={item.id}><div className="saved-details"><strong>{item.name}</strong>{item.barcode && <small>Barcode: {item.barcode}</small>}<small>Cost {money(item.buyingCost)} · Selling {money(item.sellingPrice)} · Other costs {money(item.otherCosts)}</small>{item.savedAt && <small>Saved {new Date(item.savedAt).toLocaleDateString("en-ZA")}</small>}</div><button className="remove" type="button" aria-label={`Remove ${item.name} from saved products`} onClick={() => { setSaved((current) => current.filter((savedItem) => savedItem.id !== item.id)); setNotice(`${item.name} removed from saved products.`); }}>Remove</button></li>)}</ul> : <p className="muted">Your saved products will appear here. Free access includes up to 5 saved products.</p>}
         <div className="tiers"><span>Next plans:</span><b>30</b><b>50</b><b>100</b><b>150+</b><span>products</span></div>
         <p className="muted small">Paid subscriptions are not available yet. Subscription prices and billing will be confirmed before launch.</p>
       </section>
@@ -215,7 +244,7 @@ export default function PriceCheckerPage() {
         .good{color:#397653;font-weight:700}.bad{color:#b4473c;font-weight:700}
         .disclaimer{font-size:11px;color:#85877e;line-height:1.6;margin:16px 0 0}
         .count{font:12px Arial;color:#8b794e;margin-left:8px}
-        .saved ul{margin:0;padding:0;list-style:none;font-size:13px}.saved li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #efeee8}.remove{background:transparent;color:#8a5147;padding:6px 8px;font-size:11px}
+         .saved ul{margin:0;padding:0;list-style:none;font-size:13px}.saved li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #efeee8}.saved-details{display:grid;gap:4px}.saved-details small{font-size:11px;color:#77796f}.remove{background:transparent;color:#8a5147;padding:6px 8px;font-size:11px}
         .tiers{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid #ecebe5;margin-top:18px;padding-top:15px;font-size:12px;color:#77796f}
         .tiers b{background:#f4f1e8;border-radius:5px;padding:7px 10px;color:#51472f}
         .small{font-size:11px}
