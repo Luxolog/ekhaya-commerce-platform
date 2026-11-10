@@ -109,19 +109,20 @@ export default function PriceCheckerPage() {
 
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Marketplace</th><th>Listed price (R)</th><th>Fee (%)</th><th>Fulfilment (R)</th><th>Fees total</th><th>Profit estimate</th><th>Margin</th></tr></thead>
+            <thead><tr><th>Marketplace</th><th>Listed price (R)</th><th>Fee (%)</th><th>Fulfilment (R)</th><th>Gross profit before fees</th><th>Estimated fees</th><th>Profit after fees</th><th>Margin</th></tr></thead>
             <tbody>{rows.map((row, index) => <tr key={row.name}>
               <td><strong>{row.name}</strong></td>
               <td><input aria-label={row.name + " comparison price"} type="number" min="0" step="0.01" placeholder="—" value={row.price} onChange={(e) => updateMarketplace(index, "price", e.target.value)} /></td>
               <td><input aria-label={row.name + " percentage fee"} type="number" min="0" max="100" step="0.1" value={row.feePercent} onChange={(e) => updateMarketplace(index, "feePercent", e.target.value)} /></td>
               <td><input aria-label={row.name + " fulfilment fee"} type="number" min="0" step="0.01" value={row.fulfilment} onChange={(e) => updateMarketplace(index, "fulfilment", e.target.value)} /></td>
+              <td>{money((Number(sellingPrice) || 0) - (Number(buyingCost) || 0) - (Number(otherCosts) || 0))}</td>
               <td>{money(row.result.marketplaceFee)}</td>
               <td className={row.result.profit >= 0 ? "good" : "bad"}>{money(row.result.profit)}</td>
               <td>{row.result.marginPercent.toFixed(1)}%</td>
             </tr>)}</tbody>
           </table>
         </div>
-        <p className="disclaimer">Marketplace fees and fulfilment charges are estimates entered or adjusted by you. Actual charges vary by category, dimensions, weight and fulfilment method. Subscription fees are excluded from per-sale profit.</p>
+        <p className="disclaimer">Gross profit is before marketplace fees. Profit after fees subtracts the estimated percentage fee, fulfilment fee and other costs entered. Fees are estimates and can vary by category, product dimensions, weight and fulfilment method. Subscription fees are excluded from per-sale profit.</p>
       </section>
 
       <section className="saved panel">
