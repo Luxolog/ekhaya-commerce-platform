@@ -200,7 +200,7 @@ export default function PriceCheckerPage() {
       </section>
 
       <section className="saved panel">
-        <div className="section-head"><div><span className="step">FREE ALLOWANCE</span><h2>Saved products <span className="count">{saved.length} / 5</span></h2></div><button className="secondary" onClick={saveProduct}>Save product</button></div>
+        <div className="section-head"><div><span className="step">FREE ALLOWANCE</span><h2>Saved products <span className="count">{saved.length} / 5</span></h2></div><button className="secondary" onClick={saveProduct} disabled={saved.length >= 5} title={saved.length >= 5 ? "Remove a saved product to make room" : "Save this product and its current cost assumptions"}>Save product</button></div>
         {saved.length ? <ul>{saved.map((item) => <li key={item.id}><div className="saved-details"><strong>{item.name}</strong>{item.barcode && <small>Barcode: {item.barcode}</small>}<small>Cost {money(item.buyingCost)} · Selling {money(item.sellingPrice)} · Other costs {money(item.otherCosts)}</small>{item.savedAt && <small>Saved {new Date(item.savedAt).toLocaleDateString("en-ZA")}</small>}</div><button className="secondary" type="button" onClick={() => { setProductQuery(item.name); setBuyingCost(String(item.buyingCost)); setSellingPrice(String(item.sellingPrice)); setOtherCosts(String(item.otherCosts)); setNotice(`Loaded ${item.name} and its saved cost assumptions into the calculator.`); }}>Use values</button><button className="remove" type="button" aria-label={`Remove ${item.name} from saved products`} onClick={() => { setSaved((current) => current.filter((savedItem) => savedItem.id !== item.id)); setNotice(`${item.name} removed from saved products.`); }}>Remove</button></li>)}</ul> : <p className="muted">Your saved products will appear here. Free access includes up to 5 saved products.</p>}
         <div className="tiers"><span>Next plans:</span><b>30</b><b>50</b><b>100</b><b>150+</b><span>products</span></div>
         <p className="muted small">Paid subscriptions are not available yet. Subscription prices and billing will be confirmed before launch.</p>
@@ -229,7 +229,7 @@ export default function PriceCheckerPage() {
         .lookup-actions{display:flex;gap:10px;align-items:center}
         button{border:0;border-radius:6px;padding:11px 16px;font-size:12px;font-weight:700;cursor:pointer}
         .primary{background:#22271f;color:#f4e5bd}
-        .secondary{background:#e9e2d2;color:#3c382d}
+        .secondary{background:#e9e2d2;color:#3c382d}.secondary:disabled{opacity:.5;cursor:not-allowed}
         .upload{position:relative;display:inline-block;border:1px solid #deded8;border-radius:6px;padding:10px 12px;cursor:pointer;white-space:nowrap}
         .upload input{position:absolute;inset:0;opacity:0;cursor:pointer}
         .notice{grid-column:1/-1;margin:0;color:#75613b;font-size:12px}
