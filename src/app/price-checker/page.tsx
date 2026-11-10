@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { calculatePrice } from "@/lib/price-calculator";
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-ZA", {
@@ -17,20 +18,14 @@ export default function PriceCheckerPage() {
   const [shipping, setShipping] = useState("0");
   const [targetMargin, setTargetMargin] = useState("25");
 
-  const result = useMemo(() => {
-    const buying = Math.max(0, Number(cost) || 0);
-    const price = Math.max(0, Number(sellingPrice) || 0);
-    const feeRate = Math.min(100, Math.max(0, Number(feePercent) || 0)) / 100;
-    const fixed = Math.max(0, Number(fixedFee) || 0);
-    const delivery = Math.max(0, Number(shipping) || 0);
-    const marginTarget = Math.min(95, Math.max(0, Number(targetMargin) || 0)) / 100;
-    const marketplaceFee = price * feeRate + fixed;
-    const netProfit = price - buying - marketplaceFee - delivery;
-    const margin = price > 0 ? (netProfit / price) * 100 : 0;
-    const suggested = (buying + fixed + delivery) / (1 - feeRate - marginTarget);
-
-    return { marketplaceFee, netProfit, margin, suggested };
-  }, [cost, sellingPrice, feePercent, fixedFee, shipping, targetMargin]);
+  const result = useMemo(() => calculatePrice({
+    buyingCost: Number(cost) || 0,
+    sellingPrice: Number(sellingPrice) || 0,
+    marketplaceFeePercent: Number(feePercent) || 0,
+    fixedFee: Number(fixedFee) || 0,
+    otherCosts: Number(shipping) || 0,
+    targetMarginPercent: Number(targetMargin) || 0,
+  }), [cost, sellingPrice, feePercent, fixedFee, shipping, targetMargin]);
 
   return (
     <main className="price-page">
@@ -107,12 +102,12 @@ export default function PriceCheckerPage() {
 
           <div className="profit-card">
             <span>Estimated profit per sale</span>
-            <strong className={result.netProfit >= 0 ? "positive" : "negative"}>{money(result.netProfit)}</strong>
+            <strong className={result.profit >= 0 ? "positive" : "negative"}>{money(result.netProfit)}</strong>
             <span className="profit-foot">After entered costs and marketplace fees</span>
           </div>
 
           <div className="metrics">
-            <div><span>Profit margin</span><strong>{result.margin.toFixed(1)}%</strong></div>
+            <div><span>Profit margin</span><strong>{result.marginPercent.toFixed(1)}%</strong></div>
             <div><span>Marketplace fees</span><strong>{money(result.marketplaceFee)}</strong></div>
           </div>
 
@@ -120,7 +115,7 @@ export default function PriceCheckerPage() {
             <div className="recommendation-icon">↗</div>
             <div>
               <span className="step">SUGGESTED SELLING PRICE</span>
-              <strong>{Number.isFinite(result.suggested) ? money(result.suggested) : "—"}</strong>
+              <strong>{result.suggestedPrice !== null ? money(result.suggestedPrice) : "Not achievable with these fee assumptions"}</strong>
               <p>Estimated price to reach your selected margin.</p>
             </div>
           </div>
