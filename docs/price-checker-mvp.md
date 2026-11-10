@@ -56,3 +56,35 @@ The first seven-day release should be a usable MVP, not a promise of complete ma
 ### Release boundary
 
 The MVP can only display live comparisons for sources for which access is configured and allowed. Until then, the product lookup should clearly say that results are unavailable rather than showing invented prices. Subscription payments, user accounts, alerts, and AI matching remain outside the first week's critical path unless the core comparison source is confirmed early.
+
+
+## Agreed lean reseller MVP (Nov 10, 2026)
+
+Keep the first product intentionally minimal. Primary journey: identify product → compare the three marketplaces → enter buy/sell prices → view estimated profit → save product.
+
+### Product input and matching
+- Support barcode input and product-name search as the initial lookup entry points; photo capture/upload is a required user-facing path when image recognition is available.
+- Prefer an exact match using barcode/GTIN, brand and model identifiers.
+- When exact match is not found, show alternatives explicitly labelled “Similar product”; never present a substitute as exact.
+- Listing results must carry marketplace, item title, listed price, URL, observation time, match status and source.
+- Do not invent or silently reuse stale marketplace prices. If source access is unavailable, show “Price unavailable” with an explanation.
+
+### Marketplace profit estimate
+For each supported marketplace, show:
+- Seller-entered selling price and product cost
+- Estimated commission/success fee
+- Estimated fulfilment fee (where relevant)
+- Shipping to fulfilment centre and other costs (optional inputs)
+- Revenue, total estimated marketplace fees, estimated net payout before product costs, estimated profit after all entered costs, and profit margin
+- Explicit disclosure: marketplace fees are estimates and exclude the Price Checker subscription; actual fees vary by category, size/weight and fulfilment method.
+
+Keep marketplace fee logic distinct per marketplace. Do not reuse one platform’s fee formula for another. If we lack a reliable category/weight fee table, allow editable estimates rather than pretending the fee is official.
+
+### Product allowance / subscriptions
+- Free: 5 saved products
+- Paid limits: 30, 50, 100, and 150+ saved products
+- Product count applies to saved/tracked products, not scans.
+- Subscription price and payment integration remain unconfirmed; do not charge or represent a plan as purchasable until billing is implemented.
+
+### Lean launch boundary
+No analytics dashboard, price alerts, inventory, repricing or broad business-suite features in this MVP. Start with one useful scan-to-profit workflow. Live marketplace prices and photo recognition require a permitted, configured data/recognition source; a demo must clearly distinguish sourced data from mock or manually entered values.
