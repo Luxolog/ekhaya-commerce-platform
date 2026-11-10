@@ -31,7 +31,7 @@ export default function PriceCheckerPage() {
   const [otherCosts, setOtherCosts] = useState("0");
   const [marketplaces, setMarketplaces] = useState(initialMarketplaces);
   const [saved, setSaved] = useState<string[]>([]);
-  const savedLoaded = useRef(false);
+  const [savedReady, setSavedReady] = useState(false);
 
   useEffect(() => {
     try {
@@ -45,18 +45,18 @@ export default function PriceCheckerPage() {
     } catch {
       // Saved products remain usable in memory if browser storage is unavailable.
     } finally {
-      savedLoaded.current = true;
+      setSavedReady(true);
     }
   }, []);
 
   useEffect(() => {
-    if (!savedLoaded.current) return;
+    if (!savedReady) return;
     try {
       window.localStorage.setItem("ekhaya-price-checker-saved-v1", JSON.stringify(saved));
     } catch {
       // Storage may be disabled or full; do not interrupt the calculator.
     }
-  }, [saved]);
+  }, [saved, savedReady]);
   const [notice, setNotice] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupResults, setLookupResults] = useState<any[]>([]);
