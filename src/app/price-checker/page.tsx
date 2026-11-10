@@ -116,7 +116,7 @@ export default function PriceCheckerPage() {
               <td><input aria-label={row.name + " percentage fee"} type="number" min="0" max="100" step="0.1" value={row.feePercent} onChange={(e) => updateMarketplace(index, "feePercent", e.target.value)} /></td>
               <td><input aria-label={row.name + " fulfilment fee"} type="number" min="0" step="0.01" value={row.fulfilment} onChange={(e) => updateMarketplace(index, "fulfilment", e.target.value)} /></td>
               <td>{money(row.result.marketplaceFee)}</td>
-              <td className={row.result.netProfit >= 0 ? "good" : "bad"}>{money(row.result.netProfit)}</td>
+              <td className={row.result.profit >= 0 ? "good" : "bad"}>{money(row.result.profit)}</td>
               <td>{row.result.marginPercent.toFixed(1)}%</td>
             </tr>)}</tbody>
           </table>
