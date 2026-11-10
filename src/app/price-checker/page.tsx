@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { calculatePrice } from "@/lib/price-calculator";
 import BarcodeScanner from "@/components/price-checker/BarcodeScanner";
 
@@ -31,6 +31,32 @@ export default function PriceCheckerPage() {
   const [otherCosts, setOtherCosts] = useState("0");
   const [marketplaces, setMarketplaces] = useState(initialMarketplaces);
   const [saved, setSaved] = useState<string[]>([]);
+  const savedLoaded = useRef(false);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("ekhaya-price-checker-saved-v1");
+      if (stored) {
+        const parsed: unknown = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.every((item) => typeof item === "string")) {
+          setSaved(parsed.slice(0, 5));
+        }
+      }
+    } catch {
+      // Saved products remain usable in memory if browser storage is unavailable.
+    } finally {
+      savedLoaded.current = true;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!savedLoaded.current) return;
+    try {
+      window.localStorage.setItem("ekhaya-price-checker-saved-v1", JSON.stringify(saved));
+    } catch {
+      // Storage may be disabled or full; do not interrupt the calculator.
+    }
+  }, [saved]);
   const [notice, setNotice] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupResults, setLookupResults] = useState<any[]>([]);
