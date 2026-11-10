@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { calculatePrice } from "@/lib/price-calculator";
+import BarcodeScanner from "@/components/price-checker/BarcodeScanner";
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-ZA", {
@@ -89,12 +90,12 @@ export default function PriceCheckerPage() {
         <div>
           <span className="step">PRODUCT LOOKUP</span>
           <h2>Find a product</h2>
-          <p>Enter a barcode or product name. Live marketplace matching will appear here once connected to a permitted product data source.</p>
+          <p>Enter a barcode or product name, or scan a barcode with your camera. Marketplace results are search candidates; confirm the exact match and current price.</p>
         </div>
         <label className="query-label">Barcode or product name
           <input value={productQuery} onChange={(e) => { setProductQuery(e.target.value); setNotice(""); }} placeholder="e.g. 6001234567890 or product name" />
         </label>
-        <div className="lookup-actions">
+        <div className="lookup-actions">\n          <BarcodeScanner onDetected={setProductQuery} />
           <button className="primary" onClick={findProduct} disabled={lookupLoading}>{lookupLoading ? "Searching…" : "Find product"}</button>
           <label className="upload">Add product photo<input type="file" accept="image/*" capture="environment" onChange={() => setNotice("Photo selected. Image-based product identification is not connected yet; use barcode or product name for now.")} /></label>
         </div>
