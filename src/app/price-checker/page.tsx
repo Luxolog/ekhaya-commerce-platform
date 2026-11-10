@@ -31,6 +31,8 @@ export default function PriceCheckerPage() {
   const [marketplaces, setMarketplaces] = useState(initialMarketplaces);
   const [saved, setSaved] = useState<string[]>([]);
   const [notice, setNotice] = useState("");
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupResults, setLookupResults] = useState<any[]>([]);
 
   const rows = useMemo(() => marketplaces.map((marketplace) => {
     const result = calculatePrice({
@@ -50,7 +52,7 @@ export default function PriceCheckerPage() {
     ));
   }
 
-  function saveProduct() {
+  async function findProduct() {\n    const query = productQuery.trim();\n    if (!query) { setNotice("Enter a barcode or product name first."); return; }\n    setLookupLoading(true); setLookupResults([]); setNotice("");\n    try {\n      const response = await fetch(`/api/price-checker/search?q=${encodeURIComponent(query)}`);\n      const data = await response.json();\n      if (!response.ok) { setNotice(data.error || "Lookup is not available."); return; }\n      setLookupResults(data.results || []);\n      setNotice("Search candidates returned. Confirm the product and listed price on the marketplace before relying on it.");\n    } catch { setNotice("Could not complete lookup. Please try again."); }\n    finally { setLookupLoading(false); }\n  }\n\n  function saveProduct() {
     const key = productQuery.trim();
     if (!key) {
       setNotice("Enter a product name or barcode first.");
@@ -93,10 +95,10 @@ export default function PriceCheckerPage() {
           <input value={productQuery} onChange={(e) => { setProductQuery(e.target.value); setNotice(""); }} placeholder="e.g. 6001234567890 or product name" />
         </label>
         <div className="lookup-actions">
-          <button className="primary" onClick={() => setNotice("Live lookup is not connected yet. Enter marketplace prices below to use the profit calculator.")}>Find product</button>
+          <button className="primary" onClick={findProduct} disabled={lookupLoading}>{lookupLoading ? "Searching…" : "Find product"}</button>
           <label className="upload">Add product photo<input type="file" accept="image/*" capture="environment" onChange={() => setNotice("Photo selected. Image-based product identification is not connected yet; use barcode or product name for now.")} /></label>
         </div>
-        {notice && <p className="notice" role="status">{notice}</p>}
+        {notice && <p className="notice" role="status">{notice}</p>}\n        {lookupResults.length > 0 && <div className="lookup-results">{lookupResults.map((group) => <section key={group.marketplace}><h3>{group.marketplace}</h3>{group.error && <p>{group.error}</p>}{group.results?.length ? group.results.map((item: any) => <article key={item.url}><a href={item.url} target="_blank" rel="noreferrer">{item.title}</a><p>{item.snippet}</p><small>Candidate result · verify price and exact match</small></article>) : <p>No candidate results found.</p>}</section>)}</div>}
       </section>
 
       <section className="calculator panel">
@@ -158,7 +160,7 @@ export default function PriceCheckerPage() {
         .secondary{background:#e9e2d2;color:#3c382d}
         .upload{position:relative;display:inline-block;border:1px solid #deded8;border-radius:6px;padding:10px 12px;cursor:pointer;white-space:nowrap}
         .upload input{position:absolute;inset:0;opacity:0;cursor:pointer}
-        .notice{grid-column:1/-1;margin:0;color:#75613b;font-size:12px}
+        .notice{grid-column:1/-1;margin:0;color:#75613b;font-size:12px}\n        .lookup-results{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:10px}.lookup-results section{border:1px solid #e6e4de;border-radius:8px;padding:12px}.lookup-results h3{font:16px Georgia;margin:0 0 10px}.lookup-results article{padding:10px 0;border-top:1px solid #eee}.lookup-results a{color:#51472f;font-size:12px;font-weight:700}.lookup-results article p{margin:6px 0;font-size:11px}.lookup-results small{color:#8b794e;font-size:10px}
         .section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:15px}
         .seller-inputs{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
         .table-wrap{overflow-x:auto}
@@ -174,7 +176,7 @@ export default function PriceCheckerPage() {
         .tiers b{background:#f4f1e8;border-radius:5px;padding:7px 10px;color:#51472f}
         .small{font-size:11px}
         footer{max-width:1050px;margin:0 auto;padding:20px 0 30px;text-align:center;color:#999a92;font-size:9px;letter-spacing:1.2px}
-        @media(max-width:720px){.page{padding:0 4%}.topbar{height:65px}.plan{font-size:8px}.intro{margin:35px auto 24px}.panel{padding:18px}.lookup{grid-template-columns:1fr}.seller-inputs{grid-template-columns:1fr}.lookup-actions{flex-wrap:wrap}.section-head{align-items:flex-start}}
+        @media(max-width:720px){.page{padding:0 4%}.topbar{height:65px}.plan{font-size:8px}.intro{margin:35px auto 24px}.panel{padding:18px}.lookup{grid-template-columns:1fr}.seller-inputs{grid-template-columns:1fr}.lookup-actions{flex-wrap:wrap}.lookup-results{grid-template-columns:1fr}.section-head{align-items:flex-start}}
       `}</style>
     </main>
   );
