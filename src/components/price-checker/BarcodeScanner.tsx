@@ -7,17 +7,22 @@ type Props = { onDetected: (value: string) => void };
 
 export default function BarcodeScanner({ onDetected }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const [active, setActive] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     if (!active || !videoRef.current) return;
+
     const reader = new BrowserMultiFormatReader();
-    readerRef.current = reader;
     let cancelled = false;
+    let stopScanner: (() => void) | undefined;
+
     reader.decodeFromVideoDevice(undefined, videoRef.current, (result, error, controls) => {
-      if (cancelled) { controls.stop(); return; }
+      stopScanner = () => controls.stop();
+      if (cancelled) {
+        controls.stop();
+        return;
+      }
       if (result) {
         onDetected(result.getText());
         setMessage("Barcode captured. You can now search marketplace listings.");
@@ -26,10 +31,15 @@ export default function BarcodeScanner({ onDetected }: Props) {
       } else if (error && error.name !== "NotFoundException") {
         setMessage("Camera scan had a problem. Try entering the barcode manually.");
       }
-    }).catch(() => setMessage("Camera access was blocked or unavailable. Check browser permissions or enter the barcode manually."));
+    }).catch(() => {
+      if (!cancelled) {
+        setMessage("Camera access was blocked or unavailable. Check browser permissions or enter the barcode manually.");
+      }
+    });
+
     return () => {
       cancelled = true;
-      readerRef.current = null;
+      stopScanner?.();
     };
   }, [active, onDetected]);
 
