@@ -11,7 +11,8 @@
   "dependencies": {
     "next": "^15.3.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "@zxing/browser": "^0.1.5"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
