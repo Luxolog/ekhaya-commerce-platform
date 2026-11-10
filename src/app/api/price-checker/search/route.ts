@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     MARKETPLACES.map(async ({ name, domains }) => {
       const params = new URLSearchParams({
         engine: "google",
-        q: `${q} site:${domains.map((domain) => `\${domain}`).join(" OR site:")}`,
+        q: `${q} site:${domains.map((domain) => `${domain}`).join(" OR site:")}`,
         gl: "za",
         hl: "en",
         api_key: apiKey,
