@@ -9,6 +9,10 @@ type SearchCandidate = {
   url?: string;
   snippet?: string;
   summary?: string;
+  price?: string;
+  source?: string;
+  rating?: number;
+  ratingCount?: number;
 };
 
 const MARKETPLACES: { name: Marketplace; domain: string }[] = [
@@ -50,6 +54,64 @@ function uniqueCandidates(items: SearchCandidate[], domain: string, marketplace:
       snippet: (item.snippet || item.summary || "").trim(),
       marketplace,
       matchType: "candidate" as const,
+    }));
+}
+
+async function searchSerperShopping(query: string, domain: string, marketplace: Marketplace) {
+  const apiKey = process.env.SERPER_API_KEY;
+  if (!apiKey) throw new Error("SERPER_NOT_CONFIGURED");
+
+  const response = await fetch("https://google.serper.dev/shopping", {
+    method: "POST",
+    headers: {
+      "X-API-KEY": apiKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      q: `${query} site:${domain}`,
+      gl: "za",
+      hl: "en",
+      num: 20,
+    }),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(response.status === 429 ? "RATE_LIMIT" : response.status === 401 ? "SERPER_UNAUTHORIZED" : `PROVIDER_HTTP_${response.status}`);
+  }
+
+  const data = (await response.json()) as {
+    shopping?: {
+      title?: string;
+      link?: string;
+      price?: string;
+      source?: string;
+      delivery?: string;
+      rating?: number;
+      ratingCount?: number;
+    }[];
+  };
+
+  const seen = new Set<string>();
+  return (data.shopping ?? [])
+    .filter((item) => Boolean(item.title?.trim() && item.link && belongsToMarketplace(item.link, domain)))
+    .filter((item) => {
+      const normalized = item.link!.split("#")[0].replace(/\/$/, "");
+      if (seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    })
+    .slice(0, 5)
+    .map((item) => ({
+      title: item.title!.trim(),
+      url: item.link!,
+      snippet: [item.source, item.delivery].filter(Boolean).join(" · "),
+      price: item.price ?? null,
+      rating: item.rating ?? null,
+      ratingCount: item.ratingCount ?? null,
+      marketplace,
+      matchType: "shopping-candidate" as const,
+      priceSource: "Google Shopping result",
     }));
 }
 
@@ -118,28 +180,42 @@ export async function GET(request: Request) {
   if (!query) return jsonError("Enter a barcode or product name.", 400);
   if (query.length > 180) return jsonError("Search is too long.", 400);
 
-  // DeepSeek is preferred when its key is configured. SerpApi remains available
-  // as a temporary comparison provider until the cheaper option is validated.
   const configuredProvider = process.env.PRICE_SEARCH_PROVIDER?.toLowerCase();
   const provider =
-    configuredProvider === "serpapi"
-      ? "serpapi"
-      : configuredProvider === "deepseek"
-        ? "deepseek"
-        : process.env.DEEPSEEK_API_KEY
+    configuredProvider === "serper"
+      ? "serper"
+      : configuredProvider === "serpapi"
+        ? "serpapi"
+        : configuredProvider === "deepseek"
           ? "deepseek"
-          : "serpapi";
+          : process.env.SERPER_API_KEY
+            ? "serper"
+            : process.env.DEEPSEEK_API_KEY
+              ? "deepseek"
+              : "serpapi";
 
+  if (provider === "serper" && !process.env.SERPER_API_KEY) {
+    return jsonError("Serper is selected but SERPER_API_KEY is missing from the server environment.", 503);
+  }
   if (provider === "deepseek" && !process.env.DEEPSEEK_API_KEY) {
     return jsonError("DeepSeek is selected but DEEPSEEK_API_KEY is missing from the server environment.", 503);
   }
   if (provider === "serpapi" && !process.env.SERPAPI_KEY) {
-    return jsonError("No search provider is configured. Add DEEPSEEK_API_KEY or SERPAPI_KEY to the server environment.", 503);
+    return jsonError("No search provider is configured. Add SERPER_API_KEY, DEEPSEEK_API_KEY or SERPAPI_KEY to the server environment.", 503);
   }
 
   const groups = await Promise.all(
     MARKETPLACES.map(async ({ name, domain }) => {
       try {
+        if (provider === "serper") {
+          const results = await searchSerperShopping(query, domain, name);
+          return {
+            marketplace: name,
+            results,
+            priceCoverage: results.filter((item) => item.price).length,
+          };
+        }
+
         const candidates =
           provider === "deepseek"
             ? await searchDeepSeek(query, domain)
@@ -157,7 +233,9 @@ export async function GET(request: Request) {
           error:
             reason === "RATE_LIMIT"
               ? "Search limit reached. Try again later."
-              : reason === "DEEPSEEK_NOT_CONFIGURED" || reason === "SERPAPI_NOT_CONFIGURED"
+              : reason === "SERPER_UNAUTHORIZED"
+                ? "Serper rejected the API key. Check the server environment variable."
+              : reason === "DEEPSEEK_NOT_CONFIGURED" || reason === "SERPAPI_NOT_CONFIGURED" || reason === "SERPER_NOT_CONFIGURED"
                 ? "The selected search provider is not configured."
                 : "This marketplace search is temporarily unavailable.",
         };
@@ -170,9 +248,11 @@ export async function GET(request: Request) {
     checkedAt: new Date().toISOString(),
     provider,
     source:
-      provider === "deepseek"
-        ? "Search candidates from DeepSeek Search API. Results are not verified exact matches or guaranteed current prices; open each listing to confirm."
-        : "Search-engine results via SerpApi. These are candidate listings, not verified exact matches, guaranteed current prices, or official retailer feeds. Open the listing to confirm.",
+      provider === "serper"
+        ? "Google Shopping results retrieved through Serper. Prices are displayed as returned by the shopping index and must be checked on the retailer page before purchase; availability, variants and final checkout price may differ."
+        : provider === "deepseek"
+          ? "Search candidates from DeepSeek Search API. Results are not verified exact matches or guaranteed current prices; open each listing to confirm."
+          : "Search-engine results via SerpApi. These are candidate listings, not verified exact matches, guaranteed current prices, or official retailer feeds. Open the listing to confirm.",
     results: groups,
   });
 }
