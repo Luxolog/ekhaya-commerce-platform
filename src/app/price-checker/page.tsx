@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
+type MarketplaceProduct = { id: string; title: string; brand?: string | null; price: number | null; currency: string; image?: string | null; url?: string | null; in_stock?: boolean | null; rating?: number | null; review_count?: number | null; seller?: string | null; };
+
 const money = (value: number) =>
   new Intl.NumberFormat("en-ZA", {
     style: "currency",
@@ -18,6 +20,43 @@ export default function PriceCheckerPage() {
   const [fixedFee, setFixedFee] = useState("0");
   const [shipping, setShipping] = useState("0");
   const [targetMargin, setTargetMargin] = useState("25");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchMarketplace, setSearchMarketplace] = useState<"takealot" | "amazon">("takealot");
+  const [products, setProducts] = useState<MarketplaceProduct[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [searchSource, setSearchSource] = useState("");
+
+  async function searchMarketplaceProducts() {
+    if (searchQuery.trim().length < 2) {
+      setSearchError("Enter at least 2 characters to search.");
+      return;
+    }
+    setSearchLoading(true);
+    setSearchError("");
+    setProducts([]);
+    setSearchSource("");
+    try {
+      const response = await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": "sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t",
+          "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eHhuaGNqaml5bnJtaXZleGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM5MjA0MjEsImV4cCI6MjEwOTQ5NjQyMX0.f6nIHY00_1p0bu7E84RkVVa1832UrFpiLIu5SLxzLFU",
+        },
+        body: JSON.stringify({ marketplace: searchMarketplace, query: searchQuery.trim() }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? payload.message ?? "Marketplace search failed.");
+      setProducts(payload.products ?? []);
+      setSearchSource(payload.source === "cache" ? "Shared cache" : "Live marketplace data");
+      if (!(payload.products ?? []).length) setSearchError("No products were found. Try a different search phrase.");
+    } catch (error) {
+      setSearchError(error instanceof Error ? error.message : "Unable to search right now.");
+    } finally {
+      setSearchLoading(false);
+    }
+  }
 
   const result = useMemo(() => {
     const buying = Math.max(0, Number(cost) || 0);
@@ -50,6 +89,26 @@ export default function PriceCheckerPage() {
           Check your potential profit, account for marketplace costs, and find a
           selling price that works for your business.
         </p>
+      </section>
+
+      <section className="search-panel panel">
+        <div className="panel-heading">
+          <div><span className="step">LIVE PRODUCT RESEARCH</span><h2>Search marketplace listings</h2></div>
+          <span className="live-dot">● CONNECTED</span>
+        </div>
+        <div className="search-controls">
+          <input aria-label="Product search" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") searchMarketplaceProducts(); }} placeholder="Search a product, e.g. wireless mouse" />
+          <select aria-label="Marketplace" value={searchMarketplace} onChange={(e) => setSearchMarketplace(e.target.value as "takealot" | "amazon")}>
+            <option value="takealot">Takealot</option><option value="amazon">Amazon South Africa</option>
+          </select>
+          <button type="button" onClick={searchMarketplaceProducts} disabled={searchLoading}>{searchLoading ? "Searching…" : "Search products"}</button>
+        </div>
+        {searchError && <p className="search-error" role="status">{searchError}</p>}
+        {searchSource && <p className="search-source">{searchSource} · Prices are indicative and can change at any time.</p>}
+        {products.length > 0 && <div className="product-results">{products.map((product, index) => <article className="product-result" key={product.id || index}>
+          {product.image ? <img src={product.image} alt="" /> : <div className="product-placeholder">E</div>}
+          <div className="product-info"><strong>{product.title}</strong><span>{product.brand ?? "Marketplace listing"}{product.rating ? ` · ★ ${product.rating}` : ""}{product.review_count ? ` (${product.review_count})` : ""}</span><b>{product.price == null ? "Price unavailable" : new Intl.NumberFormat("en-ZA", { style: "currency", currency: product.currency || "ZAR" }).format(product.price)}</b><small>{product.in_stock === true ? "In stock" : product.in_stock === false ? "Currently unavailable" : "Stock not confirmed"}</small>{product.url && <a href={product.url} target="_blank" rel="noreferrer">View listing ↗</a>}</div>
+        </article>)}</div>}
       </section>
 
       <section className="workspace" aria-label="Price checker calculator">
@@ -150,6 +209,22 @@ export default function PriceCheckerPage() {
         h1 { font-family:'Manrope',Arial,sans-serif; font-size:clamp(42px,6vw,72px); font-weight:400; letter-spacing:-2px; line-height:1.02; margin:18px 0; }
         h1 em { color:#079BD3; font-weight:400; }
         .hero-copy { max-width:510px; margin:0 auto; color:#60758A; line-height:1.7; font-size:14px; }
+        .search-panel { max-width:1040px; margin:0 auto 20px; }
+        .search-controls { display:grid; grid-template-columns:1fr 190px auto; gap:10px; }
+        .search-controls input,.search-controls select { min-width:0; height:46px; border:1px solid #DCE8F1; border-radius:8px; padding:0 12px; color:#071B31; background:#fff; }
+        .search-controls button { border:0; border-radius:8px; padding:0 18px; background:#079BD3; color:#fff; font-weight:700; cursor:pointer; }
+        .search-controls button:disabled { opacity:.6; cursor:wait; }
+        .search-error { color:#B42318; font-size:12px; margin:12px 0 0; }
+        .search-source { color:#60758A; font-size:11px; margin:12px 0 0; }
+        .product-results { display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:12px; margin-top:18px; }
+        .product-result { display:flex; gap:12px; border:1px solid #DCE8F1; border-radius:10px; padding:12px; min-width:0; }
+        .product-result img,.product-placeholder { width:76px; height:76px; flex:0 0 76px; object-fit:contain; border-radius:7px; background:#F4F8FC; }
+        .product-placeholder { display:grid; place-items:center; color:#079BD3; font-size:28px; font-weight:800; }
+        .product-info { display:flex; flex-direction:column; align-items:flex-start; gap:5px; min-width:0; }
+        .product-info strong { font-size:12px; line-height:1.4; }
+        .product-info span,.product-info small { color:#60758A; font-size:10px; }
+        .product-info b { color:#071B31; font-size:16px; }
+        .product-info a { color:#079BD3; font-size:10px; font-weight:700; }
         .workspace { max-width:1040px; margin:0 auto; display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:stretch; }
         .panel { background:#fff; border:1px solid #DCE8F1; border-radius:14px; padding:28px; box-shadow:0 8px 30px rgba(30,32,26,.035); }
         .panel-heading { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:25px; }
@@ -184,7 +259,7 @@ export default function PriceCheckerPage() {
         .note-icon { color:#079BD3; font-size:18px; }
         .launch-note strong { display:block; font-size:12px; margin-bottom:5px; }
         .page-footer { max-width:1040px; margin:38px auto 0; padding:20px 0 28px; border-top:1px solid #DCE8F1; display:flex; justify-content:space-between; gap:12px; color:#8195A8; font-size:9px; letter-spacing:1px; }
-        @media(max-width:760px) { .price-page{padding:0 5%;}.topbar{height:70px}.phase-pill{font-size:8px;padding:7px 9px}.hero{margin:48px auto 30px}.workspace{grid-template-columns:1fr}.panel{padding:22px}.page-footer{flex-direction:column;text-align:center} }
+        @media(max-width:760px) { .search-controls { grid-template-columns:1fr; }.search-controls button { min-height:44px; }.price-page{padding:0 5%;}.topbar{height:70px}.phase-pill{font-size:8px;padding:7px 9px}.hero{margin:48px auto 30px}.workspace{grid-template-columns:1fr}.panel{padding:22px}.page-footer{flex-direction:column;text-align:center} }
       `}</style>
     </main>
   );
