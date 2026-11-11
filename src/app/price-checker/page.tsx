@@ -79,7 +79,7 @@ export default function PriceCheckerPage() {
         <Link className="brand" href="/" aria-label="Ekhaya Technologies home">
           <Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={230} height={190} priority className="brand-logo" />
         </Link>
-        <span className="phase-pill">PRICE INTELLIGENCE · PHASE 1</span>
+        <span className="phase-pill">PRICE INTELLIGENCE · LIVE RESEARCH</span>
       </header>
 
       <section className="hero">
@@ -187,7 +187,7 @@ export default function PriceCheckerPage() {
 
           <div className="launch-note">
             <span className="note-icon">✦</span>
-            <div><strong>Price research is coming next</strong><p>Phase 1 starts with a transparent calculator. Public listing research and AI exact/similar product matching will be added in later releases.</p></div>
+            <div><strong>Marketplace research is now connected</strong><p>Search live Takealot and Amazon South Africa listings above. Compare listing prices, then use the calculator to estimate your margin.</p></div>
           </div>
         </div>
       </section>
