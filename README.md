@@ -1,22 +1,19 @@
 # Ekhaya Commerce Platform
 
-A custom multi-store commerce platform for Ekhaya Scents and future independent merchants.
+A Next.js 15 application for Ekhaya Technologies' marketplace price-comparison product and future commerce services.
 
-## Phase 1 — foundation
+## Current Price Checker status
 
-This repository establishes the application structure and tenancy-first architecture. It is intentionally not connected to production hosting, payment credentials, or customer data yet.
+- Takealot search is the only live marketplace source currently wired into the Price Checker server route.
+- Amazon SA and Makro are visible as planned sources only. They are not queried and consume **zero API credits**.
+- A Price Checker search currently makes one Takealot search request. Product detail and seller-offer requests are not triggered automatically.
+- Search results are candidate listings. Verify the exact product variant, seller, stock, delivery and checkout price before buying.
 
-### Planned foundation
-- Store-aware routing and configuration
-- Separate merchant/store records
-- Domain mapping and verification workflow
-- Tenant-scoped catalog and orders
-- Role-based access and server-side authorization
-- PostgreSQL/Supabase integration after schema and access policies are reviewed
+See [the ReefAPI integration notes](docs/reefapi-takealot-integration.md) for configuration and credit controls.
 
 ## Development
 
-Install Node.js 20+ and run:
+Requirements: Node.js 20+.
 
 ```bash
 npm install
@@ -25,38 +22,38 @@ npm run dev
 
 Open http://localhost:3000.
 
-## Safety
+Available checks:
 
-Never commit API keys, payment secrets, database credentials, customer data, or `.env` files. Production tenant isolation must be enforced in the database—not only in the UI.
-
-
-## Price Checker search providers
-
-The Price Checker supports Serper Shopping, DeepSeek Search API and SerpApi. Serper is preferred when `SERPER_API_KEY` is configured, unless `PRICE_SEARCH_PROVIDER` explicitly selects another provider.
-
-Add the Serper key to your local `.env.local` file (never commit this file):
-
-```env
-PRICE_SEARCH_PROVIDER=serper
-SERPER_API_KEY=your_serper_api_key
+```bash
+npm run lint
+npm run build
 ```
 
-Serper Shopping requests use the South Africa country setting and return structured shopping candidates where Google Shopping has indexed them. The API filters results to Amazon SA, Takealot and Makro domains. A returned shopping price is an indexed price, not a retailer-authoritative quote; the seller must confirm the exact variant, stock, delivery and final checkout price on the retailer page.
+## Environment configuration
 
-Serper Shopping endpoint: `POST https://google.serper.dev/shopping`, authenticated with the `X-API-KEY` header. The implementation issues one query per marketplace, so one customer comparison uses up to three provider queries.
-
-To use DeepSeek instead:
+For local development, place server-only secrets in the ignored `.env.local` file. The Takealot search route expects:
 
 ```env
-PRICE_SEARCH_PROVIDER=deepseek
-DEEPSEEK_API_KEY=your_deepseek_api_key
+REEFAPI_KEY=your_reefapi_key
 ```
 
-To use SerpApi instead:
+Set the same variable in the production hosting environment before deploying. Never use a `NEXT_PUBLIC_*` prefix for this key, and never commit `.env.local`, API keys, payment secrets, database credentials or customer data.
 
-```env
-PRICE_SEARCH_PROVIDER=serpapi
-SERPAPI_KEY=your_serpapi_api_key
-```
+## APK / Android status
 
-Restart the Next.js development server after changing environment variables. API keys must remain server-side and must never be committed to Git.
+This repository is currently a web application. It does not yet contain a Capacitor configuration or an Android project. An Android APK cannot be built from the current repository as-is.
+
+Before an APK build, the web app needs a successful production build and device testing, followed by an Android wrapper (for example Capacitor), Android project generation, app identity/icons/splash configuration, permissions and secure environment/API configuration. Then build and test a signed release APK/AAB.
+
+## Not yet production-complete
+
+- Confirmed production deployment and end-to-end testing of the Takealot route.
+- Durable user accounts and search allowance/quota enforcement.
+- Subscription checkout, recurring billing and payment webhook verification.
+- Persistent comparison history and live partner/referral account data.
+- Amazon SA and Makro integrations (intentionally disabled for now).
+- Android wrapper, native project and APK/AAB release pipeline.
+
+## Security and data accuracy
+
+Keep provider credentials server-side. If a key is exposed in chat, screenshots, source code or a public repository, rotate it and update the server environment. Never invent missing marketplace prices or present stale indexed data as a verified checkout quote.
