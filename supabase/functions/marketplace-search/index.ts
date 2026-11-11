@@ -38,17 +38,6 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Choose takealot or amazon and enter at least 2 search characters" }, 400);
   }
 
-  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const ipHash = await sha256(forwarded);
-  const quotaResponse = await fetch(new URL("/rest/v1/rpc/consume_price_search_quota", supabaseUrl), {
-    method: "POST",
-    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ p_ip_hash: ipHash, p_limit: 30 }),
-  });
-  if (!quotaResponse.ok || await quotaResponse.json() !== true) {
-    return json({ error: "Search limit reached. Please try again in an hour." }, 429);
-  }
-
   const lookupKey = query.toLowerCase().replace(/\s+/g, " ");
   const cacheUrl = new URL("/rest/v1/marketplace_price_cache", supabaseUrl);
   cacheUrl.searchParams.set("marketplace", `eq.${marketplace}`);
@@ -63,6 +52,17 @@ Deno.serve(async (req: Request) => {
         return json({ source: "cache", marketplace, fetched_at: rows[0].fetched_at, products: rows[0].source_payload?.products ?? [] });
       }
     }
+
+  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ipHash = await sha256(forwarded);
+  const quotaResponse = await fetch(new URL("/rest/v1/rpc/consume_price_search_quota", supabaseUrl), {
+    method: "POST",
+    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ p_ip_hash: ipHash, p_limit: 30 }),
+  });
+  if (!quotaResponse.ok || await quotaResponse.json() !== true) {
+    return json({ error: "Search limit reached. Please try again in an hour." }, 429);
+  }
 
     const provider = marketplace === "takealot" ? "takealot" : "amazon";
     const params = marketplace === "takealot" ? { query, country: "za" } : { query, marketplace: "co.za", max_results: 24 };
