@@ -202,7 +202,22 @@ export default function PriceCheckerPage() {
       <section className="saved panel">
         <div className="section-head"><div><span className="step">FREE ALLOWANCE</span><h2>Saved products <span className="count">{saved.length} / 5</span></h2></div><button className="secondary" onClick={saveProduct} disabled={saved.length >= 5} title={saved.length >= 5 ? "Remove a saved product to make room" : "Save this product and its current cost assumptions"}>Save product</button></div>
         {saved.length ? <ul>{saved.map((item) => <li key={item.id}><div className="saved-details"><strong>{item.name}</strong>{item.barcode && <small>Barcode: {item.barcode}</small>}<small>Cost {money(item.buyingCost)} · Selling {money(item.sellingPrice)} · Other costs {money(item.otherCosts)}</small>{item.savedAt && <small>Saved {new Date(item.savedAt).toLocaleDateString("en-ZA")}</small>}</div><button className="secondary" type="button" onClick={() => { setProductQuery(item.name); setBuyingCost(String(item.buyingCost)); setSellingPrice(String(item.sellingPrice)); setOtherCosts(String(item.otherCosts)); setNotice(`Loaded ${item.name} and its saved cost assumptions into the calculator.`); }}>Use values</button><button className="remove" type="button" aria-label={`Remove ${item.name} from saved products`} onClick={() => { setSaved((current) => current.filter((savedItem) => savedItem.id !== item.id)); setNotice(`${item.name} removed from saved products.`); }}>Remove</button></li>)}</ul> : <p className="muted">Your saved products will appear here. Free access includes up to 5 saved products.</p>}
-        <div className="tiers"><span>Next plans:</span><b>30</b><b>50</b><b>100</b><b>150+</b><span>products</span></div>
+        <section className="plans">
+          <div className="section-head"><div><span className="step">SUBSCRIPTION OPTIONS</span><h2>Choose your search allowance</h2><p className="muted">One product comparison checks Amazon SA, Takealot and Makro.</p></div><span className="plan">COMING SOON</span></div>
+          <div className="plan-grid">
+            {[
+              { name: "Basic", price: 99, searches: 50 },
+              { name: "Standard", price: 149, searches: 100 },
+              { name: "Advanced", price: 199, searches: 150 },
+              { name: "Premium", price: 249, searches: 250 },
+            ].map((tier) => <article className="plan-card" key={tier.name}>
+              <span>{tier.name}</span><strong>{money(tier.price)}<small> / month</small></strong>
+              <b>{tier.searches} product comparisons</b>
+              <small>{tier.searches * 3} marketplace API calls included</small>
+            </article>)}
+          </div>
+          <p className="muted small">Plans are displayed for pricing feedback only. Accounts, usage tracking and subscription payments are not active yet.</p>
+        </section>
         <p className="muted small">Paid subscriptions are not available yet. Subscription prices and billing will be confirmed before launch.</p>
       </section>
 
@@ -245,11 +260,16 @@ export default function PriceCheckerPage() {
         .disclaimer{font-size:11px;color:#85877e;line-height:1.6;margin:16px 0 0}
         .count{font:12px Arial;color:#8b794e;margin-left:8px}
          .saved ul{margin:0;padding:0;list-style:none;font-size:13px}.saved li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #efeee8}.saved-details{display:grid;gap:4px}.saved-details small{font-size:11px;color:#77796f}.remove{background:transparent;color:#8a5147;padding:6px 8px;font-size:11px}
-        .tiers{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid #ecebe5;margin-top:18px;padding-top:15px;font-size:12px;color:#77796f}
-        .tiers b{background:#f4f1e8;border-radius:5px;padding:7px 10px;color:#51472f}
+        .plans{border-top:1px solid #ecebe5;margin-top:22px;padding-top:20px}
+        .plan-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+        .plan-card{display:grid;gap:9px;border:1px solid #e6e4de;border-radius:8px;padding:15px;background:#fbfbf9}
+        .plan-card>span{font-size:11px;color:#8b794e;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+        .plan-card strong{font:24px Georgia;color:#22271f}
+        .plan-card strong small,.plan-card>small{font:11px Arial;color:#77796f}
+        .plan-card>b{font-size:12px;color:#3c382d}
         .small{font-size:11px}
         footer{max-width:1050px;margin:0 auto;padding:20px 0 30px;text-align:center;color:#999a92;font-size:9px;letter-spacing:1.2px}
-        @media(max-width:720px){.page{padding:0 4%}.topbar{height:65px}.plan{font-size:8px}.intro{margin:35px auto 24px}.panel{padding:18px}.lookup{grid-template-columns:1fr}.seller-inputs{grid-template-columns:1fr}.lookup-actions{flex-wrap:wrap}.lookup-results{grid-template-columns:1fr}.section-head{align-items:flex-start}}
+        @media(max-width:720px){.plan-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.page{padding:0 4%}.topbar{height:65px}.plan{font-size:8px}.intro{margin:35px auto 24px}.panel{padding:18px}.lookup{grid-template-columns:1fr}.seller-inputs{grid-template-columns:1fr}.lookup-actions{flex-wrap:wrap}.lookup-results{grid-template-columns:1fr}.section-head{align-items:flex-start}}
       `}</style>
     </main>
   );
