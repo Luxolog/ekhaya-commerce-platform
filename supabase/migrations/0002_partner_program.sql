@@ -162,6 +162,8 @@ end;
 $$;
 
 alter table public.platform_admins enable row level security;
+create policy "admins can read own admin marker" on public.platform_admins
+  for select to authenticated using (user_id = (select auth.uid()));
 alter table public.partner_applications enable row level security;
 alter table public.partners enable row level security;
 alter table public.partner_referral_clicks enable row level security;
@@ -207,6 +209,7 @@ create policy "admins manage payouts" on public.partner_payouts for all to authe
   using (exists (select 1 from public.platform_admins a where a.user_id = (select auth.uid())))
   with check (exists (select 1 from public.platform_admins a where a.user_id = (select auth.uid())));
 
+grant select on public.platform_admins to authenticated;
 grant select, insert on public.partner_applications to authenticated;
 grant select on public.partners, public.partner_referral_clicks, public.partner_referrals,
   public.partner_commissions, public.partner_payouts to authenticated;
