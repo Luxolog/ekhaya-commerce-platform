@@ -32,6 +32,12 @@ jobs:
         run: npm run build
       - name: Add Android platform
         run: npx cap add android
+      - name: Generate Ekhaya Technologies launcher icons
+        run: |
+          mkdir -p resources scripts
+          npm install --no-save sharp @capacitor/assets
+          node scripts/generate-icons.mjs
+          npx capacitor-assets generate --android
       - name: Sync Capacitor assets
         run: npx cap sync android
       - name: Build debug APK
