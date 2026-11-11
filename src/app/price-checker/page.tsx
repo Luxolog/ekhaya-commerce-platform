@@ -1,6 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { calculatePrice } from "@/lib/price-calculator";
+import BarcodeScanner from "@/components/price-checker/BarcodeScanner";
+import { PRICE_CHECKER_PLAN_LIMITS, WELCOME_FREE_COMPARISONS } from "@/lib/subscription-plans";
+
+const parsePriceAmount = (value?: string | null) => {
+  if (!value) return null;
+  const cleaned = value.replace(/[^0-9.,]/g, "").replace(/,/g, "");
+  const amount = Number(cleaned);
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+};
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-ZA", {
@@ -9,181 +19,278 @@ const money = (value: number) =>
     maximumFractionDigits: 2,
   }).format(value);
 
+type SavedProduct = {
+  id: string;
+  name: string;
+  barcode: string;
+  buyingCost: number;
+  sellingPrice: number;
+  otherCosts: number;
+  savedAt: string;
+};
+
+type Marketplace = {
+  name: string;
+  price: string;
+  feePercent: string;
+  fulfilment: string;
+};
+
+const initialMarketplaces: Marketplace[] = [
+  { name: "Amazon SA", price: "", feePercent: "15", fulfilment: "0" },
+  { name: "Takealot", price: "", feePercent: "15", fulfilment: "0" },
+  { name: "Makro", price: "", feePercent: "15", fulfilment: "0" },
+];
+
 export default function PriceCheckerPage() {
-  const [cost, setCost] = useState("55");
-  const [sellingPrice, setSellingPrice] = useState("99");
-  const [feePercent, setFeePercent] = useState("15");
-  const [fixedFee, setFixedFee] = useState("0");
-  const [shipping, setShipping] = useState("0");
-  const [targetMargin, setTargetMargin] = useState("25");
+  const [productQuery, setProductQuery] = useState("");
+  const [buyingCost, setBuyingCost] = useState("0");
+  const [sellingPrice, setSellingPrice] = useState("0");
+  const [otherCosts, setOtherCosts] = useState("0");
+  const [marketplaces, setMarketplaces] = useState(initialMarketplaces);
+  const [saved, setSaved] = useState<SavedProduct[]>([]);
+  const [savedReady, setSavedReady] = useState(false);
 
-  const result = useMemo(() => {
-    const buying = Math.max(0, Number(cost) || 0);
-    const price = Math.max(0, Number(sellingPrice) || 0);
-    const feeRate = Math.min(100, Math.max(0, Number(feePercent) || 0)) / 100;
-    const fixed = Math.max(0, Number(fixedFee) || 0);
-    const delivery = Math.max(0, Number(shipping) || 0);
-    const marginTarget = Math.min(95, Math.max(0, Number(targetMargin) || 0)) / 100;
-    const marketplaceFee = price * feeRate + fixed;
-    const netProfit = price - buying - marketplaceFee - delivery;
-    const margin = price > 0 ? (netProfit / price) * 100 : 0;
-    const suggested = (buying + fixed + delivery) / (1 - feeRate - marginTarget);
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("ekhaya-price-checker-saved-v1");
+      if (stored) {
+        const parsed: unknown = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          const valid = parsed.flatMap((item): SavedProduct[] => {
+            if (typeof item === "string") {
+              return [{ id: item.toLocaleLowerCase(), name: item, barcode: "", buyingCost: 0, sellingPrice: 0, otherCosts: 0, savedAt: "" }];
+            }
+            if (item && typeof item === "object" && "name" in item && typeof item.name === "string") {
+              const p = item as Partial<SavedProduct>;
+              return [{ id: typeof p.id === "string" ? p.id : p.name.toLocaleLowerCase(), name: p.name, barcode: typeof p.barcode === "string" ? p.barcode : "", buyingCost: Number(p.buyingCost) || 0, sellingPrice: Number(p.sellingPrice) || 0, otherCosts: Number(p.otherCosts) || 0, savedAt: typeof p.savedAt === "string" ? p.savedAt : "" }];
+            }
+            return [];
+          });
+          setSaved(valid.slice(0, 5));
+        }
+      }
+    } catch {
+      // Saved products remain usable in memory if browser storage is unavailable.
+    } finally {
+      setSavedReady(true);
+    }
+  }, []);
 
-    return { marketplaceFee, netProfit, margin, suggested };
-  }, [cost, sellingPrice, feePercent, fixedFee, shipping, targetMargin]);
+  useEffect(() => {
+    if (!savedReady) return;
+    try {
+      window.localStorage.setItem("ekhaya-price-checker-saved-v1", JSON.stringify(saved));
+    } catch {
+      // Storage may be disabled or full; do not interrupt the calculator.
+    }
+  }, [saved, savedReady]);
+  const [notice, setNotice] = useState("");
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupResults, setLookupResults] = useState<any[]>([]);
+
+  const rows = useMemo(() => marketplaces.map((marketplace) => {
+    const result = calculatePrice({
+      buyingCost: Number(buyingCost) || 0,
+      sellingPrice: Number(marketplace.price) || Number(sellingPrice) || 0,
+      marketplaceFeePercent: Number(marketplace.feePercent) || 0,
+      fixedFee: Number(marketplace.fulfilment) || 0,
+      otherCosts: Number(otherCosts) || 0,
+      targetMarginPercent: 0,
+    });
+    return { ...marketplace, result };
+  }), [marketplaces, buyingCost, sellingPrice, otherCosts]);
+
+  function updateMarketplace(index: number, field: "price" | "feePercent" | "fulfilment", value: string) {
+    setMarketplaces((current) => current.map((marketplace, i) =>
+      i === index ? { ...marketplace, [field]: value } : marketplace
+    ));
+  }
+
+  async function findProduct() {
+    const query = productQuery.trim();
+    if (!query) { setNotice("Enter a barcode or product name first."); return; }
+    setLookupLoading(true); setLookupResults([]); setNotice("");
+    try {
+      const response = await fetch(`/api/price-checker/search?q=${encodeURIComponent(query)}`);
+      const data = await response.json();
+      if (!response.ok) { setNotice(data.error || "Lookup is not available."); return; }
+      setLookupResults(data.results || []);
+      setNotice("Live Takealot results returned. Amazon SA and Makro are not connected yet; confirm the exact product and checkout price before buying.");
+    } catch { setNotice("Could not complete lookup. Please try again."); }
+    finally { setLookupLoading(false); }
+  }
+
+  function saveProduct() {
+    const key = productQuery.trim();
+    if (!key) {
+      setNotice("Enter a product name or barcode first.");
+      return;
+    }
+    if (saved.some((item) => item.name.toLocaleLowerCase() === key.toLocaleLowerCase())) {
+      setNotice("This product is already in your saved list.");
+      return;
+    }
+    if (saved.length >= 5) {
+      setNotice("You have reached the 5-product free allowance. Paid product limits will be added after billing is ready.");
+      return;
+    }
+    const product: SavedProduct = {
+      id: `${key.toLocaleLowerCase()}-${Date.now()}`,
+      name: key,
+      barcode: /^\d{8,14}$/.test(key) ? key : "",
+      buyingCost: Math.max(0, Number(buyingCost) || 0),
+      sellingPrice: Math.max(0, Number(sellingPrice) || 0),
+      otherCosts: Math.max(0, Number(otherCosts) || 0),
+      savedAt: new Date().toISOString(),
+    };
+    setSaved((current) => [...current, product]);
+    setNotice("Saved product details and current cost assumptions.");
+  }
 
   return (
-    <main className="price-page">
+    <main className="page">
       <header className="topbar">
         <a className="brand" href="/" aria-label="Ekhaya Technologies home">
-          <span className="brand-mark">E</span>
-          <span>EKHAYA <small>TECHNOLOGIES</small></span>
+          <img className="brand-logo" src="/ekhaya-technologies-logo.png" alt="Ekhaya Technologies" /><span className="brand-label">PRICE CHECKER <small>BY EKHAYA TECHNOLOGIES</small></span>
         </a>
-        <span className="phase-pill">PRICE INTELLIGENCE · PHASE 1</span>
+        <span className="plan">PRICE CHECKER · MVP</span>
       </header>
 
-      <section className="hero">
-        <p className="eyebrow">SELL SMARTER. PRICE WITH CONFIDENCE.</p>
-        <h1>Know your numbers<br /><em>before you buy.</em></h1>
-        <p className="hero-copy">
-          Check your potential profit, account for marketplace costs, and find a
-          selling price that works for your business.
-        </p>
+      <section className="intro">
+        <p className="eyebrow">SCAN. COMPARE. KNOW YOUR PROFIT.</p>
+        <h1>Check before<br /><em>you buy.</em></h1>
+        <p>Start with live Takealot product prices and estimate your profit. Amazon SA and Makro connections are being evaluated.</p>
       </section>
 
-      <section className="workspace" aria-label="Price checker calculator">
-        <div className="panel inputs-panel">
-          <div className="panel-heading">
-            <div>
-              <span className="step">01 / YOUR PRODUCT</span>
-              <h2>Price calculator</h2>
-            </div>
-            <span className="live-dot">● LIVE</span>
-          </div>
-
-          <label>
-            Your buying cost <span>(R)</span>
-            <input inputMode="decimal" type="number" min="0" value={cost} onChange={(e) => setCost(e.target.value)} />
-          </label>
-          <label>
-            Planned selling price <span>(R)</span>
-            <input inputMode="decimal" type="number" min="0" value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} />
-          </label>
-
-          <div className="field-row">
-            <label>
-              Marketplace fee <span>(%)</span>
-              <input inputMode="decimal" type="number" min="0" max="100" value={feePercent} onChange={(e) => setFeePercent(e.target.value)} />
-            </label>
-            <label>
-              Fixed fee <span>(R)</span>
-              <input inputMode="decimal" type="number" min="0" value={fixedFee} onChange={(e) => setFixedFee(e.target.value)} />
-            </label>
-          </div>
-
-          <label>
-            Other costs / shipping contribution <span>(R)</span>
-            <input inputMode="decimal" type="number" min="0" value={shipping} onChange={(e) => setShipping(e.target.value)} />
-          </label>
-
-          <div className="target-box">
-            <label>
-              Target profit margin <strong>{targetMargin}%</strong>
-            </label>
-            <input className="range" type="range" min="5" max="70" step="1" value={targetMargin} onChange={(e) => setTargetMargin(e.target.value)} />
-            <div className="range-labels"><span>5% margin</span><span>70% margin</span></div>
-          </div>
-          <p className="fine-print">Fees are estimates you enter. Actual marketplace fees and fulfilment costs may differ.</p>
+      <section className="lookup panel">
+        <div>
+          <span className="step">PRODUCT LOOKUP</span>
+          <h2>Find a product</h2>
+          <p>Search Takealot by barcode or product name, or scan a barcode with your camera. Check the exact model, variant and availability before buying.</p>
         </div>
-
-        <div className="panel results-panel">
-          <div className="panel-heading">
-            <div>
-              <span className="step">02 / YOUR RESULT</span>
-              <h2>Profit snapshot</h2>
-            </div>
-            <span className="sparkle">✳</span>
-          </div>
-
-          <div className="profit-card">
-            <span>Estimated profit per sale</span>
-            <strong className={result.netProfit >= 0 ? "positive" : "negative"}>{money(result.netProfit)}</strong>
-            <span className="profit-foot">After entered costs and marketplace fees</span>
-          </div>
-
-          <div className="metrics">
-            <div><span>Profit margin</span><strong>{result.margin.toFixed(1)}%</strong></div>
-            <div><span>Marketplace fees</span><strong>{money(result.marketplaceFee)}</strong></div>
-          </div>
-
-          <div className="recommendation">
-            <div className="recommendation-icon">↗</div>
-            <div>
-              <span className="step">SUGGESTED SELLING PRICE</span>
-              <strong>{Number.isFinite(result.suggested) ? money(result.suggested) : "—"}</strong>
-              <p>Estimated price to reach your selected margin.</p>
-            </div>
-          </div>
-
-          <div className="launch-note">
-            <span className="note-icon">✦</span>
-            <div><strong>Price research is coming next</strong><p>Phase 1 starts with a transparent calculator. Public listing research and AI exact/similar product matching will be added in later releases.</p></div>
-          </div>
+        <label className="query-label">Barcode or product name
+          <input value={productQuery} onChange={(e) => { setProductQuery(e.target.value); setNotice(""); }} placeholder="e.g. 6001234567890 or product name" />
+        </label>
+        <div className="lookup-actions">
+          <BarcodeScanner onDetected={setProductQuery} />
+          <button className="primary" onClick={findProduct} disabled={lookupLoading}>{lookupLoading ? "Searching…" : "Find product"}</button>
+          <label className="upload">Add product photo<input type="file" accept="image/*" capture="environment" onChange={() => setNotice("Photo selected. Image-based product identification is not connected yet; use barcode or product name for now.")} /></label>
         </div>
+        {notice && <p className="notice" role="status">{notice}</p>}
+        {lookupResults.length > 0 && <div className="lookup-results">{lookupResults.map((group) => <section key={group.marketplace}><h3>{group.marketplace}</h3>{group.error && <p>{group.error}</p>}{group.results?.length ? group.results.map((item: any) => { const amount = parsePriceAmount(item.price); const marketplaceIndex = initialMarketplaces.findIndex((marketplace) => marketplace.name === group.marketplace); return <article key={item.url}><a href={item.url} target="_blank" rel="noreferrer">{item.title}</a>{item.image && <img src={item.image} alt="" loading="lazy" style={{ width: "76px", height: "76px", objectFit: "contain", float: "right" }} />}<strong className="result-price">{item.price || "Price not returned"}</strong>{item.brand && <p>Brand: {item.brand}</p>}<p>{item.stockStatus || item.message || item.snippet || ""}</p>{item.deliveryEstimate && <small>{item.deliveryEstimate}</small>}{item.rating && <p><small>Rating {item.rating}{item.ratingCount ? ` · ${item.ratingCount} reviews` : ""}</small></p>}<div className="result-actions"><small>{item.matchType === "live-retailer-listing" ? "Live Takealot catalogue result · verify variant and checkout price" : "Not connected yet"}</small>{amount && marketplaceIndex >= 0 && <button type="button" className="use-price" onClick={() => { setMarketplaces((current) => current.map((marketplace, index) => index === marketplaceIndex ? { ...marketplace, price: String(amount) } : marketplace)); setNotice(`${group.marketplace} listed price added to the profit calculator.`); }}>Use price in calculator</button>}</div></article>; }) : <p>No matching results returned. Try a more specific product name or barcode.</p>}</section>)}</div>}
       </section>
 
-      <footer className="page-footer">
-        <span>THE SCENT OF ORIGIN · BUILT FOR SOUTH AFRICAN SELLERS</span>
-        <span>EKHAYA TECHNOLOGIES © 2026</span>
-      </footer>
+      <section className="calculator panel">
+        <div className="section-head"><div><span className="step">PROFIT ESTIMATE</span><h2>Your numbers</h2></div><span className="estimate">ESTIMATE ONLY</span></div>
+        <div className="seller-inputs">
+          <label>Product cost (R)<input type="number" min="0" step="0.01" value={buyingCost} onChange={(e) => setBuyingCost(e.target.value)} /></label>
+          <label>Your selling price (R)<input type="number" min="0" step="0.01" value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} /></label>
+          <label>Other costs (R)<input type="number" min="0" step="0.01" value={otherCosts} onChange={(e) => setOtherCosts(e.target.value)} /></label>
+        </div>
 
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Marketplace</th><th>Listed price (R)</th><th>Fee (%)</th><th>Fulfilment (R)</th><th>Gross profit before fees</th><th>Estimated fees</th><th>Profit after fees</th><th>Margin</th></tr></thead>
+            <tbody>{rows.map((row, index) => <tr key={row.name}>
+              <td><strong>{row.name}</strong></td>
+              <td><input aria-label={row.name + " comparison price"} type="number" min="0" step="0.01" placeholder="—" value={row.price} onChange={(e) => updateMarketplace(index, "price", e.target.value)} /></td>
+              <td><input aria-label={row.name + " percentage fee"} type="number" min="0" max="100" step="0.1" value={row.feePercent} onChange={(e) => updateMarketplace(index, "feePercent", e.target.value)} /></td>
+              <td><input aria-label={row.name + " fulfilment fee"} type="number" min="0" step="0.01" value={row.fulfilment} onChange={(e) => updateMarketplace(index, "fulfilment", e.target.value)} /></td>
+              <td>{money((Number(row.price) || Number(sellingPrice) || 0) - (Number(buyingCost) || 0) - (Number(otherCosts) || 0))}</td>
+              <td>{money(row.result.marketplaceFee)}</td>
+              <td className={row.result.profit >= 0 ? "good" : "bad"}>{money(row.result.profit)}</td>
+              <td>{row.result.marginPercent.toFixed(1)}%</td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+        <p className="disclaimer">Gross profit is before marketplace fees. Profit after fees subtracts the estimated percentage fee, fulfilment fee and other costs entered. Fees are estimates and can vary by category, product dimensions, weight and fulfilment method. Subscription fees are excluded from per-sale profit.</p>
+      </section>
+
+      <section className="saved panel">
+        <div className="section-head"><div><span className="step">SAVED PRODUCTS</span><h2>Saved products <span className="count">{saved.length} / 5</span></h2></div><button className="secondary" onClick={saveProduct} disabled={saved.length >= 5} title={saved.length >= 5 ? "Remove a saved product to make room" : "Save this product and its current cost assumptions"}>Save product</button></div>
+        {saved.length ? <ul>{saved.map((item) => <li key={item.id}><div className="saved-details"><strong>{item.name}</strong>{item.barcode && <small>Barcode: {item.barcode}</small>}<small>Cost {money(item.buyingCost)} · Selling {money(item.sellingPrice)} · Other costs {money(item.otherCosts)}</small>{item.savedAt && <small>Saved {new Date(item.savedAt).toLocaleDateString("en-ZA")}</small>}</div><button className="secondary" type="button" onClick={() => { setProductQuery(item.name); setBuyingCost(String(item.buyingCost)); setSellingPrice(String(item.sellingPrice)); setOtherCosts(String(item.otherCosts)); setNotice(`Loaded ${item.name} and its saved cost assumptions into the calculator.`); }}>Use values</button><button className="remove" type="button" aria-label={`Remove ${item.name} from saved products`} onClick={() => { setSaved((current) => current.filter((savedItem) => savedItem.id !== item.id)); setNotice(`${item.name} removed from saved products.`); }}>Remove</button></li>)}</ul> : <p className="muted">Your saved products will appear here. You can save up to 5 products in this list.</p>}
+        <section className="plans">
+          <div className="welcome-offer"><strong>{WELCOME_FREE_COMPARISONS} free product comparisons when you register</strong><span>Try comparing products across Amazon SA, Takealot and Makro. This is a once-off welcome offer, separate from your paid monthly allowance.</span></div>
+          <div className="section-head"><div><span className="step">SUBSCRIPTION OPTIONS</span><h2>Choose your search allowance</h2><p className="muted">One product comparison checks Amazon SA, Takealot and Makro. Paid subscriptions renew on the 1st of each month.</p></div><span className="plan">COMING SOON</span></div>
+          <div className="plan-grid">
+            {Object.entries(PRICE_CHECKER_PLAN_LIMITS).map(([planId, tier]) => <article className="plan-card" key={planId}>
+              <span>{tier.name}</span><strong>{money("introductoryFirstMonthPriceZar" in tier ? tier.introductoryFirstMonthPriceZar : tier.monthlyPriceZar)}<small> / {"introductoryFirstMonthPriceZar" in tier ? "first month" : "month"}</small></strong>
+              {"introductoryFirstMonthPriceZar" in tier && <small>Then {money(tier.monthlyPriceZar)} / month</small>}
+              <b>{tier.productComparisons} product comparisons / month</b>
+            </article>)}
+          </div>
+          <p className="muted small">The Basic introductory price is for the first paid month only. Standard, Advanced and Premium start at their listed monthly prices. Renewals are scheduled for the 1st of each month; checkout will show your next renewal date before payment.</p>
+          <p className="muted small">Plans are displayed for pricing feedback only. Accounts, usage tracking and subscription payments are not active yet.</p>
+        </section>
+        <p className="muted small">Saved-product capacity is separate from your search allowance. Paid subscriptions are not available yet.</p>
+      </section>
+
+      <footer>EKHAYA TECHNOLOGIES · BUILT FOR SOUTH AFRICAN RESELLERS</footer>
       <style jsx>{`
-        .price-page { min-height: 100vh; background: #f5f4f0; color: #20231f; padding: 0 5.5%; font-family: Arial, Helvetica, sans-serif; }
-        .topbar { height: 82px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #e2e1dc; }
-        .brand { display:flex; gap:11px; align-items:center; color:#20231f; text-decoration:none; font-size:13px; font-weight:800; letter-spacing:2px; }
-        .brand small { display:block; margin-top:3px; font-size:8px; letter-spacing:3.1px; font-weight:500; }
-        .brand-mark { width:34px; height:34px; display:grid; place-items:center; background:#22271f; color:#d8bd7c; font-family:Georgia,serif; font-size:23px; border-radius:50%; }
-        .phase-pill { border:1px solid #d8d6cf; border-radius:30px; padding:9px 13px; color:#686b62; font-size:9px; letter-spacing:1.5px; }
-        .hero { max-width:760px; margin:65px auto 42px; text-align:center; }
-        .eyebrow,.step { font-size:10px; letter-spacing:2px; color:#8b794e; font-weight:700; }
-        h1 { font-family:Georgia,'Times New Roman',serif; font-size:clamp(42px,6vw,72px); font-weight:400; letter-spacing:-2px; line-height:1.02; margin:18px 0; }
-        h1 em { color:#8b794e; font-weight:400; }
-        .hero-copy { max-width:510px; margin:0 auto; color:#70736b; line-height:1.7; font-size:14px; }
-        .workspace { max-width:1040px; margin:0 auto; display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:stretch; }
-        .panel { background:#fff; border:1px solid #e7e5df; border-radius:14px; padding:28px; box-shadow:0 8px 30px rgba(30,32,26,.035); }
-        .panel-heading { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:25px; }
-        h2 { margin:8px 0 0; font-family:Georgia,serif; font-weight:400; font-size:26px; }
-        .live-dot { color:#56866b; font-size:9px; letter-spacing:1px; }
-        .sparkle { color:#b79a5d; font-size:24px; }
-        label { display:block; color:#555950; font-size:12px; font-weight:600; margin-bottom:17px; }
-        label span { color:#96988f; font-weight:400; }
-        input:not(.range) { display:block; box-sizing:border-box; width:100%; height:45px; margin-top:8px; padding:0 12px; border:1px solid #e2e3dd; border-radius:7px; background:#fbfbf9; color:#252821; font-size:15px; outline:none; }
-        input:focus { border-color:#9a8657; box-shadow:0 0 0 3px rgba(154,134,87,.1); }
-        .field-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-        .target-box { padding:15px; border-radius:9px; background:#f7f6f1; margin-top:2px; }
-        .target-box label { display:flex; justify-content:space-between; margin-bottom:12px; }
-        .target-box strong { color:#8b794e; }
-        .range { width:100%; accent-color:#8b794e; }
-        .range-labels { display:flex; justify-content:space-between; color:#999a92; font-size:10px; margin-top:6px; }
-        .fine-print { color:#999a92; font-size:10px; line-height:1.5; margin:16px 0 0; }
-        .profit-card { background:#22271f; border-radius:10px; padding:24px; color:#fff; }
-        .profit-card>span:first-child { display:block; color:#c8c9c1; font-size:12px; }
-        .profit-card strong { display:block; font-family:Georgia,serif; font-size:clamp(34px,4vw,48px); font-weight:400; margin:12px 0 8px; }
-        .positive { color:#d7c18a; }.negative { color:#f3a7a0; }
-        .profit-foot { color:#aeb2a7; font-size:10px; }
-        .metrics { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:14px 0; }
-        .metrics div { border:1px solid #e8e7e1; border-radius:9px; padding:15px; }
-        .metrics span { display:block; color:#85877e; font-size:11px; margin-bottom:8px; }
-        .metrics strong { font-size:19px; font-weight:600; }
-        .recommendation { display:flex; align-items:center; gap:14px; border:1px solid #e4dece; background:#faf8f2; border-radius:9px; padding:16px; }
-        .recommendation-icon { display:grid; place-items:center; width:36px; height:36px; border-radius:50%; background:#e8dfc8; color:#75613b; font-size:21px; }
-        .recommendation strong { display:block; font-family:Georgia,serif; font-size:25px; font-weight:400; margin:5px 0; }
-        .recommendation p,.launch-note p { margin:0; color:#85877e; font-size:11px; line-height:1.5; }
-        .launch-note { display:flex; gap:12px; padding:17px 3px 0; margin-top:17px; border-top:1px solid #eeede8; }
-        .note-icon { color:#9b8552; font-size:18px; }
-        .launch-note strong { display:block; font-size:12px; margin-bottom:5px; }
-        .page-footer { max-width:1040px; margin:38px auto 0; padding:20px 0 28px; border-top:1px solid #e2e1dc; display:flex; justify-content:space-between; gap:12px; color:#999a92; font-size:9px; letter-spacing:1px; }
-        @media(max-width:760px) { .price-page{padding:0 5%;}.topbar{height:70px}.phase-pill{font-size:8px;padding:7px 9px}.hero{margin:48px auto 30px}.workspace{grid-template-columns:1fr}.panel{padding:22px}.page-footer{flex-direction:column;text-align:center} }
+        .page{min-height:100vh;background:#f4f8fc;color:#071b31;padding:0 5%;font-family:Arial,Helvetica,sans-serif}
+        .topbar{height:72px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #dce7f0}
+        .brand{display:flex;gap:12px;align-items:center;color:#071b31;text-decoration:none;font-size:13px;font-weight:800;letter-spacing:1.5px}
+        .brand-logo{width:54px;height:48px;object-fit:contain}
+        .brand-label{display:block;color:#071b31;font-size:12px;font-weight:800;letter-spacing:1.5px}
+        .brand-label small{display:block;font-size:9px;letter-spacing:2px;margin-top:4px;font-weight:700;color:#079bd3}
+        .plan,.estimate{font-size:10px;letter-spacing:1.2px;color:#61758a;border:1px solid #c7dce9;border-radius:20px;padding:8px 11px}
+        .intro{text-align:center;margin:46px auto 28px;max-width:600px}
+        .eyebrow,.step{font-size:10px;letter-spacing:1.7px;color:#078fc8;font-weight:700}
+        h1{font:400 clamp(40px,6vw,62px)/1.02 Georgia;margin:14px 0}
+        h1 em{color:#078fc8}
+        .intro p:last-child,.muted{color:#61758a;font-size:13px;line-height:1.6}
+        .panel{max-width:1050px;margin:0 auto 16px;background:#fff;border:1px solid #dce7f0;border-radius:12px;padding:24px}
+        h2{font:400 24px Georgia;margin:7px 0 12px;color:#071b31}
+        .lookup{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:end}
+        .lookup p{font-size:12px;color:#61758a;line-height:1.6;margin:0}
+        label{display:block;font-size:12px;color:#31546d;font-weight:600}
+        input{box-sizing:border-box;width:100%;height:40px;margin-top:7px;padding:0 10px;border:1px solid #c7dce9;border-radius:6px;background:#fbfdff;color:#071b31;font-size:14px}
+        input:focus{outline:2px solid #79d3f2;border-color:#079bd3}
+        .lookup-actions{display:flex;gap:10px;align-items:center}
+        button{border:0;border-radius:6px;padding:11px 16px;font-size:12px;font-weight:700;cursor:pointer}
+        .primary{background:#071b31;color:#fff}
+        .secondary{background:#dceef8;color:#07365a}.secondary:disabled{opacity:.5;cursor:not-allowed}
+        .upload{position:relative;display:inline-block;border:1px solid #c7dce9;border-radius:6px;padding:10px 12px;cursor:pointer;white-space:nowrap}
+        .upload input{position:absolute;inset:0;opacity:0;cursor:pointer}
+        .notice{grid-column:1/-1;margin:0;color:#07527d;font-size:12px}
+        .lookup-results{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:10px}
+        .lookup-results section{border:1px solid #dce7f0;border-radius:8px;padding:12px}
+        .lookup-results h3{font:16px Georgia;margin:0 0 10px;color:#071b31}
+        .lookup-results article{padding:10px 0;border-top:1px solid #eaf1f6}
+        .lookup-results a{color:#07527d;font-size:12px;font-weight:700}
+        .lookup-results article p{margin:6px 0;font-size:11px}
+        .lookup-results small{color:#61758a;font-size:10px}
+        .result-price{display:block;margin-top:8px;color:#078fc8;font-size:16px}
+        .result-price.unavailable{color:#61758a;font-size:12px}
+        .result-actions{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:8px}
+        .use-price{padding:7px 9px;background:#071b31;color:#fff;font-size:10px}
+        .section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:15px}
+        .seller-inputs{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+        .table-wrap{overflow-x:auto}
+        table{width:100%;border-collapse:collapse;min-width:760px;font-size:12px}
+        th{text-align:left;background:#eaf4fa;color:#31546d;font-weight:600}
+        th,td{padding:12px 10px;border-bottom:1px solid #e3edf4}
+        td input{min-width:78px;height:34px;margin:0}
+        .good{color:#078fc8;font-weight:700}.bad{color:#b4473c;font-weight:700}
+        .disclaimer{font-size:11px;color:#61758a;line-height:1.6;margin:16px 0 0}
+        .count{font:12px Arial;color:#078fc8;margin-left:8px}
+        .saved ul{margin:0;padding:0;list-style:none;font-size:13px}
+        .saved li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #eaf1f6}
+        .saved-details{display:grid;gap:4px}.saved-details small{font-size:11px;color:#61758a}
+        .remove{background:transparent;color:#8a5147;padding:6px 8px;font-size:11px}
+        .plans{border-top:1px solid #dce7f0;margin-top:22px;padding-top:20px}
+        .welcome-offer{display:grid;gap:6px;margin-bottom:18px;padding:14px 16px;border:1px solid #a8dff2;border-radius:8px;background:#eff8fc;color:#07365a}
+        .welcome-offer strong{font:17px Georgia}.welcome-offer span{font-size:11px;color:#61758a;line-height:1.5}
+        .plan-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+        .plan-card{display:grid;gap:9px;border:1px solid #dce7f0;border-radius:8px;padding:15px;background:#fbfdff}
+        .plan-card>span{font-size:11px;color:#078fc8;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+        .plan-card strong{font:24px Georgia;color:#071b31}
+        .plan-card strong small,.plan-card>small{font:11px Arial;color:#61758a}
+        .plan-card>b{font-size:12px;color:#07365a}
+        .small{font-size:11px}
+        footer{max-width:1050px;margin:0 auto;padding:20px 0 30px;text-align:center;color:#61758a;font-size:9px;letter-spacing:1.2px}
+        @media(max-width:720px){.plan-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.page{padding:0 4%}.topbar{height:65px}.plan{font-size:8px}.intro{margin:35px auto 24px}.panel{padding:18px}.lookup{grid-template-columns:1fr}.seller-inputs{grid-template-columns:1fr}.lookup-actions{flex-wrap:wrap}.lookup-results{grid-template-columns:1fr}.section-head{align-items:flex-start}.brand-logo{width:46px;height:42px}}
       `}</style>
     </main>
   );
