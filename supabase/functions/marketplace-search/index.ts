@@ -9,6 +9,12 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: cors });
 
+async function sha256(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -32,7 +38,18 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Choose takealot or amazon and enter at least 2 search characters" }, 400);
   }
 
-  const lookupKey = query.toLowerCase().replace(/\\s+/g, " ");
+  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ipHash = await sha256(forwarded);
+  const quotaResponse = await fetch(new URL("/rest/v1/rpc/consume_price_search_quota", supabaseUrl), {
+    method: "POST",
+    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ p_ip_hash: ipHash, p_limit: 30 }),
+  });
+  if (!quotaResponse.ok || await quotaResponse.json() !== true) {
+    return json({ error: "Search limit reached. Please try again in an hour." }, 429);
+  }
+
+  const lookupKey = query.toLowerCase().replace(/\s+/g, " ");
   const cacheUrl = new URL("/rest/v1/marketplace_price_cache", supabaseUrl);
   cacheUrl.searchParams.set("marketplace", `eq.${marketplace}`);
   cacheUrl.searchParams.set("lookup_key", `eq.search:${lookupKey}`);
