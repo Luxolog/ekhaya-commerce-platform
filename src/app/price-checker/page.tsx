@@ -39,7 +39,7 @@ export default function PriceCheckerPage() {
         <Link className="brand" href="/" aria-label="Ekhaya Technologies home">
           <span className="brand-mark">E</span>
           <span>EKHAYA <small>TECHNOLOGIES</small></span>
-        </a>
+        </Link>
         <span className="phase-pill">PRICE INTELLIGENCE · PHASE 1</span>
       </header>
 
