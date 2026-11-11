@@ -49,3 +49,8 @@ SERPAPI_KEY=your_serpapi_api_key
 ```
 
 Restart the Next.js development server after changing environment variables. The search API returns candidate listings only; users must verify the exact product and current retailer price. Search results are not official retailer feeds.
+
+
+## Partner programme
+
+The Price Checker partner programme foundation is documented in [`docs/partner-program.md`](docs/partner-program.md). The public programme overview is available at `/partners`; the partner dashboard entry point is `/partners/dashboard`. Apply Supabase migration `0002_partner_program.sql` only after reviewing it against the intended project. Referral attribution, authenticated dashboards and PayFast webhook integration remain pre-launch tasks.
