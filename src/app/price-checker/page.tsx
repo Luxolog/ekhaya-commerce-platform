@@ -5,6 +5,13 @@ import { calculatePrice } from "@/lib/price-calculator";
 import BarcodeScanner from "@/components/price-checker/BarcodeScanner";
 import { PRICE_CHECKER_PLAN_LIMITS, WELCOME_FREE_COMPARISONS } from "@/lib/subscription-plans";
 
+const parsePriceAmount = (value?: string | null) => {
+  if (!value) return null;
+  const cleaned = value.replace(/[^0-9.,]/g, "").replace(/,/g, "");
+  const amount = Number(cleaned);
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+};
+
 const money = (value: number) =>
   new Intl.NumberFormat("en-ZA", {
     style: "currency",
@@ -85,7 +92,7 @@ export default function PriceCheckerPage() {
   const rows = useMemo(() => marketplaces.map((marketplace) => {
     const result = calculatePrice({
       buyingCost: Number(buyingCost) || 0,
-      sellingPrice: Number(sellingPrice) || 0,
+      sellingPrice: Number(marketplace.price) || Number(sellingPrice) || 0,
       marketplaceFeePercent: Number(marketplace.feePercent) || 0,
       fixedFee: Number(marketplace.fulfilment) || 0,
       otherCosts: Number(otherCosts) || 0,
@@ -171,7 +178,7 @@ export default function PriceCheckerPage() {
           <label className="upload">Add product photo<input type="file" accept="image/*" capture="environment" onChange={() => setNotice("Photo selected. Image-based product identification is not connected yet; use barcode or product name for now.")} /></label>
         </div>
         {notice && <p className="notice" role="status">{notice}</p>}
-        {lookupResults.length > 0 && <div className="lookup-results">{lookupResults.map((group) => <section key={group.marketplace}><h3>{group.marketplace}</h3>{group.error && <p>{group.error}</p>}{group.results?.length ? group.results.map((item: any) => <article key={item.url}><a href={item.url} target="_blank" rel="noreferrer">{item.title}</a><p>{item.snippet}</p><small>Candidate result · verify price and exact match</small></article>) : <p>No candidate results found.</p>}</section>)}</div>}
+        {lookupResults.length > 0 && <div className="lookup-results">{lookupResults.map((group) => <section key={group.marketplace}><h3>{group.marketplace}</h3>{group.error && <p>{group.error}</p>}{group.results?.length ? group.results.map((item: any) => { const amount = parsePriceAmount(item.price); const marketplaceIndex = initialMarketplaces.findIndex((marketplace) => marketplace.name === group.marketplace); return <article key={item.url}><a href={item.url} target="_blank" rel="noreferrer">{item.title}</a>{item.price ? <strong className="result-price">{item.price}</strong> : <strong className="result-price unavailable">Price not returned</strong>}<p>{item.snippet}</p>{item.rating && <small>Rating {item.rating}{item.ratingCount ? ` · ${item.ratingCount} reviews` : ""}</small>}<div className="result-actions"><small>Shopping result · verify exact variant and checkout price</small>{amount && marketplaceIndex >= 0 && <button type="button" className="use-price" onClick={() => { setMarketplaces((current) => current.map((marketplace, index) => index === marketplaceIndex ? { ...marketplace, price: String(amount) } : marketplace)); setNotice(`${group.marketplace} listed price added to the profit calculator.`); }}>Use price in calculator</button>}</div></article>; }) : <p>No priced shopping results found for this marketplace. Try a more specific product name or barcode.</p>}</section>)}</div>}
       </section>
 
       <section className="calculator panel">
@@ -190,7 +197,7 @@ export default function PriceCheckerPage() {
               <td><input aria-label={row.name + " comparison price"} type="number" min="0" step="0.01" placeholder="—" value={row.price} onChange={(e) => updateMarketplace(index, "price", e.target.value)} /></td>
               <td><input aria-label={row.name + " percentage fee"} type="number" min="0" max="100" step="0.1" value={row.feePercent} onChange={(e) => updateMarketplace(index, "feePercent", e.target.value)} /></td>
               <td><input aria-label={row.name + " fulfilment fee"} type="number" min="0" step="0.01" value={row.fulfilment} onChange={(e) => updateMarketplace(index, "fulfilment", e.target.value)} /></td>
-              <td>{money((Number(sellingPrice) || 0) - (Number(buyingCost) || 0) - (Number(otherCosts) || 0))}</td>
+              <td>{money((Number(row.price) || Number(sellingPrice) || 0) - (Number(buyingCost) || 0) - (Number(otherCosts) || 0))}</td>
               <td>{money(row.result.marketplaceFee)}</td>
               <td className={row.result.profit >= 0 ? "good" : "bad"}>{money(row.result.profit)}</td>
               <td>{row.result.marginPercent.toFixed(1)}%</td>
@@ -246,7 +253,7 @@ export default function PriceCheckerPage() {
         .upload{position:relative;display:inline-block;border:1px solid #deded8;border-radius:6px;padding:10px 12px;cursor:pointer;white-space:nowrap}
         .upload input{position:absolute;inset:0;opacity:0;cursor:pointer}
         .notice{grid-column:1/-1;margin:0;color:#75613b;font-size:12px}
-        .lookup-results{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:10px}.lookup-results section{border:1px solid #e6e4de;border-radius:8px;padding:12px}.lookup-results h3{font:16px Georgia;margin:0 0 10px}.lookup-results article{padding:10px 0;border-top:1px solid #eee}.lookup-results a{color:#51472f;font-size:12px;font-weight:700}.lookup-results article p{margin:6px 0;font-size:11px}.lookup-results small{color:#8b794e;font-size:10px}
+        .lookup-results{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:10px}.lookup-results section{border:1px solid #e6e4de;border-radius:8px;padding:12px}.lookup-results h3{font:16px Georgia;margin:0 0 10px}.lookup-results article{padding:10px 0;border-top:1px solid #eee}.lookup-results a{color:#51472f;font-size:12px;font-weight:700}.lookup-results article p{margin:6px 0;font-size:11px}.lookup-results small{color:#8b794e;font-size:10px}.result-price{display:block;margin-top:8px;color:#397653;font-size:16px}.result-price.unavailable{color:#8a8174;font-size:12px}.result-actions{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:8px}.use-price{padding:7px 9px;background:#22271f;color:#f4e5bd;font-size:10px}
         .section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:15px}
         .seller-inputs{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
         .table-wrap{overflow-x:auto}
