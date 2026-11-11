@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { calculatePrice } from "@/lib/price-calculator";
 import BarcodeScanner from "@/components/price-checker/BarcodeScanner";
+import { PRICE_CHECKER_PLAN_LIMITS, getMonthlyApiCallAllowance } from "@/lib/subscription-plans";
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-ZA", {
@@ -205,15 +206,10 @@ export default function PriceCheckerPage() {
         <section className="plans">
           <div className="section-head"><div><span className="step">SUBSCRIPTION OPTIONS</span><h2>Choose your search allowance</h2><p className="muted">One product comparison checks Amazon SA, Takealot and Makro.</p></div><span className="plan">COMING SOON</span></div>
           <div className="plan-grid">
-            {[
-              { name: "Basic", price: 99, searches: 50 },
-              { name: "Standard", price: 149, searches: 100 },
-              { name: "Advanced", price: 199, searches: 150 },
-              { name: "Premium", price: 249, searches: 250 },
-            ].map((tier) => <article className="plan-card" key={tier.name}>
-              <span>{tier.name}</span><strong>{money(tier.price)}<small> / month</small></strong>
-              <b>{tier.searches} product comparisons</b>
-              <small>{tier.searches * 3} marketplace API calls included</small>
+            {Object.entries(PRICE_CHECKER_PLAN_LIMITS).map(([planId, tier]) => <article className="plan-card" key={planId}>
+              <span>{tier.name}</span><strong>{money(tier.monthlyPriceZar)}<small> / month</small></strong>
+              <b>{tier.productComparisons} product comparisons</b>
+              <small>{getMonthlyApiCallAllowance(planId as keyof typeof PRICE_CHECKER_PLAN_LIMITS)} marketplace API calls included</small>
             </article>)}
           </div>
           <p className="muted small">Plans are displayed for pricing feedback only. Accounts, usage tracking and subscription payments are not active yet.</p>
