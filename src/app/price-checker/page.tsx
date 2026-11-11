@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { calculatePrice } from "@/lib/price-calculator";
 import BarcodeScanner from "@/components/price-checker/BarcodeScanner";
-import { PRICE_CHECKER_PLAN_LIMITS, getMonthlyApiCallAllowance } from "@/lib/subscription-plans";
+import { PRICE_CHECKER_PLAN_LIMITS, WELCOME_FREE_COMPARISONS, getMonthlyApiCallAllowance, getWelcomeApiCallAllowance } from "@/lib/subscription-plans";
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-ZA", {
@@ -201,20 +201,23 @@ export default function PriceCheckerPage() {
       </section>
 
       <section className="saved panel">
-        <div className="section-head"><div><span className="step">FREE ALLOWANCE</span><h2>Saved products <span className="count">{saved.length} / 5</span></h2></div><button className="secondary" onClick={saveProduct} disabled={saved.length >= 5} title={saved.length >= 5 ? "Remove a saved product to make room" : "Save this product and its current cost assumptions"}>Save product</button></div>
+        <div className="section-head"><div><span className="step">SAVED PRODUCTS</span><h2>Saved products <span className="count">{saved.length} / 5</span></h2></div><button className="secondary" onClick={saveProduct} disabled={saved.length >= 5} title={saved.length >= 5 ? "Remove a saved product to make room" : "Save this product and its current cost assumptions"}>Save product</button></div>
         {saved.length ? <ul>{saved.map((item) => <li key={item.id}><div className="saved-details"><strong>{item.name}</strong>{item.barcode && <small>Barcode: {item.barcode}</small>}<small>Cost {money(item.buyingCost)} · Selling {money(item.sellingPrice)} · Other costs {money(item.otherCosts)}</small>{item.savedAt && <small>Saved {new Date(item.savedAt).toLocaleDateString("en-ZA")}</small>}</div><button className="secondary" type="button" onClick={() => { setProductQuery(item.name); setBuyingCost(String(item.buyingCost)); setSellingPrice(String(item.sellingPrice)); setOtherCosts(String(item.otherCosts)); setNotice(`Loaded ${item.name} and its saved cost assumptions into the calculator.`); }}>Use values</button><button className="remove" type="button" aria-label={`Remove ${item.name} from saved products`} onClick={() => { setSaved((current) => current.filter((savedItem) => savedItem.id !== item.id)); setNotice(`${item.name} removed from saved products.`); }}>Remove</button></li>)}</ul> : <p className="muted">Your saved products will appear here. Free access includes up to 5 saved products.</p>}
         <section className="plans">
-          <div className="section-head"><div><span className="step">SUBSCRIPTION OPTIONS</span><h2>Choose your search allowance</h2><p className="muted">One product comparison checks Amazon SA, Takealot and Makro.</p></div><span className="plan">COMING SOON</span></div>
+          <div className="welcome-offer"><strong>{WELCOME_FREE_COMPARISONS} free product comparisons when you register</strong><span>That is {getWelcomeApiCallAllowance()} marketplace searches across Amazon SA, Takealot and Makro. This is a once-off welcome offer, separate from your paid monthly allowance.</span></div>
+          <div className="section-head"><div><span className="step">SUBSCRIPTION OPTIONS</span><h2>Choose your search allowance</h2><p className="muted">One product comparison checks Amazon SA, Takealot and Makro. Paid subscriptions renew on the 1st of each month.</p></div><span className="plan">COMING SOON</span></div>
           <div className="plan-grid">
             {Object.entries(PRICE_CHECKER_PLAN_LIMITS).map(([planId, tier]) => <article className="plan-card" key={planId}>
-              <span>{tier.name}</span><strong>{money(tier.monthlyPriceZar)}<small> / month</small></strong>
-              <b>{tier.productComparisons} product comparisons</b>
+              <span>{tier.name}</span><strong>{money("introductoryFirstMonthPriceZar" in tier ? tier.introductoryFirstMonthPriceZar : tier.monthlyPriceZar)}<small> / first month</small></strong>
+              {"introductoryFirstMonthPriceZar" in tier && <small>Then {money(tier.monthlyPriceZar)} / month</small>}
+              <b>{tier.productComparisons} product comparisons / month</b>
               <small>{getMonthlyApiCallAllowance(planId as keyof typeof PRICE_CHECKER_PLAN_LIMITS)} marketplace API calls included</small>
             </article>)}
           </div>
+          <p className="muted small">The Basic introductory price is for the first paid month only. Standard, Advanced and Premium start at their listed monthly prices. Renewals are scheduled for the 1st of each month; checkout will show your next renewal date before payment.</p>
           <p className="muted small">Plans are displayed for pricing feedback only. Accounts, usage tracking and subscription payments are not active yet.</p>
         </section>
-        <p className="muted small">Paid subscriptions are not available yet. Subscription prices and billing will be confirmed before launch.</p>
+        <p className="muted small">Saved-product capacity is separate from your search allowance. Paid subscriptions are not available yet.</p>
       </section>
 
       <footer>EKHAYA TECHNOLOGIES · BUILT FOR SOUTH AFRICAN RESELLERS</footer>
@@ -257,6 +260,7 @@ export default function PriceCheckerPage() {
         .count{font:12px Arial;color:#8b794e;margin-left:8px}
          .saved ul{margin:0;padding:0;list-style:none;font-size:13px}.saved li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #efeee8}.saved-details{display:grid;gap:4px}.saved-details small{font-size:11px;color:#77796f}.remove{background:transparent;color:#8a5147;padding:6px 8px;font-size:11px}
         .plans{border-top:1px solid #ecebe5;margin-top:22px;padding-top:20px}
+        .welcome-offer{display:grid;gap:6px;margin-bottom:18px;padding:14px 16px;border:1px solid #d9c99e;border-radius:8px;background:#fbfaf6;color:#3c382d}.welcome-offer strong{font:17px Georgia}.welcome-offer span{font-size:11px;color:#77796f;line-height:1.5}
         .plan-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
         .plan-card{display:grid;gap:9px;border:1px solid #e6e4de;border-radius:8px;padding:15px;background:#fbfbf9}
         .plan-card>span{font-size:11px;color:#8b794e;font-weight:700;text-transform:uppercase;letter-spacing:1px}
