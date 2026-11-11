@@ -229,53 +229,68 @@ export default function PriceCheckerPage() {
       <footer>EKHAYA TECHNOLOGIES · BUILT FOR SOUTH AFRICAN RESELLERS</footer>
       <style jsx>{`
         .page{min-height:100vh;background:#f4f8fc;color:#071b31;padding:0 5%;font-family:Arial,Helvetica,sans-serif}
-        .topbar{height:72px;display:flex;align-items:center;justify-content:space-between;.border-bottom:1px solid #dce7f0}
-        .brand{display:flex;gap:12px;align-items:center;color:#071b31;text-decoration:none;font-size:13px;font-weight:800;letter-spacing:1.5px}.brand-logo{width:54px;height:48px;object-fit:contain}.brand-label{display:block;color:#071b31;font-size:12px;font-weight:800;letter-spacing:1.5px}.brand-label small{display:block;font-size:9px;letter-spacing:2px;margin-top:4px;font-weight:700;color:#079bd3}
-        .brand small{display:block;font-size:8px;letter-spacing:3px;margin-top:3px;font-weight:500}
-        .brand-mark{width:34px;height:34px;display:grid;place-items:center;background:#071b31;color:#00a9e8;border-radius:10px;font:23px Georgia}
-        .plan,.estimate{font-size:10px;letter-spacing:1.2px;#61758a;border:1px solid #c7dce9;border-radius:20px;padding:8px 11px}
+        .topbar{height:72px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #dce7f0}
+        .brand{display:flex;gap:12px;align-items:center;color:#071b31;text-decoration:none;font-size:13px;font-weight:800;letter-spacing:1.5px}
+        .brand-logo{width:54px;height:48px;object-fit:contain}
+        .brand-label{display:block;color:#071b31;font-size:12px;font-weight:800;letter-spacing:1.5px}
+        .brand-label small{display:block;font-size:9px;letter-spacing:2px;margin-top:4px;font-weight:700;color:#079bd3}
+        .plan,.estimate{font-size:10px;letter-spacing:1.2px;color:#61758a;border:1px solid #c7dce9;border-radius:20px;padding:8px 11px}
         .intro{text-align:center;margin:46px auto 28px;max-width:600px}
-        .eyebrow,.step{font-size:10px;letter-spacing:1.7px;#078fc8;font-weight:700}
+        .eyebrow,.step{font-size:10px;letter-spacing:1.7px;color:#078fc8;font-weight:700}
         h1{font:400 clamp(40px,6vw,62px)/1.02 Georgia;margin:14px 0}
-        h1 em{#078fc8}
-        .intro p:last-child,.muted{#61758a;font-size:13px;line-height:1.6}
-        .panel{max-width:1050px;margin:0 auto 16px;background:#fff;border:1px solid #e6e4de;border-radius:12px;padding:24px}
-        h2{font:400 24px Georgia;margin:7px 0 12px}
+        h1 em{color:#078fc8}
+        .intro p:last-child,.muted{color:#61758a;font-size:13px;line-height:1.6}
+        .panel{max-width:1050px;margin:0 auto 16px;background:#fff;border:1px solid #dce7f0;border-radius:12px;padding:24px}
+        h2{font:400 24px Georgia;margin:7px 0 12px;color:#071b31}
         .lookup{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:end}
-        .lookup p{font-size:12px;#61758a;line-height:1.6;margin:0}
-        label{display:block;font-size:12px;color:#5e6058;font-weight:600}
-        input{box-sizing:border-box;width:100%;height:40px;margin-top:7px;padding:0 10px;border:1px solid #deded8;border-radius:6px;background:#fbfbf9;color:#222;font-size:14px}
+        .lookup p{font-size:12px;color:#61758a;line-height:1.6;margin:0}
+        label{display:block;font-size:12px;color:#31546d;font-weight:600}
+        input{box-sizing:border-box;width:100%;height:40px;margin-top:7px;padding:0 10px;border:1px solid #c7dce9;border-radius:6px;background:#fbfdff;color:#071b31;font-size:14px}
         input:focus{outline:2px solid #79d3f2;border-color:#079bd3}
         .lookup-actions{display:flex;gap:10px;align-items:center}
         button{border:0;border-radius:6px;padding:11px 16px;font-size:12px;font-weight:700;cursor:pointer}
-        .primary{background:#071b31;color:#ffffff}
+        .primary{background:#071b31;color:#fff}
         .secondary{background:#dceef8;color:#07365a}.secondary:disabled{opacity:.5;cursor:not-allowed}
-        .upload{position:relative;display:inline-block;border:1px solid #deded8;border-radius:6px;padding:10px 12px;cursor:pointer;white-space:nowrap}
+        .upload{position:relative;display:inline-block;border:1px solid #c7dce9;border-radius:6px;padding:10px 12px;cursor:pointer;white-space:nowrap}
         .upload input{position:absolute;inset:0;opacity:0;cursor:pointer}
-        .notice{grid-column:1/-1;margin:0;color:#75613b;font-size:12px}
-        .lookup-results{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:10px}.lookup-results section{border:1px solid #e6e4de;border-radius:8px;padding:12px}.lookup-results h3{font:16px Georgia;margin:0 0 10px}.lookup-results article{padding:10px 0;border-top:1px solid #eee}.lookup-results a{color:#07527d;font-size:12px;font-weight:700}.lookup-results article p{margin:6px 0;font-size:11px}.lookup-results small{#078fc8;font-size:10px}.result-price{display:block;margin-top:8px;color:#078fc8;font-size:16px}.result-price.unavailable{color:#8a8174;font-size:12px}.result-actions{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:8px}.use-price{padding:7px 9px;background:#071b31;color:#ffffff;font-size:10px}
+        .notice{grid-column:1/-1;margin:0;color:#07527d;font-size:12px}
+        .lookup-results{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:10px}
+        .lookup-results section{border:1px solid #dce7f0;border-radius:8px;padding:12px}
+        .lookup-results h3{font:16px Georgia;margin:0 0 10px;color:#071b31}
+        .lookup-results article{padding:10px 0;border-top:1px solid #eaf1f6}
+        .lookup-results a{color:#07527d;font-size:12px;font-weight:700}
+        .lookup-results article p{margin:6px 0;font-size:11px}
+        .lookup-results small{color:#61758a;font-size:10px}
+        .result-price{display:block;margin-top:8px;color:#078fc8;font-size:16px}
+        .result-price.unavailable{color:#61758a;font-size:12px}
+        .result-actions{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:8px}
+        .use-price{padding:7px 9px;background:#071b31;color:#fff;font-size:10px}
         .section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:15px}
         .seller-inputs{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
         .table-wrap{overflow-x:auto}
         table{width:100%;border-collapse:collapse;min-width:760px;font-size:12px}
         th{text-align:left;background:#eaf4fa;color:#31546d;font-weight:600}
-        th,td{padding:12px 10px;border-bottom:1px solid #e8e7e1}
+        th,td{padding:12px 10px;border-bottom:1px solid #e3edf4}
         td input{min-width:78px;height:34px;margin:0}
         .good{color:#078fc8;font-weight:700}.bad{color:#b4473c;font-weight:700}
-        .disclaimer{font-size:11px;color:#85877e;line-height:1.6;margin:16px 0 0}
-        .count{font:12px Arial;#078fc8;margin-left:8px}
-         .saved ul{margin:0;padding:0;list-style:none;font-size:13px}.saved li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #efeee8}.saved-details{display:grid;gap:4px}.saved-details small{font-size:11px;#61758a}.remove{background:transparent;color:#8a5147;padding:6px 8px;font-size:11px}
-        .plans{border-top:1px solid #ecebe5;margin-top:22px;padding-top:20px}
-        .welcome-offer{display:grid;gap:6px;margin-bottom:18px;padding:14px 16px;border:1px solid #d9c99e;border-radius:8px;background:#eff8fc;color:#07365a}.welcome-offer strong{font:17px Georgia}.welcome-offer span{font-size:11px;#61758a;line-height:1.5}
+        .disclaimer{font-size:11px;color:#61758a;line-height:1.6;margin:16px 0 0}
+        .count{font:12px Arial;color:#078fc8;margin-left:8px}
+        .saved ul{margin:0;padding:0;list-style:none;font-size:13px}
+        .saved li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #eaf1f6}
+        .saved-details{display:grid;gap:4px}.saved-details small{font-size:11px;color:#61758a}
+        .remove{background:transparent;color:#8a5147;padding:6px 8px;font-size:11px}
+        .plans{border-top:1px solid #dce7f0;margin-top:22px;padding-top:20px}
+        .welcome-offer{display:grid;gap:6px;margin-bottom:18px;padding:14px 16px;border:1px solid #a8dff2;border-radius:8px;background:#eff8fc;color:#07365a}
+        .welcome-offer strong{font:17px Georgia}.welcome-offer span{font-size:11px;color:#61758a;line-height:1.5}
         .plan-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
-        .plan-card{display:grid;gap:9px;border:1px solid #e6e4de;border-radius:8px;padding:15px;background:#fbfbf9}
-        .plan-card>span{font-size:11px;#078fc8;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+        .plan-card{display:grid;gap:9px;border:1px solid #dce7f0;border-radius:8px;padding:15px;background:#fbfdff}
+        .plan-card>span{font-size:11px;color:#078fc8;font-weight:700;text-transform:uppercase;letter-spacing:1px}
         .plan-card strong{font:24px Georgia;color:#071b31}
-        .plan-card strong small,.plan-card>small{font:11px Arial;#61758a}
+        .plan-card strong small,.plan-card>small{font:11px Arial;color:#61758a}
         .plan-card>b{font-size:12px;color:#07365a}
         .small{font-size:11px}
-        footer{max-width:1050px;margin:0 auto;padding:20px 0 30px;text-align:center;color:#999a92;font-size:9px;letter-spacing:1.2px}
-        @media(max-width:720px){.plan-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.page{padding:0 4%}.topbar{height:65px}.plan{font-size:8px}.intro{margin:35px auto 24px}.panel{padding:18px}.lookup{grid-template-columns:1fr}.seller-inputs{grid-template-columns:1fr}.lookup-actions{flex-wrap:wrap}.lookup-results{grid-template-columns:1fr}.section-head{align-items:flex-start}}
+        footer{max-width:1050px;margin:0 auto;padding:20px 0 30px;text-align:center;color:#61758a;font-size:9px;letter-spacing:1.2px}
+        @media(max-width:720px){.plan-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.page{padding:0 4%}.topbar{height:65px}.plan{font-size:8px}.intro{margin:35px auto 24px}.panel{padding:18px}.lookup{grid-template-columns:1fr}.seller-inputs{grid-template-columns:1fr}.lookup-actions{flex-wrap:wrap}.lookup-results{grid-template-columns:1fr}.section-head{align-items:flex-start}.brand-logo{width:46px;height:42px}}
       `}</style>
     </main>
   );
