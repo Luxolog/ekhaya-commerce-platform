@@ -69,3 +69,28 @@ Install that debug APK on the emulator or phone.
 - Avoid repeated searches while checking layout; each uncached Takealot search may consume a provider credit.
 - This is not a standalone/offline or Play Store release. A production APK/AAB needs a deployed HTTPS backend, final app configuration, and release signing.
 - Camera barcode scanning must be tested on a real device. Browser camera permission behaviour inside the Android WebView may need a native permission adjustment if scanning is blocked.
+
+## Ekhaya Technologies branding
+
+The Price Checker interface now uses the Ekhaya Technologies palette:
+- Deep navy: `#071B31`
+- Bright blue: `#079BD3`
+- Cyan accent: `#00A9E8`
+- White / pale blue surfaces: `#FFFFFF` / `#F4F8FC`
+
+The header expects the supplied full Ekhaya Technologies logo at:
+
+`public/ekhaya-technologies-logo.png`
+
+Copy the attached **Ekhaya Technologies Logo** image into the repository's `public` folder and rename it exactly to `ekhaya-technologies-logo.png`. Do not use the separate navy-and-gold magnifying-glass icon; that is a different Ekhaya Sourcing mark.
+
+### Set the Android launcher icon
+
+In Android Studio, open the Android project and:
+1. Right-click `app/src/main/res`.
+2. Choose **New > Image Asset**.
+3. Select **Launcher Icons (Adaptive and Legacy)**.
+4. Choose the Ekhaya Technologies logo image as the foreground source. Use a navy background (`#071B31`) and adjust the crop so the blue house/E mark is centred and not clipped.
+5. Finish and allow Android Studio to replace the generated launcher icon resources.
+
+For the launcher icon, use a square crop focused on the blue house/E symbol rather than the full wordmark, which becomes too small at app-icon size. Keep the full logo for the in-app header.
