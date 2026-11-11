@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-type SerpResult = {
-  title?: string;
-  link?: string;
-  snippet?: string;
-};
-
 type Marketplace = "Amazon SA" | "Takealot" | "Makro";
+
+type SearchCandidate = {
+  title?: string;
+  url?: string;
+  snippet?: string;
+  summary?: string;
+};
 
 const MARKETPLACES: { name: Marketplace; domain: string }[] = [
   { name: "Amazon SA", domain: "amazon.co.za" },
@@ -29,6 +30,87 @@ function belongsToMarketplace(link: string, domain: string) {
   }
 }
 
+function uniqueCandidates(items: SearchCandidate[], domain: string, marketplace: Marketplace) {
+  const seen = new Set<string>();
+
+  return items
+    .filter((item): item is SearchCandidate & { title: string; url: string } =>
+      Boolean(item.title?.trim() && item.url && belongsToMarketplace(item.url, domain)),
+    )
+    .filter((item) => {
+      const normalized = item.url.split("#")[0].replace(/\/$/, "");
+      if (seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    })
+    .slice(0, 5)
+    .map((item) => ({
+      title: item.title.trim(),
+      url: item.url,
+      snippet: (item.snippet || item.summary || "").trim(),
+      marketplace,
+      matchType: "candidate" as const,
+    }));
+}
+
+async function searchDeepSeek(query: string, domain: string) {
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) throw new Error("DEEPSEEK_NOT_CONFIGURED");
+
+  const response = await fetch("https://api.deepseek.com/v1/tools/search", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query: `${query} site:${domain} lang:en`,
+      count: 10,
+      need_content: false,
+    }),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(response.status === 429 ? "RATE_LIMIT" : `PROVIDER_HTTP_${response.status}`);
+  }
+
+  const data = (await response.json()) as { results?: SearchCandidate[] };
+  return data.results ?? [];
+}
+
+async function searchSerpApi(query: string, domain: string) {
+  const apiKey = process.env.SERPAPI_KEY;
+  if (!apiKey) throw new Error("SERPAPI_NOT_CONFIGURED");
+
+  const params = new URLSearchParams({
+    engine: "google",
+    q: `${query} site:${domain}`,
+    gl: "za",
+    hl: "en",
+    api_key: apiKey,
+    num: "10",
+  });
+
+  const response = await fetch("https://serpapi.com/search.json?" + params, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(response.status === 429 ? "RATE_LIMIT" : `PROVIDER_HTTP_${response.status}`);
+  }
+
+  const data = (await response.json()) as {
+    organic_results?: { title?: string; link?: string; snippet?: string }[];
+  };
+
+  return (data.organic_results ?? []).map((item) => ({
+    title: item.title,
+    url: item.link,
+    snippet: item.snippet,
+  }));
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q")?.trim();
@@ -36,76 +118,48 @@ export async function GET(request: Request) {
   if (!query) return jsonError("Enter a barcode or product name.", 400);
   if (query.length > 180) return jsonError("Search is too long.", 400);
 
-  const apiKey = process.env.SERPAPI_KEY;
-  if (!apiKey) {
-    return jsonError(
-      "Marketplace lookup is not configured yet. Add SERPAPI_KEY to the server environment to enable live search.",
-      503,
-    );
+  // DeepSeek is preferred when its key is configured. SerpApi remains available
+  // as a temporary comparison provider until the cheaper option is validated.
+  const configuredProvider = process.env.PRICE_SEARCH_PROVIDER?.toLowerCase();
+  const provider =
+    configuredProvider === "serpapi"
+      ? "serpapi"
+      : configuredProvider === "deepseek"
+        ? "deepseek"
+        : process.env.DEEPSEEK_API_KEY
+          ? "deepseek"
+          : "serpapi";
+
+  if (provider === "deepseek" && !process.env.DEEPSEEK_API_KEY) {
+    return jsonError("DeepSeek is selected but DEEPSEEK_API_KEY is missing from the server environment.", 503);
+  }
+  if (provider === "serpapi" && !process.env.SERPAPI_KEY) {
+    return jsonError("No search provider is configured. Add DEEPSEEK_API_KEY or SERPAPI_KEY to the server environment.", 503);
   }
 
-  // Query each retailer independently so results can be grouped and validated.
   const groups = await Promise.all(
     MARKETPLACES.map(async ({ name, domain }) => {
-      const params = new URLSearchParams({
-        engine: "google",
-        q: query + " site:" + domain,
-        gl: "za",
-        hl: "en",
-        api_key: apiKey,
-        num: "5",
-      });
-
       try {
-        const response = await fetch("https://serpapi.com/search.json?" + params, {
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          return {
-            marketplace: name,
-            results: [],
-            error: response.status === 429
-              ? "Search limit reached. Try again later."
-              : "This marketplace search is temporarily unavailable.",
-          };
-        }
-
-        const data = (await response.json()) as {
-          organic_results?: SerpResult[];
-          error?: string;
-        };
-
-        const seen = new Set<string>();
-        const results = (data.organic_results ?? [])
-          .filter((item): item is SerpResult & { title: string; link: string } =>
-            Boolean(item.title?.trim() && item.link && belongsToMarketplace(item.link, domain)),
-          )
-          .filter((item) => {
-            const normalized = item.link.split("#")[0];
-            if (seen.has(normalized)) return false;
-            seen.add(normalized);
-            return true;
-          })
-          .slice(0, 5)
-          .map((item) => ({
-            title: item.title.trim(),
-            url: item.link,
-            snippet: item.snippet?.trim() ?? "",
-            marketplace: name,
-            matchType: "candidate" as const,
-          }));
+        const candidates =
+          provider === "deepseek"
+            ? await searchDeepSeek(query, domain)
+            : await searchSerpApi(query, domain);
 
         return {
           marketplace: name,
-          results,
-          ...(data.error ? { error: "Search provider returned an error." } : {}),
+          results: uniqueCandidates(candidates, domain, name),
         };
-      } catch {
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "UNKNOWN";
         return {
           marketplace: name,
           results: [],
-          error: "Could not reach the search provider. Check your connection and try again.",
+          error:
+            reason === "RATE_LIMIT"
+              ? "Search limit reached. Try again later."
+              : reason === "DEEPSEEK_NOT_CONFIGURED" || reason === "SERPAPI_NOT_CONFIGURED"
+                ? "The selected search provider is not configured."
+                : "This marketplace search is temporarily unavailable.",
         };
       }
     }),
@@ -114,8 +168,11 @@ export async function GET(request: Request) {
   return NextResponse.json({
     query,
     checkedAt: new Date().toISOString(),
+    provider,
     source:
-      "Search-engine results via SerpApi. These are candidate listings, not verified exact matches, guaranteed current prices, or official retailer feeds. Open the listing to confirm the product and price.",
+      provider === "deepseek"
+        ? "Search candidates from DeepSeek Search API. Results are not verified exact matches or guaranteed current prices; open each listing to confirm."
+        : "Search-engine results via SerpApi. These are candidate listings, not verified exact matches, guaranteed current prices, or official retailer feeds. Open the listing to confirm.",
     results: groups,
   });
 }
