@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 
 const pillars = [
@@ -8,20 +9,22 @@ const pillars = [
 
 export default function Home() {
   return (
-    <main style={{ minHeight: '100vh', padding: '32px clamp(20px, 6vw, 88px) 72px' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, borderBottom: '1px solid var(--line)', paddingBottom: 22 }}>
-        <div style={{ fontWeight: 700, letterSpacing: '.12em', fontSize: 13 }}>EKHAYA <span style={{ color: 'var(--gold)' }}>TECHNOLOGIES</span></div>
-        <Link href="/marketplaces/" style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 700 }}>MARKETPLACE CONNECTIONS</Link>
+    <main style={{ minHeight: '100vh', padding: '28px clamp(20px, 6vw, 88px) 72px', background: 'var(--pale)', color: 'var(--navy)' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, borderBottom: '1px solid var(--line)', paddingBottom: 20 }}>
+        <Link href="/" aria-label="Ekhaya Technologies home"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies — Digital solutions. Built around you." width={230} height={190} priority style={{ width: 170, height: 'auto' }} /></Link>
+        <Link href="/marketplaces/" style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 800, letterSpacing: '.06em' }}>MARKETPLACE CONNECTIONS</Link>
       </header>
-      <section style={{ maxWidth: 900, padding: 'clamp(70px, 12vw, 145px) 0 80px' }}>
-        <p style={{ color: 'var(--gold)', fontWeight: 700, letterSpacing: '.18em', fontSize: 12 }}>BUILT FOR SOUTH AFRICAN RESELLERS</p>
-        <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(42px, 7vw, 82px)', lineHeight: 1.06, fontWeight: 600, letterSpacing: '-.035em', margin: '20px 0 24px' }}>Know the market before you buy stock.</h1>
+      <section style={{ maxWidth: 900, padding: 'clamp(65px, 11vw, 130px) 0 72px' }}>
+        <p style={{ color: 'var(--blue)', fontWeight: 800, letterSpacing: '.18em', fontSize: 12 }}>BUILT FOR SOUTH AFRICAN RESELLERS</p>
+        <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 'clamp(42px, 7vw, 82px)', lineHeight: 1.04, fontWeight: 800, letterSpacing: '-.055em', margin: '20px 0 24px', color: 'var(--navy)' }}>Know the market before you buy stock.</h1>
         <p style={{ color: 'var(--muted)', fontSize: 'clamp(16px, 2vw, 20px)', lineHeight: 1.75, maxWidth: 670 }}>Compare marketplace prices, calculate your margins and make more informed sourcing decisions—all in one place. No marketplace seller account is required to start using the basic calculator.</p>
-        <Link href="/price-checker/" style={{ display: 'inline-flex', marginTop: 32, padding: '14px 22px', background: '#22271f', color: '#d8bd7c', borderRadius: 4, fontSize: 13, fontWeight: 700, letterSpacing: '.06em' }}>OPEN PRICE CALCULATOR →</Link>
-        <Link href="/marketplaces/" style={{ display: 'inline-flex', marginTop: 32, marginLeft: 12, padding: '13px 18px', border: '1px solid var(--line)', borderRadius: 4, fontSize: 12, fontWeight: 700 }}>HOW MARKETPLACE CONNECTIONS WORK</Link>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 32 }}>
+          <Link href="/price-checker/" style={{ display: 'inline-flex', padding: '15px 22px', background: 'var(--blue)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 800, letterSpacing: '.04em', boxShadow: '0 8px 22px rgba(7,155,211,.2)' }}>OPEN PRICE CALCULATOR →</Link>
+          <Link href="/marketplaces/" style={{ display: 'inline-flex', padding: '14px 18px', border: '1px solid var(--line)', background: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 800, color: 'var(--navy)' }}>HOW MARKETPLACE CONNECTIONS WORK</Link>
+        </div>
       </section>
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 18, maxWidth: 1100 }}>
-        {pillars.map((p) => <article key={p.number} style={{ background: '#fffdf9', border: '1px solid var(--line)', borderRadius: 6, padding: 26 }}><div style={{ color: 'var(--gold)', fontSize: 12, fontWeight: 700 }}>{p.number}</div><h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 23, margin: '18px 0 10px' }}>{p.title}</h2><p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.7, margin: 0 }}>{p.detail}</p></article>)}
+        {pillars.map((p) => <article key={p.number} style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: 14, padding: 26, boxShadow: '0 10px 30px rgba(7,27,49,.04)' }}><div style={{ color: 'var(--blue)', fontSize: 12, fontWeight: 800 }}>{p.number}</div><h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 21, fontWeight: 800, margin: '18px 0 10px' }}>{p.title}</h2><p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.7, margin: 0 }}>{p.detail}</p></article>)}
       </section>
       <footer style={{ marginTop: 72, paddingTop: 20, borderTop: '1px solid var(--line)', color: 'var(--muted)', fontSize: 12 }}>Ekhaya Price Checker · Android test build · Seller account connections are optional</footer>
     </main>
