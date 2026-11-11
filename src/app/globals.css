@@ -1,7 +1,18 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap');
 
-:root { --ink: #171717; --muted: #6b625a; --gold: #b89a62; --cream: #f8f5ef; --line: #e8e1d6; }
+:root {
+  --navy: #071B31;
+  --blue: #079BD3;
+  --cyan: #00A9E8;
+  --pale: #F4F8FC;
+  --ink: #071B31;
+  --muted: #60758A;
+  --line: #DCE8F1;
+  --white: #FFFFFF;
+}
 * { box-sizing: border-box; }
 html, body { min-height: 100%; }
-body { margin: 0; color: var(--ink); background: var(--cream); font-family: 'DM Sans', sans-serif; }
+body { margin: 0; color: var(--ink); background: var(--pale); font-family: 'DM Sans', 'Manrope', sans-serif; }
 a { color: inherit; text-decoration: none; }
+button, input { font: inherit; }
+::selection { background: rgba(0,169,232,.2); color: var(--navy); }
