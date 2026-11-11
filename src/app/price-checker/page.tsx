@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
-type MarketplaceProduct = { id: string; title: string; brand?: string | null; price: number | null; currency: string; image?: string | null; url?: string | null; in_stock?: boolean | null; rating?: number | null; review_count?: number | null; seller?: string | null; };
+type MarketplaceProduct = { marketplace?: string; id: string; title: string; brand?: string | null; price: number | null; currency: string; image?: string | null; url?: string | null; in_stock?: boolean | null; rating?: number | null; review_count?: number | null; seller?: string | null; };
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-ZA", {
@@ -21,7 +21,7 @@ export default function PriceCheckerPage() {
   const [shipping, setShipping] = useState("0");
   const [targetMargin, setTargetMargin] = useState("25");
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchMarketplace, setSearchMarketplace] = useState<"takealot" | "amazon">("takealot");
+  const [searchMarketplace, setSearchMarketplace] = useState<"takealot" | "amazon" | "both">("both");
   const [products, setProducts] = useState<MarketplaceProduct[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
@@ -37,20 +37,25 @@ export default function PriceCheckerPage() {
     setProducts([]);
     setSearchSource("");
     try {
-      const response = await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": "sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t",
-          "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eHhuaGNqaml5bnJtaXZleGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM5MjA0MjEsImV4cCI6MjEwOTQ5NjQyMX0.f6nIHY00_1p0bu7E84RkVVa1832UrFpiLIu5SLxzLFU",
-        },
-        body: JSON.stringify({ marketplace: searchMarketplace, query: searchQuery.trim() }),
-      });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? payload.message ?? "Marketplace search failed.");
-      setProducts(payload.products ?? []);
-      setSearchSource(payload.source === "cache" ? "Shared cache" : "Live marketplace data");
-      if (!(payload.products ?? []).length) setSearchError("No products were found. Try a different search phrase.");
+      const targets = searchMarketplace === "both" ? ["takealot", "amazon"] as const : [searchMarketplace] as const;
+      const responses = await Promise.all(targets.map(async (marketplace) => {
+        const response = await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": "sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t",
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eHhuaGNqaml5bnJtaXZleGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM5MjA0MjEsImV4cCI6MjEwOTQ5NjQyMX0.f6nIHY00_1p0bu7E84RkVVa1832UrFpiLIu5SLxzLFU",
+          },
+          body: JSON.stringify({ marketplace, query: searchQuery.trim() }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(`${marketplace}: ${payload.error ?? payload.message ?? "Search failed"}`);
+        return { ...payload, marketplace };
+      }));
+      const combined = responses.flatMap((payload) => (payload.products ?? []).map((product: MarketplaceProduct) => ({ ...product, marketplace: payload.marketplace })));
+      setProducts(combined);
+      setSearchSource(responses.every((item) => item.source === "cache") ? "Shared cache" : "Live marketplace data");
+      if (!combined.length) setSearchError("No products were found. Try a different search phrase.");
     } catch (error) {
       setSearchError(error instanceof Error ? error.message : "Unable to search right now.");
     } finally {
@@ -99,7 +104,7 @@ export default function PriceCheckerPage() {
         <div className="search-controls">
           <input aria-label="Product search" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") searchMarketplaceProducts(); }} placeholder="Search a product, e.g. wireless mouse" />
           <select aria-label="Marketplace" value={searchMarketplace} onChange={(e) => setSearchMarketplace(e.target.value as "takealot" | "amazon")}>
-            <option value="takealot">Takealot</option><option value="amazon">Amazon South Africa</option>
+            <option value="both">Compare both marketplaces</option><option value="takealot">Takealot only</option><option value="amazon">Amazon South Africa only</option>
           </select>
           <button type="button" onClick={searchMarketplaceProducts} disabled={searchLoading}>{searchLoading ? "Searching…" : "Search products"}</button>
         </div>
@@ -107,7 +112,7 @@ export default function PriceCheckerPage() {
         {searchSource && <p className="search-source">{searchSource} · Prices are indicative and can change at any time.</p>}
         {products.length > 0 && <div className="product-results">{products.map((product, index) => <article className="product-result" key={product.id || index}>
           {product.image ? <img src={product.image} alt="" /> : <div className="product-placeholder">E</div>}
-          <div className="product-info"><strong>{product.title}</strong><span>{product.brand ?? "Marketplace listing"}{product.rating ? ` · ★ ${product.rating}` : ""}{product.review_count ? ` (${product.review_count})` : ""}</span><b>{product.price == null ? "Price unavailable" : new Intl.NumberFormat("en-ZA", { style: "currency", currency: product.currency || "ZAR" }).format(product.price)}</b><small>{product.in_stock === true ? "In stock" : product.in_stock === false ? "Currently unavailable" : "Stock not confirmed"}</small>{product.url && <a href={product.url} target="_blank" rel="noreferrer">View listing ↗</a>}</div>
+          <div className="product-info"><strong>{product.title}</strong><span>{product.marketplace === "amazon" ? "Amazon SA" : "Takealot"} · {product.brand ?? "Marketplace listing"}{product.rating ? ` · ★ ${product.rating}` : ""}{product.review_count ? ` (${product.review_count})` : ""}</span><b>{product.price == null ? "Price unavailable" : new Intl.NumberFormat("en-ZA", { style: "currency", currency: product.currency || "ZAR" }).format(product.price)}</b><small>{product.in_stock === true ? "In stock" : product.in_stock === false ? "Currently unavailable" : "Stock not confirmed"}</small>{product.url && <a href={product.url} target="_blank" rel="noreferrer">View listing ↗</a>}</div>
         </article>)}</div>}
       </section>
 
