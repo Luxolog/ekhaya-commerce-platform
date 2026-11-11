@@ -68,6 +68,8 @@ export async function GET(request: Request) {
       return jsonError(message, response.status === 401 || response.status === 403 ? 502 : response.status === 429 ? 503 : 502);
     }
 
+    // IMPORTANT: Only Takealot is queried here. Amazon SA and Makro below are
+    // static UI placeholders; do not add provider calls for them until enabled.
     const data = payload.data ?? {};
     const products: TakealotProduct[] = Array.isArray(data.results) ? data.results : [];
     const results = products.map((product) => ({
