@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-ZA", {
@@ -37,8 +38,7 @@ export default function PriceCheckerPage() {
     <main className="price-page">
       <header className="topbar">
         <Link className="brand" href="/" aria-label="Ekhaya Technologies home">
-          <span className="brand-mark" aria-hidden="true">E</span>
-          <span>EKHAYA <small>TECHNOLOGIES</small></span>
+          <Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={230} height={190} priority className="brand-logo" />
         </Link>
         <span className="phase-pill">PRICE INTELLIGENCE · PHASE 1</span>
       </header>
@@ -141,8 +141,8 @@ export default function PriceCheckerPage() {
       <style jsx>{`
         .price-page { min-height: 100vh; background: #F4F8FC; color: #071B31; padding: 0 5.5%; font-family: 'DM Sans', 'Manrope', Arial, sans-serif; }
         .topbar { height: 82px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #DCE8F1; }
-        .brand { display:flex; gap:11px; align-items:center; color:#071B31; text-decoration:none; font-size:13px; font-weight:800; letter-spacing:2px; }
-        .brand small { display:block; margin-top:3px; font-size:8px; letter-spacing:3.1px; font-weight:500; }
+        .brand { display:flex; align-items:center; color:#071B31; text-decoration:none; }\n        .brand-logo { display:block; width:154px; height:auto; }
+        
         .brand-mark { width:34px; height:34px; display:grid; place-items:center; background:#071B31; color:#FFFFFF; font-family:'Manrope',Arial,sans-serif; font-size:23px; border-radius:50%; }
         .phase-pill { border:1px solid #d8d6cf; border-radius:30px; padding:9px 13px; color:#686b62; font-size:9px; letter-spacing:1.5px; }
         .hero { max-width:760px; margin:65px auto 42px; text-align:center; }
