@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-ZA", {
@@ -35,7 +36,7 @@ export default function PriceCheckerPage() {
   return (
     <main className="price-page">
       <header className="topbar">
-        <a className="brand" href="/" aria-label="Ekhaya Technologies home">
+        <Link className="brand" href="/" aria-label="Ekhaya Technologies home">
           <span className="brand-mark">E</span>
           <span>EKHAYA <small>TECHNOLOGIES</small></span>
         </a>
