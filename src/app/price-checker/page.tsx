@@ -116,7 +116,7 @@ export default function PriceCheckerPage() {
       const data = await response.json();
       if (!response.ok) { setNotice(data.error || "Lookup is not available."); return; }
       setLookupResults(data.results || []);
-      setNotice("Search candidates returned. Confirm the product and listed price on the marketplace before relying on it.");
+      setNotice("Live Takealot results returned. Amazon SA and Makro are not connected yet; confirm the exact product and checkout price before buying.");
     } catch { setNotice("Could not complete lookup. Please try again."); }
     finally { setLookupLoading(false); }
   }
@@ -160,14 +160,14 @@ export default function PriceCheckerPage() {
       <section className="intro">
         <p className="eyebrow">SCAN. COMPARE. KNOW YOUR PROFIT.</p>
         <h1>Check before<br /><em>you buy.</em></h1>
-        <p>Compare marketplace prices and estimate your profit after selling fees.</p>
+        <p>Start with live Takealot product prices and estimate your profit. Amazon SA and Makro connections are being evaluated.</p>
       </section>
 
       <section className="lookup panel">
         <div>
           <span className="step">PRODUCT LOOKUP</span>
           <h2>Find a product</h2>
-          <p>Enter a barcode or product name, or scan a barcode with your camera. Marketplace results are search candidates; confirm the exact match and current price.</p>
+          <p>Search Takealot by barcode or product name, or scan a barcode with your camera. Check the exact model, variant and availability before buying.</p>
         </div>
         <label className="query-label">Barcode or product name
           <input value={productQuery} onChange={(e) => { setProductQuery(e.target.value); setNotice(""); }} placeholder="e.g. 6001234567890 or product name" />
@@ -178,7 +178,7 @@ export default function PriceCheckerPage() {
           <label className="upload">Add product photo<input type="file" accept="image/*" capture="environment" onChange={() => setNotice("Photo selected. Image-based product identification is not connected yet; use barcode or product name for now.")} /></label>
         </div>
         {notice && <p className="notice" role="status">{notice}</p>}
-        {lookupResults.length > 0 && <div className="lookup-results">{lookupResults.map((group) => <section key={group.marketplace}><h3>{group.marketplace}</h3>{group.error && <p>{group.error}</p>}{group.results?.length ? group.results.map((item: any) => { const amount = parsePriceAmount(item.price); const marketplaceIndex = initialMarketplaces.findIndex((marketplace) => marketplace.name === group.marketplace); return <article key={item.url}><a href={item.url} target="_blank" rel="noreferrer">{item.title}</a>{item.price ? <strong className="result-price">{item.price}</strong> : <strong className="result-price unavailable">Price not returned</strong>}<p>{item.snippet}</p>{item.rating && <small>Rating {item.rating}{item.ratingCount ? ` · ${item.ratingCount} reviews` : ""}</small>}<div className="result-actions"><small>Shopping result · verify exact variant and checkout price</small>{amount && marketplaceIndex >= 0 && <button type="button" className="use-price" onClick={() => { setMarketplaces((current) => current.map((marketplace, index) => index === marketplaceIndex ? { ...marketplace, price: String(amount) } : marketplace)); setNotice(`${group.marketplace} listed price added to the profit calculator.`); }}>Use price in calculator</button>}</div></article>; }) : <p>No priced shopping results found for this marketplace. Try a more specific product name or barcode.</p>}</section>)}</div>}
+        {lookupResults.length > 0 && <div className="lookup-results">{lookupResults.map((group) => <section key={group.marketplace}><h3>{group.marketplace}</h3>{group.error && <p>{group.error}</p>}{group.results?.length ? group.results.map((item: any) => { const amount = parsePriceAmount(item.price); const marketplaceIndex = initialMarketplaces.findIndex((marketplace) => marketplace.name === group.marketplace); return <article key={item.url}><a href={item.url} target="_blank" rel="noreferrer">{item.title}</a>{item.image && <img src={item.image} alt="" loading="lazy" style={{ width: "76px", height: "76px", objectFit: "contain", float: "right" }} />}<strong className="result-price">{item.price || "Price not returned"}</strong>{item.brand && <p>Brand: {item.brand}</p>}<p>{item.stockStatus || item.message || item.snippet || ""}</p>{item.deliveryEstimate && <small>{item.deliveryEstimate}</small>}{item.rating && <p><small>Rating {item.rating}{item.ratingCount ? ` · ${item.ratingCount} reviews` : ""}</small></p>}<div className="result-actions"><small>{item.matchType === "live-retailer-listing" ? "Live Takealot catalogue result · verify variant and checkout price" : "Not connected yet"}</small>{amount && marketplaceIndex >= 0 && <button type="button" className="use-price" onClick={() => { setMarketplaces((current) => current.map((marketplace, index) => index === marketplaceIndex ? { ...marketplace, price: String(amount) } : marketplace)); setNotice(`${group.marketplace} listed price added to the profit calculator.`); }}>Use price in calculator</button>}</div></article>; }) : <p>No matching results returned. Try a more specific product name or barcode.</p>}</section>)}</div>}
       </section>
 
       <section className="calculator panel">
