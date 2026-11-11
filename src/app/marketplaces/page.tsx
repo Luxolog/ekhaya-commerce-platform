@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 const steps = [
   'Sign in to your Takealot Seller Portal using your own browser.',
   'Find the API access or API key area in your seller settings. The exact menu label may change.',
@@ -9,15 +11,15 @@ export default function MarketplacesPage() {
   return (
     <main style={{ minHeight: '100vh', padding: '28px clamp(20px, 6vw, 88px) 72px', color: '#20231f' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, borderBottom: '1px solid #e5e0d6', paddingBottom: 20 }}>
-        <a href="/" style={{ fontWeight: 700, letterSpacing: '.12em', fontSize: 13 }}>EKHAYA <span style={{ color: '#b89a62' }}>TECHNOLOGIES</span></a>
-        <a href="/price-checker/" style={{ color: '#75613b', fontSize: 13, fontWeight: 700 }}>Open calculator →</a>
+        <Link href="/" style={{ fontWeight: 700, letterSpacing: '.12em', fontSize: 13 }}>EKHAYA <span style={{ color: '#b89a62' }}>TECHNOLOGIES</span></Link>
+        <Link href="/price-checker/" style={{ color: '#75613b', fontSize: 13, fontWeight: 700 }}>Open calculator →</Link>
       </header>
 
       <section style={{ maxWidth: 850, margin: '68px auto 36px' }}>
         <p style={{ color: '#9b8552', fontSize: 11, letterSpacing: '.18em', fontWeight: 700 }}>OPTIONAL MARKETPLACE CONNECTIONS</p>
         <h1 style={{ fontFamily: 'Georgia, serif', fontSize: 'clamp(38px, 6vw, 64px)', lineHeight: 1.08, fontWeight: 400, margin: '16px 0' }}>Start where you are.<br /><em style={{ color: '#8b794e' }}>Connect when you're ready.</em></h1>
         <p style={{ color: '#70736b', lineHeight: 1.8, maxWidth: 650, fontSize: 16 }}>You do not need a Takealot or Amazon seller account to use the basic calculator. Enter product costs and selling prices manually today. Marketplace connections will add sales intelligence and faster product research as those integrations become available.</p>
-        <a href="/price-checker/" style={{ display: 'inline-flex', marginTop: 18, padding: '13px 19px', background: '#22271f', color: '#d8bd7c', borderRadius: 5, fontSize: 12, fontWeight: 700 }}>CONTINUE WITHOUT CONNECTING →</a>
+        <Link href="/price-checker/" style={{ display: 'inline-flex', marginTop: 18, padding: '13px 19px', background: '#22271f', color: '#d8bd7c', borderRadius: 5, fontSize: 12, fontWeight: 700 }}>CONTINUE WITHOUT CONNECTING →</Link>
       </section>
 
       <section style={{ maxWidth: 1000, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(270px, 1fr))', gap: 18 }}>
