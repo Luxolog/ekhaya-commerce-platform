@@ -41,9 +41,9 @@ Set the same variable in the production hosting environment before deploying. Ne
 
 ## APK / Android status
 
-This repository is currently a web application. It does not yet contain a Capacitor configuration or an Android project. An Android APK cannot be built from the current repository as-is.
+A Capacitor Android test-shell configuration and Android Studio setup guide have been added. The native Android project still needs to be generated locally with `npx cap add android`; no APK has been built or device-tested yet. See [Android APK testing](docs/android-apk-testing.md).
 
-Before an APK build, the web app needs a successful production build and device testing, followed by an Android wrapper (for example Capacitor), Android project generation, app identity/icons/splash configuration, permissions and secure environment/API configuration. Then build and test a signed release APK/AAB.
+For the development test APK, start the Next.js server on the development computer and load it through the Android emulator or a phone on the same Wi-Fi network. The API key stays on the development computer. A standalone production APK/AAB still requires a deployed HTTPS backend, final app identity/icons/splash configuration, permissions and release signing.
 
 ## Not yet production-complete
 
