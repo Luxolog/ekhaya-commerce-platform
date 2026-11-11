@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { calculatePrice } from "@/lib/price-calculator";
 import BarcodeScanner from "@/components/price-checker/BarcodeScanner";
-import { PRICE_CHECKER_PLAN_LIMITS, WELCOME_FREE_COMPARISONS, getMonthlyApiCallAllowance, getWelcomeApiCallAllowance } from "@/lib/subscription-plans";
+import { PRICE_CHECKER_PLAN_LIMITS, WELCOME_FREE_COMPARISONS } from "@/lib/subscription-plans";
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-ZA", {
@@ -202,16 +202,15 @@ export default function PriceCheckerPage() {
 
       <section className="saved panel">
         <div className="section-head"><div><span className="step">SAVED PRODUCTS</span><h2>Saved products <span className="count">{saved.length} / 5</span></h2></div><button className="secondary" onClick={saveProduct} disabled={saved.length >= 5} title={saved.length >= 5 ? "Remove a saved product to make room" : "Save this product and its current cost assumptions"}>Save product</button></div>
-        {saved.length ? <ul>{saved.map((item) => <li key={item.id}><div className="saved-details"><strong>{item.name}</strong>{item.barcode && <small>Barcode: {item.barcode}</small>}<small>Cost {money(item.buyingCost)} · Selling {money(item.sellingPrice)} · Other costs {money(item.otherCosts)}</small>{item.savedAt && <small>Saved {new Date(item.savedAt).toLocaleDateString("en-ZA")}</small>}</div><button className="secondary" type="button" onClick={() => { setProductQuery(item.name); setBuyingCost(String(item.buyingCost)); setSellingPrice(String(item.sellingPrice)); setOtherCosts(String(item.otherCosts)); setNotice(`Loaded ${item.name} and its saved cost assumptions into the calculator.`); }}>Use values</button><button className="remove" type="button" aria-label={`Remove ${item.name} from saved products`} onClick={() => { setSaved((current) => current.filter((savedItem) => savedItem.id !== item.id)); setNotice(`${item.name} removed from saved products.`); }}>Remove</button></li>)}</ul> : <p className="muted">Your saved products will appear here. Free access includes up to 5 saved products.</p>}
+        {saved.length ? <ul>{saved.map((item) => <li key={item.id}><div className="saved-details"><strong>{item.name}</strong>{item.barcode && <small>Barcode: {item.barcode}</small>}<small>Cost {money(item.buyingCost)} · Selling {money(item.sellingPrice)} · Other costs {money(item.otherCosts)}</small>{item.savedAt && <small>Saved {new Date(item.savedAt).toLocaleDateString("en-ZA")}</small>}</div><button className="secondary" type="button" onClick={() => { setProductQuery(item.name); setBuyingCost(String(item.buyingCost)); setSellingPrice(String(item.sellingPrice)); setOtherCosts(String(item.otherCosts)); setNotice(`Loaded ${item.name} and its saved cost assumptions into the calculator.`); }}>Use values</button><button className="remove" type="button" aria-label={`Remove ${item.name} from saved products`} onClick={() => { setSaved((current) => current.filter((savedItem) => savedItem.id !== item.id)); setNotice(`${item.name} removed from saved products.`); }}>Remove</button></li>)}</ul> : <p className="muted">Your saved products will appear here. You can save up to 5 products in this list.</p>}
         <section className="plans">
-          <div className="welcome-offer"><strong>{WELCOME_FREE_COMPARISONS} free product comparisons when you register</strong><span>That is {getWelcomeApiCallAllowance()} marketplace searches across Amazon SA, Takealot and Makro. This is a once-off welcome offer, separate from your paid monthly allowance.</span></div>
+          <div className="welcome-offer"><strong>{WELCOME_FREE_COMPARISONS} free product comparisons when you register</strong><span>Try comparing products across Amazon SA, Takealot and Makro. This is a once-off welcome offer, separate from your paid monthly allowance.</span></div>
           <div className="section-head"><div><span className="step">SUBSCRIPTION OPTIONS</span><h2>Choose your search allowance</h2><p className="muted">One product comparison checks Amazon SA, Takealot and Makro. Paid subscriptions renew on the 1st of each month.</p></div><span className="plan">COMING SOON</span></div>
           <div className="plan-grid">
             {Object.entries(PRICE_CHECKER_PLAN_LIMITS).map(([planId, tier]) => <article className="plan-card" key={planId}>
-              <span>{tier.name}</span><strong>{money("introductoryFirstMonthPriceZar" in tier ? tier.introductoryFirstMonthPriceZar : tier.monthlyPriceZar)}<small> / first month</small></strong>
+              <span>{tier.name}</span><strong>{money("introductoryFirstMonthPriceZar" in tier ? tier.introductoryFirstMonthPriceZar : tier.monthlyPriceZar)}<small> / {"introductoryFirstMonthPriceZar" in tier ? "first month" : "month"}</small></strong>
               {"introductoryFirstMonthPriceZar" in tier && <small>Then {money(tier.monthlyPriceZar)} / month</small>}
               <b>{tier.productComparisons} product comparisons / month</b>
-              <small>{getMonthlyApiCallAllowance(planId as keyof typeof PRICE_CHECKER_PLAN_LIMITS)} marketplace API calls included</small>
             </article>)}
           </div>
           <p className="muted small">The Basic introductory price is for the first paid month only. Standard, Advanced and Premium start at their listed monthly prices. Renewals are scheduled for the 1st of each month; checkout will show your next renewal date before payment.</p>
