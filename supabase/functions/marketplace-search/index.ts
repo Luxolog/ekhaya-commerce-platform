@@ -104,6 +104,20 @@ Deno.serve(async (req: Request) => {
       headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify(cacheRow),
     });
+    await fetch(new URL("/rest/v1/api_usage_ledger", supabaseUrl), {
+      method: "POST",
+      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({
+        provider: "reefapi",
+        action: "search",
+        marketplace,
+        lookup_key: `search:${lookupKey}`,
+        credits_charged: Number(payload.meta?.charged_credits ?? 0),
+        request_status: "success",
+        response_count: products.length,
+        request_id: payload.meta?.request_id ?? null,
+      }),
+    });
     return json({ source: "live", marketplace, fetched_at: now.toISOString(), products, provider_meta: payload.meta ?? null });
   } catch (error) {
     return json({ error: "Unable to complete marketplace lookup", detail: String(error) }, 500);
