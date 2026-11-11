@@ -2,12 +2,16 @@
 
 A price intelligence and profitability tool for South African resellers, built by Ekhaya Technologies.
 
-## Current build
+## Current test build
 
-- Responsive price calculator at /price-checker
-- Capacitor Android wrapper for debug APK testing
+- Responsive manual price calculator at /price-checker
+- Optional marketplace connection guidance at /marketplaces
+- Sellers without Takealot or Amazon accounts can use the calculator without connecting anything
+- Capacitor Android wrapper and GitHub Actions debug APK build
 - Shared marketplace cache schema, demand-based TTL policy, refresh queue, price history and API usage ledger
 - Server-side integration architecture documented; ReefAPI and Supabase credentials are not stored in the repository or APK
+
+Marketplace connections shown in this test build are guidance only. Takealot API-key submission, Amazon seller authorisation, customer registration, password recovery and live marketplace data are not yet connected. Do not ask users to send API keys to Ekhaya through chat, email or screenshots.
 
 ## Cache refresh policy
 
