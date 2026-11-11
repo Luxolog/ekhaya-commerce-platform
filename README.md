@@ -28,3 +28,24 @@ Open http://localhost:3000.
 ## Safety
 
 Never commit API keys, payment secrets, database credentials, customer data, or `.env` files. Production tenant isolation must be enforced in the database—not only in the UI.
+
+
+## Price Checker search provider
+
+The Price Checker supports DeepSeek Search API and SerpApi. DeepSeek is preferred when `DEEPSEEK_API_KEY` is configured; SerpApi remains available for comparison.
+
+Add one provider key to your local `.env.local` file (never commit this file):
+
+```env
+PRICE_SEARCH_PROVIDER=deepseek
+DEEPSEEK_API_KEY=your_deepseek_api_key
+```
+
+To compare against SerpApi, switch the provider setting:
+
+```env
+PRICE_SEARCH_PROVIDER=serpapi
+SERPAPI_KEY=your_serpapi_api_key
+```
+
+Restart the Next.js development server after changing environment variables. The search API returns candidate listings only; users must verify the exact product and current retailer price. Search results are not official retailer feeds.
