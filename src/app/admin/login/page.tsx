@@ -53,7 +53,7 @@ export default function AdminLoginPage() {
       <input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} style={field}/>
       <label style={{display:"block",fontSize:13,fontWeight:700,marginTop:16}}>Password</label>
       <input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")void signIn();}} style={field}/>
-      <button onClick={signIn} disabled={busy||!email||!password} style={{width:"100%",padding:15,marginTop:22,border:0,borderRadius:9,background:"#079BD3",color:"#fff",fontSize:16,fontWeight:800,cursor:"pointer",opacity:busy||!email||!password?.85:1}}>{busy?"Verifying access…":"Sign in to admin"}</button>
+      <button onClick={signIn} disabled={busy||!email||!password} style={{width:"100%",padding:15,marginTop:22,border:0,borderRadius:9,background:"#079BD3",color:"#fff",fontSize:16,fontWeight:800,cursor:"pointer",opacity:busy||!email||!password ? .85 : 1}}>{busy?"Verifying access…":"Sign in to admin"}</button>
       {message&&<p role="alert" style={{background:"#FFF4F2",color:"#9C2F20",padding:14,borderRadius:8,lineHeight:1.5}}>{message}</p>}
       <p style={{fontSize:12,color:"#71869A",marginTop:22}}>Seller account? <Link href="/account/" style={{color:"#079BD3",fontWeight:700}}>Go to seller sign in</Link></p>
     </section>
