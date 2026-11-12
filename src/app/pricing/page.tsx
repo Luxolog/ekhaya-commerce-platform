@@ -61,13 +61,13 @@ export default function PricingPage() {
             <span style={{ color: "#60758A" }}>Following renewals</span><strong>R{plan.monthly.toFixed(2)} / month</strong>
           </div>
           <h3 style={{ fontSize: 15, margin: "18px 0 10px" }}>How would you like to renew?</h3>
-          <label style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: 13, border: billingMode === "manual" ? "2px solid #079BD3" : "1px solid #DCE8F1", borderRadius: 9, marginBottom: 9, cursor: "pointer" }}>
-            <input type="radio" name="billing-mode" checked={billingMode === "manual"} onChange={() => setBillingMode("manual")} style={{ marginTop: 3 }} />
-            <span><strong>Pay manually every month</strong><span style={{ display: "block", color: "#60758A", fontSize: 12, lineHeight: 1.6, marginTop: 3 }}>No automatic deductions. We will send a renewal reminder and a secure payment link before your plan expires.</span></span>
-          </label>
           <label style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: 13, border: billingMode === "automatic" ? "2px solid #079BD3" : "1px solid #DCE8F1", borderRadius: 9, cursor: "pointer" }}>
             <input type="radio" name="billing-mode" checked={billingMode === "automatic"} onChange={() => setBillingMode("automatic")} style={{ marginTop: 3 }} />
             <span><strong>Automatic monthly renewal</strong><span style={{ display: "block", color: "#60758A", fontSize: 12, lineHeight: 1.6, marginTop: 3 }}>After the R49 introductory payment, R{plan.monthly.toFixed(2)} will be charged automatically each month until you cancel.</span></span>
+          </label>
+          <label style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: 13, border: billingMode === "manual" ? "2px solid #079BD3" : "1px solid #DCE8F1", borderRadius: 9, marginBottom: 9, cursor: "pointer" }}>
+            <input type="radio" name="billing-mode" checked={billingMode === "manual"} onChange={() => setBillingMode("manual")} style={{ marginTop: 3 }} />
+            <span><strong>Pay manually every month</strong><span style={{ display: "block", color: "#60758A", fontSize: 12, lineHeight: 1.6, marginTop: 3 }}>No automatic deductions. We will send a renewal reminder and a secure payment link before your plan expires.</span></span>
           </label>
           <div style={{ marginTop: 18, padding: 14, borderRadius: 9, background: "#F4F8FC", color: "#405A70", fontSize: 12, lineHeight: 1.7 }}>
             <strong>Before you confirm:</strong> You will pay R49.00 today. Your first renewal is R{plan.monthly.toFixed(2)} on {renewalDate}, then R{plan.monthly.toFixed(2)} every month. {billingMode === "manual" ? "No recurring debit authority will be created. You must make each renewal payment yourself." : "You are authorising automatic monthly payments. You can cancel future renewals from your account."}
