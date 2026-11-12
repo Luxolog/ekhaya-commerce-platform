@@ -1,0 +1,78 @@
+name: Ekhaya Development Assistant
+
+on:
+  schedule:
+    # Tuesday and Friday at 09:00 South Africa time (UTC+2).
+    - cron: "0 7 * * 2,5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ekhaya-price-checker-development-assistant
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    name: Safe project inspection
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      APPWRITE_ENDPOINT: https://cloud.appwrite.io/v1
+      APPWRITE_PROJECT_ID: 6af62ccd0026265dd456
+      APPWRITE_DATABASE_ID: ekhaya_price_checker
+      APPWRITE_API_KEY: ${{ secrets.APPWRITE_API_KEY }}
+    steps:
+      - name: Check out repository (read-only)
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run lint checks
+        run: npm run lint
+
+      - name: Build application (no deployment)
+        run: npm run build
+
+      - name: Check Appwrite read-only connection
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${APPWRITE_API_KEY}" ]]; then
+            echo "::warning::APPWRITE_API_KEY is not configured; Appwrite inspection was skipped."
+            exit 0
+          fi
+          curl --fail --silent --show-error \
+            "${APPWRITE_ENDPOINT}/health" >/tmp/appwrite-health.json
+          curl --fail --silent --show-error \
+            -H "X-Appwrite-Project: ${APPWRITE_PROJECT_ID}" \
+            -H "X-Appwrite-Key: ${APPWRITE_API_KEY}" \
+            "${APPWRITE_ENDPOINT}/tablesdb/${APPWRITE_DATABASE_ID}/tables?total=true" \
+            >/tmp/appwrite-tables.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          json.loads(Path("/tmp/appwrite-health.json").read_text())
+          tables = json.loads(Path("/tmp/appwrite-tables.json").read_text())
+          print("PASS: Appwrite health endpoint responded.")
+          print(f"PASS: Appwrite database table count: {tables.get('total', 'unknown')}")
+          PY
+
+      - name: Record safe-run summary
+        if: always()
+        run: |
+          {
+            echo "## Ekhaya Price Checker Development Assistant"
+            echo "- Schedule: Tuesday and Friday, 09:00 SAST"
+            echo "- Scope: dependency install, lint, production build and read-only Appwrite inspection"
+            echo "- Production deployments, database writes and source edits: disabled"
+            echo "- Appwrite inactivity protection: not guaranteed by this workflow"
+          } >> "$GITHUB_STEP_SUMMARY"
