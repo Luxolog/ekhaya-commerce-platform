@@ -1,4 +1,5 @@
 name: Android debug APK
+# Fresh APK verification build: barcode scanner and photo identification included
 
 permissions:
   contents: read
