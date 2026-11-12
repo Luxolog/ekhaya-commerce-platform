@@ -185,13 +185,13 @@ returns trigger
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 begin
   insert into public.store_memberships (store_id, user_id, role)
   values (new.id, (select auth.uid()), 'owner');
   return new;
 end;
-$;
+$$;
 
 create trigger stores_add_creator_as_owner
   after insert on public.stores

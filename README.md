@@ -1,30 +1,48 @@
-# Ekhaya Commerce Platform
+# Ekhaya Price Checker
 
-A custom multi-store commerce platform for Ekhaya Scents and future independent merchants.
+A price intelligence and profitability tool for South African resellers, built by Ekhaya Technologies.
 
-## Phase 1 — foundation
+## Current test build
 
-This repository establishes the application structure and tenancy-first architecture. It is intentionally not connected to production hosting, payment credentials, or customer data yet.
+- Responsive manual price calculator at /price-checker
+- Optional marketplace connection guidance at /marketplaces
+- Sellers without Takealot or Amazon accounts can use the calculator without connecting anything
+- Capacitor Android wrapper and GitHub Actions debug APK build
+- Shared marketplace cache schema, demand-based TTL policy, refresh queue, price history and API usage ledger
+- Server-side integration architecture documented; ReefAPI and Supabase credentials are not stored in the repository or APK
 
-### Planned foundation
-- Store-aware routing and configuration
-- Separate merchant/store records
-- Domain mapping and verification workflow
-- Tenant-scoped catalog and orders
-- Role-based access and server-side authorization
-- PostgreSQL/Supabase integration after schema and access policies are reviewed
+Marketplace connections shown in this test build are guidance only. Takealot API-key submission, Amazon seller authorisation, customer registration, password recovery and live marketplace data are not yet connected. Do not ask users to send API keys to Ekhaya through chat, email or screenshots.
+
+## Cache refresh policy
+
+- Popular listings (50+ searches in 24 hours): 30 minutes
+- Regular listings (5–49 searches): 6 hours
+- Inactive listings (0–4 searches): 24 hours
+- Manual refresh cooldown: 15 minutes per customer/product, with a server-wide duplicate-request guard
+
+Cache is shared across customers. Cache hits do not consume a new provider lookup. Failed refreshes preserve the last successful price and mark it stale.
 
 ## Development
 
-Install Node.js 20+ and run:
+Requirements: Node.js 20+.
 
-```bash
-npm install
-npm run dev
-```
+    npm install
+    npm run dev
 
-Open http://localhost:3000.
+## Android debug APK
+
+    npm install
+    npm run build
+    npx cap add android
+    npx cap sync android
+    cd android && ./gradlew assembleDebug
+
+See docs/android-build-and-test.md.
+
+## Environment
+
+Copy .env.example to .env.local for server-side integration work. Never commit real keys. The current Android debug build contains the static calculator/app shell only; live marketplace research requires a deployed server-side API and database.
 
 ## Safety
 
-Never commit API keys, payment secrets, database credentials, customer data, or `.env` files. Production tenant isolation must be enforced in the database—not only in the UI.
+Never commit API keys, payment secrets, database credentials, customer data, or .env files.
