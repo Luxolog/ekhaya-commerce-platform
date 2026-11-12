@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 const plans = [
   { code: "starter", name: "Starter", monthly: 99, searches: "50 searches per month", description: "For sellers getting started", features: ["50 monthly product searches", "Price comparisons and profit estimates", "R99 per month after the R49 intro month"] },
   { code: "growth", name: "Growth", monthly: 149, searches: "100 searches per month", description: "For sellers building momentum", features: ["100 monthly product searches", "Price comparisons and profit estimates", "R149 per month after the R49 intro month"] },
-  { code: "pro", name: "Pro", monthly: 199, searches: "Up to 350 searches per month", description: "For active sellers ready to scale", features: ["Up to 350 monthly product searches", "Price comparisons and profit estimates", "R199 per month after the R49 intro month"] },
+  { code: "pro", name: "Pro", monthly: 199, searches: "150–250 searches per month", description: "For active sellers ready to scale", features: ["150–250 monthly product searches", "Price comparisons and profit estimates", "R199 per month after the R49 intro month"] },
 ] as const;
 
 function nextMonthlyDate() {
