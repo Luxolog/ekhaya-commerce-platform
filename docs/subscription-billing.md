@@ -7,9 +7,17 @@
 | Starter | R49 once-off | R99 |
 | Growth | R49 once-off | R149 |
 | Pro | R49 once-off | R199 |
-| Business | R49 once-off | R299 |
+
+Custom solutions are available by contacting Ekhaya Technologies. They are tailored to the customer and are not a fixed self-service subscription tier.
 
 The R49 introductory amount is charged once only. The selected plan's normal monthly price starts on the first renewal date.
+
+## Search allowances
+
+- Starter: 50 searches per month.
+- Growth: 100 searches per month.
+- Pro: up to 350 searches per month.
+- Custom: search allowance and product scope agreed directly with the customer.
 
 ## Renewal choices
 
