@@ -16,7 +16,7 @@ The R49 introductory amount is charged once only. The selected plan's normal mon
 
 - Starter: 50 searches per month.
 - Growth: 100 searches per month.
-- Pro: up to 350 searches per month.
+- Pro: 150–250 searches per month.
 - Custom: search allowance and product scope agreed directly with the customer.
 
 ## Renewal choices
