@@ -10,7 +10,7 @@ export function requireAppwriteConfig() {
   if (!endpoint || !projectId || !apiKey) {
     throw new Error("Appwrite server configuration is incomplete.");
   }
-  return { endpoint: endpoint.replace(/\\/$/, ""), projectId, apiKey };
+  return { endpoint: endpoint.replace(/\/$/, ""), projectId, apiKey };
 }
 
 /**
@@ -24,7 +24,7 @@ export async function appwriteServerRequest<T>(
   init: RequestInit = {},
 ): Promise<T> {
   const config = requireAppwriteConfig();
-  const response = await fetch(`${config.endpoint}/${path.replace(/^\\//, "")}`, {
+  const response = await fetch(`${config.endpoint}/${path.replace(/^\//, "")}`, {
     ...init,
     headers: {
       "X-Appwrite-Project": config.projectId,
