@@ -12,7 +12,7 @@ export default function Home() {
     <main style={{ minHeight: '100vh', padding: '28px clamp(20px, 6vw, 88px) 72px', background: 'var(--pale)', color: 'var(--navy)' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, borderBottom: '1px solid var(--line)', paddingBottom: 20 }}>
         <Link href="/" aria-label="Ekhaya Technologies home"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies — Digital solutions. Built around you." width={230} height={190} priority style={{ width: 170, height: 'auto' }} /></Link>
-        <Link href="/marketplaces/" style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 800, letterSpacing: '.06em' }}>MARKETPLACE CONNECTIONS</Link>
+        <nav style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}><Link href="/pricing/" style={{ color: "var(--blue)", fontSize: 12, fontWeight: 800 }}>PLANS & PRICING</Link><Link href="/marketplaces/" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800, letterSpacing: ".06em" }}>MARKETPLACE CONNECTIONS</Link></nav>
       </header>
       <section style={{ maxWidth: 900, padding: 'clamp(65px, 11vw, 130px) 0 72px' }}>
         <p style={{ color: 'var(--blue)', fontWeight: 800, letterSpacing: '.18em', fontSize: 12 }}>BUILT FOR SOUTH AFRICAN RESELLERS</p>
