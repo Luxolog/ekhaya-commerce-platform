@@ -6,6 +6,7 @@ import Image from "next/image";
 
 const supabaseUrl = "https://itxxnhcjjiynrmivexcb.supabase.co";
 const anonKey = "sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t";
+const authRedirectUrl = "https://ekhayatech.co.za/account/";
 
 export default function AccountPage() {
   const [mode,setMode] = useState<"signin"|"signup"|"reset"|"new-password">("signup");
@@ -33,7 +34,7 @@ export default function AccountPage() {
     setBusy(true); setMessage("");
     try {
       if(mode==="reset"){
-        const response=await fetch(supabaseUrl+"/auth/v1/recover?redirect_to="+encodeURIComponent(window.location.origin+"/account/"),{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:JSON.stringify({email})});
+        const response=await fetch(supabaseUrl+"/auth/v1/recover?redirect_to="+encodeURIComponent(authRedirectUrl),{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:JSON.stringify({email})});
         const data=await response.json().catch(()=>({}));
         if(!response.ok)throw new Error(data.msg??data.message??data.error_description??"Unable to send password reset email.");
         setMessage("If an account exists for this email, a password reset link has been sent. Check your inbox and spam folder.");
@@ -50,7 +51,7 @@ export default function AccountPage() {
         setMessage("Your password has been updated. Sign in using your new password.");
         return;
       }
-      const endpoint = mode === "signup" ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
+      const endpoint = mode === "signup" ? "/auth/v1/signup?redirect_to="+encodeURIComponent(authRedirectUrl) : "/auth/v1/token?grant_type=password";
       const response = await fetch(supabaseUrl+endpoint,{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:JSON.stringify(mode==="signup"?{email,password,data:{display_name:name,marketplace_access:marketplaceAccess}}:{email,password})});
       const data = await response.json();
       if(!response.ok) throw new Error(data.msg??data.message??data.error_description??"Unable to process your account request.");
