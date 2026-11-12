@@ -68,3 +68,13 @@
 ## Completion estimate
 
 **Not yet meaningfully measurable.** The project is at the infrastructure and initial authentication scaffolding stage. A percentage would be misleading until schema parity and the runtime architecture are resolved.
+
+## 2026-11-12 continued implementation
+
+- Added CI workflow `.github/workflows/appwrite-migration-validation.yml` to run npm ci, ESLint, static Next.js build, Capacitor asset existence check, and Appwrite Function JavaScript syntax validation on migration-branch pushes/PRs. Workflow has been committed but no GitHub Actions run has yet been observed.
+- Added and verified additive schema fields: cache variant label and update timestamp; subscription introductory-payment and grace-period timestamps; payment merchant reference, payment kind and canonical provider field.
+- Added unique merchant-reference index; Appwrite initially reported the index as `processing`. Confirm final status before relying on it.
+- Attempt to add `marketplace_price_cache.last_error` was rejected by Appwrite with `column_limit_exceeded`. No existing columns were dropped.
+- Schema parity is still incomplete. Search credit uniqueness, subscription billing-mode enum, payment status vocabulary, partial indexes and missing columns remain unresolved.
+- Appwrite Function remains source-only. Deployment requires a linked Appwrite VCS installation or packaged deployment artifact and a verified runtime test.
+- Current branch contains a CI workflow; check its run status before reporting tests as passed.
