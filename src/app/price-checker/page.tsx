@@ -33,7 +33,7 @@ export default function PriceCheckerPage() {
   const [weight,setWeight]=useState("0.5");
   const [length,setLength]=useState("20");
   const [width,setWidth]=useState("15");
-  const [height,setHeight]=useState("10");
+  const [height,setHeight]=useState("10");\n  const [takealotMode,setTakealotMode]=useState<"marketplace"|"seller">("marketplace");\n  const [amazonMode,setAmazonMode]=useState<"fba"|"easy"|"self">("fba");\n  const [sellerDelivery,setSellerDelivery]=useState("0");
   const [products,setProducts]=useState<MarketplaceProduct[]>([]);
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
@@ -133,13 +133,13 @@ export default function PriceCheckerPage() {
       const price=Number(p.price)||0;
       const tal=takealotFulfilment(category,volume,kg);
       const success=price*(takealotRates[category]??12)/100;
-      const talFees=(success+tal.fee)*1.15;
+      const talFulfilment=takealotMode==="marketplace"?tal.fee:0;\n      const talFees=(success+talFulfilment)*1.15;
       const amazonReferral=price*.05;
       const amazonFba=category==="clothing"? (kg<=.25?27:kg<=.5?28:kg<=1?29:kg<=2?31:kg<=5?34:kg<=10?41:kg<=20?46:87):0;
-      const amzFees=(amazonReferral+amazonFba)*1.15;
+      const amzFulfilment=amazonMode==="fba"?amazonFba:amazonMode==="easy"?Number(sellerDelivery)||0:Number(sellerDelivery)||0;\n      const amzFees=(amazonReferral+amzFulfilment)*1.15;
       const fee=p.marketplace==="takealot"?talFees:amzFees;
       const profit=price-buying-fee;
-      return {id:p.id,fee,profit,margin:price?profit/price*100:0,fulfilment:p.marketplace==="takealot"?tal.fee:amazonFba,success:p.marketplace==="takealot"?success:amazonReferral,size:tal.size};
+      return {id:p.id,fee,profit,margin:price?profit/price*100:0,fulfilment:p.marketplace==="takealot"?talFulfilment:amzFulfilment,success:p.marketplace==="takealot"?success:amazonReferral,size:tal.size};
     });
   },[products,buying,category,volume,kg]);
   return <main className="page">
@@ -154,7 +154,7 @@ export default function PriceCheckerPage() {
       <div className="buying"><label htmlFor="buying">Your buying price <b>Required</b></label><div className="money-input"><span>R</span><input id="buying" type="number" min="0.01" step="0.01" value={cost} onChange={e=>setCost(e.target.value)} placeholder="Enter supplier / purchase price"/></div></div>
       <div className="market-choice"><label>Compare marketplaces</label><div className="checks">{(["takealot","amazon"] as const).map(m=><label key={m}><input type="checkbox" checked={marketplaces.includes(m)} onChange={e=>setMarketplaces(old=>e.target.checked?[...old,m]:old.filter(x=>x!==m))}/>{m==="takealot"?"Takealot":"Amazon South Africa"}</label>)}</div></div>
       <div className="details"><div><label>Product category</label><select value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></div><div><label>Packed weight (kg)</label><input type="number" min="0" step=".01" value={weight} onChange={e=>setWeight(e.target.value)}/></div><div><label>Length (cm)</label><input type="number" min="0" value={length} onChange={e=>setLength(e.target.value)}/></div><div><label>Width (cm)</label><input type="number" min="0" value={width} onChange={e=>setWidth(e.target.value)}/></div><div><label>Height (cm)</label><input type="number" min="0" value={height} onChange={e=>setHeight(e.target.value)}/></div></div>
-      <p className="hint">Fulfilment assumption: you send inventory to the marketplace fulfilment centre. The marketplace stores, picks, packs and delivers each customer order.</p>
+      <div className="details" style={{marginTop:14}}><div><label>Takealot fulfilment</label><select value={takealotMode} onChange={e=>setTakealotMode(e.target.value as "marketplace"|"seller")}><option value="marketplace">Fulfilled by Takealot</option><option value="seller">Seller fulfilled</option></select></div><div><label>Amazon fulfilment</label><select value={amazonMode} onChange={e=>setAmazonMode(e.target.value as "fba"|"easy"|"self")}><option value="fba">FBA</option><option value="easy">Easy Ship</option><option value="self">Self Ship</option></select></div><div><label>Delivery cost (R/order)</label><input type="number" min="0" step=".01" value={sellerDelivery} onChange={e=>setSellerDelivery(e.target.value)}/></div></div><p className="hint">Fulfilment is selected separately for each marketplace. For Easy Ship and Self Ship, enter your own estimated delivery/handling cost per order. Takealot seller-fulfilled orders exclude marketplace fulfilment charges from this estimate.</p>
       <button className="search" disabled={loading||!validCost||!marketplaces.length||(mode==="barcode"&&!barcodeProduct)} onClick={search}>{loading?"Searching marketplaces…":"Find product & calculate profit →"}</button>
       {!validCost&&<p className="hint">Enter a buying price greater than R0 to unlock product search.</p>}
       {error&&<p className="error" role="status">{error}</p>}{source&&<p className="hint">{source} · Listing prices may change.</p>}
