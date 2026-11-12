@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
+import { BrowserMultiFormatReader } from "@zxing/browser";
 
 type MarketplaceProduct = { marketplace?: string; id: string; title: string; brand?: string | null; price: number | null; currency: string; image?: string | null; url?: string | null; in_stock?: boolean | null; rating?: number | null; review_count?: number | null; seller?: string | null; };
 type Mode = "name" | "barcode" | "photo";
@@ -45,11 +45,7 @@ export default function PriceCheckerPage() {
   const [photoBusy,setPhotoBusy]=useState(false);
   const [barcodeProduct,setBarcodeProduct]=useState("");
   const [barcodeBusy,setBarcodeBusy]=useState(false);
-  const [scannerOpen,setScannerOpen]=useState(false);
-  const [scanMessage,setScanMessage]=useState("");
-  const videoRef=useRef<HTMLVideoElement|null>(null);
-  const streamRef=useRef<MediaStream|null>(null);
-  const scannerControlsRef=useRef<IScannerControls|null>(null);
+
   const getSupabaseHeaders=()=>{const session=typeof window!=="undefined"?localStorage.getItem("ekhaya_session"):null;const token=session?JSON.parse(session).access_token:null;return {"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":token?`Bearer ${token}`:"Bearer"};};
   const buying=Number(cost);
   const validCost=cost.trim()!=="" && Number.isFinite(buying) && buying>0;
@@ -57,40 +53,6 @@ export default function PriceCheckerPage() {
   const volume=Math.max(0,Number(length)||0)*Math.max(0,Number(width)||0)*Math.max(0,Number(height)||0);
   const kg=Math.max(0,Number(weight)||0);
 
-  useEffect(()=>()=>{scannerControlsRef.current?.stop();streamRef.current?.getTracks().forEach(t=>t.stop());},[]);
-  async function startScanner(){
-    setScanMessage("");
-    if(!navigator.mediaDevices?.getUserMedia){setScanMessage("Camera access is unavailable in this browser. Enter the barcode manually.");return;}
-    setScannerOpen(true);
-    window.setTimeout(async()=>{
-      const video=videoRef.current;
-      if(!video){setScanMessage("Camera preview could not start. Please try again.");setScannerOpen(false);return;}
-      try{
-        const reader=new BrowserMultiFormatReader();
-        scannerControlsRef.current=await reader.decodeFromConstraints(
-          {audio:false,video:{facingMode:{ideal:"environment"}}},
-          video,
-          async(result)=>{
-            if(!result)return;
-            const found=result.getText();
-            scannerControlsRef.current?.stop();scannerControlsRef.current=null;
-            streamRef.current?.getTracks().forEach(t=>t.stop());streamRef.current=null;
-            setScannerOpen(false);setBarcode(found);await identifyBarcode(found);
-          }
-        );
-        streamRef.current=video.srcObject instanceof MediaStream?video.srcObject:null;
-      }catch(error){
-        scannerControlsRef.current?.stop();scannerControlsRef.current=null;
-        streamRef.current?.getTracks().forEach(t=>t.stop());streamRef.current=null;
-        setScannerOpen(false);
-        setScanMessage(error instanceof Error&&error.name==="NotAllowedError"?"Camera permission was denied. Allow camera access in Android settings, then try again.":"Could not start the camera scanner. Enter the barcode manually or try again.");
-      }
-    },250);
-  }
-  function stopScanner(){
-    scannerControlsRef.current?.stop();scannerControlsRef.current=null;
-    streamRef.current?.getTracks().forEach(t=>t.stop());streamRef.current=null;setScannerOpen(false);
-  }
   async function identifyBarcode(value:string) {
     if(!/^\d{8,14}$/.test(value.trim())){setError("Enter a valid 8–14 digit barcode.");return;}
     setBarcodeBusy(true);setError("");setBarcodeProduct("");
@@ -129,10 +91,24 @@ export default function PriceCheckerPage() {
     if(file.size>18*1024*1024){setError("Choose an image smaller than 18 MB.");return;}
     setPhotoName(file.name);setPhotoText("");setPhotoBusy(true);setError("");
     try {
+      const objectUrl=URL.createObjectURL(file);
+      try {
+        const result=await new BrowserMultiFormatReader().decodeFromImageUrl(objectUrl);
+        const detected=result.getText().trim();
+        if(/^\d{8,14}$/.test(detected)){
+          setBarcode(detected);setMode("barcode");
+          await identifyBarcode(detected);
+          setError("");
+          return;
+        }
+      } catch { /* No readable barcode: continue with text recognition. */ }
+      finally { URL.revokeObjectURL(objectUrl); }
       const base64=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]??"");reader.onerror=()=>reject(new Error("Could not read image"));reader.readAsDataURL(file);});
       const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/product-identify",{method:"POST",headers:getSupabaseHeaders(),body:JSON.stringify({mode:"photo",file_b64:base64,filename:file.name})});
       const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Photo recognition failed");
-      setPhotoText(payload.text??"");if(!payload.text)setError("No clear text found. Enter the product brand or model manually.");
+      setPhotoText(payload.text??"");
+      if(!payload.text)setError("No readable barcode or product text found. Enter the barcode or product name manually.");
+      else setError("No barcode detected. Check the recognised text and search by product name.");
     } catch(e){setError(e instanceof Error?e.message:"Photo recognition failed");}
     finally{setPhotoBusy(false);}
   }
@@ -157,10 +133,10 @@ export default function PriceCheckerPage() {
     <section className="hero"><p className="eyebrow">SELL SMARTER. PRICE WITH CONFIDENCE.</p><h1>Know your numbers<br/><em>before you buy.</em></h1><p>Find a product, enter your buying price and compare estimated profit after marketplace fulfilment fees.</p></section>
     <section className="panel">
       <div className="heading"><div><small>01 / FIND A PRODUCT</small><h2>How would you like to search?</h2></div><span className="connected">● MARKETPLACE DATA</span></div>
-      <div className="modes">{(["barcode","photo","name"] as Mode[]).map(m=><button key={m} className={mode===m?"active":""} onClick={()=>{setMode(m);setError("");}}>{m==="barcode"?"▦ Scan barcode":m==="photo"?"▧ Take a picture":"⌕ Search by name"}</button>)}</div>
+      <div className="modes">{(["barcode","photo","name"] as Mode[]).map(m=><button key={m} className={mode===m?"active":""} onClick={()=>{setMode(m);setError("");}}>{m==="barcode"?"▦ Enter barcode":m==="photo"?"▧ Take a picture":"⌕ Search by name"}</button>)}</div>
       {mode==="name"&&<input className="wide" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Product name, brand or model (e.g. Logitech M171)"/>}
-      {mode==="barcode"&&<div className="stack"><button type="button" className="secondary" onClick={startScanner}>Open camera barcode scanner</button>{scannerOpen&&<div className="scanner"><video ref={videoRef} playsInline muted/><button type="button" onClick={stopScanner}>Stop scanner</button></div>}{scanMessage&&<p className="hint">{scanMessage}</p>}<input className="wide" value={barcode} onChange={e=>{setBarcode(e.target.value);setBarcodeProduct("");}} placeholder="Enter barcode / EAN / UPC"/><button type="button" className="secondary" disabled={barcodeBusy||!barcode.trim()} onClick={()=>identifyBarcode(barcode)}>{barcodeBusy?"Looking up barcode…":"Identify barcode"}</button>{barcodeProduct&&<p className="hint">Identified product: <b>{barcodeProduct}</b></p>}</div>}
-      {mode==="photo"&&<div className="stack"><label className="upload"> <input type="file" accept="image/*" capture="environment" onChange={e=>readPhoto(e.target.files?.[0])}/>Take or upload a product photo</label>{photoName&&<p className="hint">Selected: {photoName}</p>}{photoBusy&&<p className="hint">Reading text from image…</p>}<textarea className="wide photo-text" value={photoText} onChange={e=>setPhotoText(e.target.value)} placeholder="Detected text appears here. Edit it before searching."/></div>}
+      {mode==="barcode"&&<div className="stack"><input className="wide" inputMode="numeric" value={barcode} onChange={e=>{setBarcode(e.target.value.replace(/\D/g,"").slice(0,14));setBarcodeProduct("");setError("");}} placeholder="Enter barcode / EAN / UPC"/><button type="button" className="secondary" disabled={barcodeBusy||!barcode.trim()} onClick={()=>identifyBarcode(barcode)}>{barcodeBusy?"Looking up barcode…":"Identify barcode"}</button>{barcodeProduct&&<p className="hint">Identified product: <b>{barcodeProduct}</b></p>}<p className="hint">Enter the digits printed below the product barcode, or take a product photo and we’ll check it automatically.</p></div>}
+      {mode==="photo"&&<div className="stack"><label className="upload"> <input type="file" accept="image/*" capture="environment" onChange={e=>readPhoto(e.target.files?.[0])}/>Take a product photo (barcode detection included)</label>{photoName&&<p className="hint">Selected: {photoName}</p>}{photoBusy&&<p className="hint">Checking image for barcode and product text…</p>}<textarea className="wide photo-text" value={photoText} onChange={e=>setPhotoText(e.target.value)} placeholder="If no barcode is found, recognised product text appears here. Edit it before searching by name."/></div>}
       <div className="buying"><label htmlFor="buying">Your buying price <b>Required</b></label><div className="money-input"><span>R</span><input id="buying" type="number" min="0.01" step="0.01" value={cost} onChange={e=>setCost(e.target.value)} placeholder="Enter supplier / purchase price"/></div></div>
       <div className="market-choice"><label>Compare marketplaces</label><div className="checks">{(["takealot","amazon"] as const).map(m=><label key={m}><input type="checkbox" checked={marketplaces.includes(m)} onChange={e=>setMarketplaces(old=>e.target.checked?[...old,m]:old.filter(x=>x!==m))}/>{m==="takealot"?"Takealot":"Amazon South Africa"}</label>)}</div><div className="makro-status"><div><b>Makro Marketplace</b><span>Integration planned · authorised data access pending</span></div><strong>NOT CONNECTED</strong><p>Makro prices and stock are not currently searched or verified. We will enable this marketplace only after an approved data source is available.</p></div></div>
       <div className="details"><div><label>Product category</label><select value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></div><div><label>Packed weight (kg)</label><input type="number" min="0" step=".01" value={weight} onChange={e=>setWeight(e.target.value)}/></div><div><label>Length (cm)</label><input type="number" min="0" value={length} onChange={e=>setLength(e.target.value)}/></div><div><label>Width (cm)</label><input type="number" min="0" value={width} onChange={e=>setWidth(e.target.value)}/></div><div><label>Height (cm)</label><input type="number" min="0" value={height} onChange={e=>setHeight(e.target.value)}/></div></div>
