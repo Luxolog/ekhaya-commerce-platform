@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 const plans = [
-  { code: "starter", name: "Starter", monthly: 99, description: "For sellers getting started", features: ["Core price comparisons", "Profit and fee estimates", "Standard search allowance"] },
-  { code: "growth", name: "Growth", monthly: 149, description: "For sellers building momentum", features: ["Everything in Starter", "Higher search allowance", "More room to research"] },
-  { code: "pro", name: "Pro", monthly: 199, description: "For active marketplace sellers", features: ["Everything in Growth", "Expanded research allowance", "Priority access to new tools"] },
-  { code: "business", name: "Business", monthly: 299, description: "For established selling operations", features: ["Everything in Pro", "Highest plan allowance", "Built for growing teams"] },
+  { code: "starter", name: "Starter", monthly: 99, description: "For sellers getting started", features: ["Ekhaya Price Checker access", "Price and profit research tools", "Starter monthly allowance"] },
+  { code: "growth", name: "Growth", monthly: 149, description: "For sellers building momentum", features: ["Ekhaya Price Checker access", "Price and profit research tools", "Growth monthly allowance"] },
+  { code: "pro", name: "Pro", monthly: 199, description: "For active marketplace sellers", features: ["Ekhaya Price Checker access", "Price and profit research tools", "Pro monthly allowance"] },
+  { code: "business", name: "Business", monthly: 299, description: "For established selling operations", features: ["Ekhaya Price Checker access", "Price and profit research tools", "Business monthly allowance"] },
 ] as const;
 
 function nextMonthlyDate() {
