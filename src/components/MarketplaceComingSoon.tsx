@@ -17,7 +17,6 @@ export default function MarketplaceComingSoon() {
   const [consent, setConsent] = useState(false);
   const [status, setStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const selectedFeature = sellerFeatures.find((feature) => feature.title === selected);
   const featureKeys: Record<string, string> = { 'Open your online store': 'storefront', 'Sell your products': 'product_selling', 'Vendor dashboard': 'vendor_dashboard', 'Orders & fulfilment': 'fulfilment', 'Find suppliers': 'suppliers', 'Payments & invoicing': 'payments' };
   async function joinWaitlist(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
