@@ -19,8 +19,8 @@ Deno.serve(async (req: Request) => {
   let endpoint = "";
   let params: Record<string, unknown> = {};
   if (body.mode === "barcode") {
-    const barcode = String(body.barcode ?? "").replace(/[\\s-]/g, "");
-    if (!/^\\d{8,14}$/.test(barcode)) return json({ error: "Enter a valid 8–14 digit barcode." }, 400);
+    const barcode = String(body.barcode ?? "").replace(/[\s-]/g, "");
+    if (!/^\d{8,14}$/.test(barcode)) return json({ error: "Enter a valid 8–14 digit barcode." }, 400);
     endpoint = "https://api.reefapi.com/barcode/v1/lookup";
     params = { barcode, source: "auto" };
   } else if (body.mode === "photo") {
