@@ -48,7 +48,7 @@ Deno.serve(async (req: Request) => {
   const appMetadata = (user.app_metadata ?? {}) as Record<string, unknown>;
   const isOwner = appMetadata.role === "owner" || appMetadata.is_owner === true;
 
-  let body: { page?: number; user_id?: string; password?: string; marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean };
+  let body: { page?: number; user_id?: string; password?: string; marketplace_access?: string[]; marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean };
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
 
   if (body.action === "get_cache_settings") {
@@ -82,12 +82,29 @@ Deno.serve(async (req: Request) => {
     const usersResponse = await fetch(new URL(`/auth/v1/admin/users?page=${page}&per_page=100`, supabaseUrl), { headers: adminHeaders });
     if (!usersResponse.ok) return json({ error: "Could not load users." }, 502);
     const usersPayload = await usersResponse.json();
-    const users = Array.isArray(usersPayload.users) ? usersPayload.users.map((u: Record<string, unknown>) => ({
+    const rawUsers = Array.isArray(usersPayload.users) ? usersPayload.users as Record<string, unknown>[] : [];
+    const userIds = rawUsers.map((u) => String(u.id ?? "")).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+    const accessById: Record<string, string[]> = {};
+    if (userIds.length) {
+      const profileUrl = new URL("/rest/v1/profiles", supabaseUrl);
+      profileUrl.searchParams.set("id", `in.(${userIds.join(",")})`);
+      profileUrl.searchParams.set("select", "id,marketplace_access");
+      const profileResponse = await fetch(profileUrl, { headers: adminHeaders });
+      if (!profileResponse.ok) return json({ error: "Could not load seller marketplace permissions." }, 502);
+      const profileRows = await profileResponse.json();
+      for (const profile of profileRows as Record<string, unknown>[]) {
+        if (typeof profile.id === "string" && Array.isArray(profile.marketplace_access)) {
+          accessById[profile.id] = profile.marketplace_access.filter((value): value is string => value === "takealot" || value === "amazon");
+        }
+      }
+    }
+    const users = rawUsers.map((u) => ({
       id: u.id, email: u.email, created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at,
       email_confirmed_at: u.email_confirmed_at,
-      role: ((u.app_metadata ?? {}) as Record<string, unknown>).role ?? "seller"
-    })) : [];
+      role: ((u.app_metadata ?? {}) as Record<string, unknown>).role ?? "seller",
+      marketplace_access: accessById[String(u.id)] ?? ["takealot", "amazon"]
+    }));
     return json({ ok: true, users, page, total: users.length });
   }
 
@@ -113,6 +130,40 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, user_id: targetUserId, message: "Password updated successfully." });
   }
 
+  if (body.action === "set_user_marketplaces") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const targetUserId = typeof body.user_id === "string" ? body.user_id : "";
+    const access = Array.isArray(body.marketplace_access) ? [...new Set(body.marketplace_access)] : [];
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetUserId)) {
+      return json({ error: "Select a valid user." }, 400);
+    }
+    if (access.length < 1 || access.length > 2 || access.some((value) => value !== "takealot" && value !== "amazon")) {
+      return json({ error: "Choose Takealot, Amazon, or both." }, 400);
+    }
+    const saved = await fetch(new URL(`/rest/v1/profiles?id=eq.${targetUserId}`, supabaseUrl), {
+      method: "PATCH",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ marketplace_access: access, updated_at: new Date().toISOString() })
+    });
+    if (!saved.ok) return json({ error: "Could not update marketplace permissions." }, 502);
+    const rows = await saved.json();
+    if (!Array.isArray(rows) || rows.length !== 1) return json({ error: "Seller profile was not found." }, 404);
+    return json({ ok: true, user_id: targetUserId, marketplace_access: access });
+  }
+
+  if (body.action === "get_my_marketplace_access") {
+    const profileUrl = new URL("/rest/v1/profiles", supabaseUrl);
+    profileUrl.searchParams.set("id", `eq.${userId}`);
+    profileUrl.searchParams.set("select", "marketplace_access");
+    const profileResponse = await fetch(profileUrl, { headers: adminHeaders });
+    if (!profileResponse.ok) return json({ error: "Could not load your marketplace access." }, 502);
+    const rows = await profileResponse.json();
+    const access = Array.isArray(rows?.[0]?.marketplace_access)
+      ? rows[0].marketplace_access.filter((value: unknown) => value === "takealot" || value === "amazon")
+      : ["takealot", "amazon"];
+    return json({ ok: true, marketplace_access: access.length ? access : ["takealot", "amazon"] });
+  }
+
   const marketplace = body.marketplace;
   const query = typeof body.query === "string" ? body.query.trim().slice(0, 160) : "";
   if (!validMarketplaces.includes(marketplace ?? "") || query.length < 2) {
@@ -120,6 +171,20 @@ Deno.serve(async (req: Request) => {
   }
   if (marketplace === "makro") {
     return json({ error: "Makro live product search is not connected yet. We are validating an authorised South African data source before enabling it.", code: "MARKETPLACE_UNAVAILABLE" }, 501);
+  }
+  if (!isOwner) {
+    const accessUrl = new URL("/rest/v1/profiles", supabaseUrl);
+    accessUrl.searchParams.set("id", `eq.${userId}`);
+    accessUrl.searchParams.set("select", "marketplace_access");
+    const accessResponse = await fetch(accessUrl, { headers: adminHeaders });
+    if (!accessResponse.ok) return json({ error: "Could not verify your marketplace permissions." }, 502);
+    const accessRows = await accessResponse.json();
+    const allowed = Array.isArray(accessRows?.[0]?.marketplace_access)
+      ? accessRows[0].marketplace_access
+      : ["takealot", "amazon"];
+    if (!allowed.includes(marketplace)) {
+      return json({ error: "This marketplace is not enabled for your account. Contact Ekhaya support if you need access changed.", code: "MARKETPLACE_NOT_ENABLED" }, 403);
+    }
   }
   if (body.force_refresh && !isOwner) return json({ error: "Only the Ekhaya owner can force a live cache refresh." }, 403);
 

@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import MarketplaceComingSoon from '@/components/MarketplaceComingSoon';
 
 const pillars = [
   { number: '01', title: 'Compare marketplace prices', detail: 'Research product prices across supported South African marketplaces before you commit to stock.' },
@@ -12,7 +13,7 @@ export default function Home() {
     <main style={{ minHeight: '100vh', padding: '28px clamp(20px, 6vw, 88px) 72px', background: 'var(--pale)', color: 'var(--navy)' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, borderBottom: '1px solid var(--line)', paddingBottom: 20 }}>
         <Link href="/" aria-label="Ekhaya Technologies home"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies — Digital solutions. Built around you." width={230} height={190} priority style={{ width: 170, height: 'auto' }} /></Link>
-        <Link href="/marketplaces/" style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 800, letterSpacing: '.06em' }}>MARKETPLACE CONNECTIONS</Link>
+        <nav style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}><Link href="/pricing/" style={{ color: "var(--blue)", fontSize: 12, fontWeight: 800 }}>PLANS & PRICING</Link><Link href="/marketplaces/" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800, letterSpacing: ".06em" }}>MARKETPLACE CONNECTIONS</Link><Link href="/download/" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800, letterSpacing: ".06em" }}>DOWNLOAD APP</Link></nav>
       </header>
       <section style={{ maxWidth: 900, padding: 'clamp(65px, 11vw, 130px) 0 72px' }}>
         <p style={{ color: 'var(--blue)', fontWeight: 800, letterSpacing: '.18em', fontSize: 12 }}>BUILT FOR SOUTH AFRICAN RESELLERS</p>
@@ -26,6 +27,7 @@ export default function Home() {
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 18, maxWidth: 1100 }}>
         {pillars.map((p) => <article key={p.number} style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: 14, padding: 26, boxShadow: '0 10px 30px rgba(7,27,49,.04)' }}><div style={{ color: 'var(--blue)', fontSize: 12, fontWeight: 800 }}>{p.number}</div><h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 21, fontWeight: 800, margin: '18px 0 10px' }}>{p.title}</h2><p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.7, margin: 0 }}>{p.detail}</p></article>)}
       </section>
+      <MarketplaceComingSoon />
       <footer style={{ marginTop: 72, paddingTop: 20, borderTop: '1px solid var(--line)', color: 'var(--muted)', fontSize: 12 }}>Ekhaya Price Checker · Android test build · Seller account connections are optional</footer>
     </main>
   );
