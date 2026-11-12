@@ -46,7 +46,7 @@ export default function PriceCheckerPage() {
   const videoRef=useRef<HTMLVideoElement|null>(null);
   const streamRef=useRef<MediaStream|null>(null);
   const scanTimerRef=useRef<number|null>(null);
-  const supabaseHeaders={"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eHhuaGNqaml5bnJtaXZleGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM5MjA0MjEsImV4cCI6MjEwOTQ5NjQyMX0.f6nIHY00_1p0bu7E84RkVVa1832UrFpiLIu5SLxzLFU"};
+  const getSupabaseHeaders=()=>{const session=typeof window!=="undefined"?localStorage.getItem("ekhaya_session"):null;const token=session?JSON.parse(session).access_token:null;return {"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":token?`Bearer ${token}`:"Bearer"};};
   const buying=Number(cost);
   const validCost=cost.trim()!=="" && Number.isFinite(buying) && buying>0;
   const productQuery=mode==="barcode"?barcodeProduct.trim():mode==="photo"?photoText.trim():query.trim();
@@ -87,7 +87,7 @@ export default function PriceCheckerPage() {
     if(!/^\d{8,14}$/.test(value.trim())){setError("Enter a valid 8–14 digit barcode.");return;}
     setBarcodeBusy(true);setError("");setBarcodeProduct("");
     try {
-      const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/product-identify",{method:"POST",headers:supabaseHeaders,body:JSON.stringify({mode:"barcode",barcode:value.trim()})});
+      const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/product-identify",{method:"POST",headers:getSupabaseHeaders(),body:JSON.stringify({mode:"barcode",barcode:value.trim()})});
       const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Barcode lookup failed");
       setBarcodeProduct(payload.product.brand?payload.product.brand+" "+payload.product.title:payload.product.title);
       if(payload.product.weight_grams)setWeight(String(payload.product.weight_grams/1000));
@@ -105,7 +105,7 @@ export default function PriceCheckerPage() {
       try{
         const controller=new AbortController();const timer=window.setTimeout(()=>controller.abort(),10000);
         const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{
-          method:"POST",headers:{"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eHhuaGNqaml5bnJtaXZleGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM5MjA0MjEsImV4cCI6MjEwOTQ5NjQyMX0.f6nIHY00_1p0bu7E84RkVVa1832UrFpiLIu5SLxzLFU"},
+          method:"POST",headers:getSupabaseHeaders(),
           body:JSON.stringify({marketplace,query:productQuery}),signal:controller.signal
         }).finally(()=>window.clearTimeout(timer));
         const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Search failed");
@@ -122,7 +122,7 @@ export default function PriceCheckerPage() {
     setPhotoName(file.name);setPhotoText("");setPhotoBusy(true);setError("");
     try {
       const base64=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]??"");reader.onerror=()=>reject(new Error("Could not read image"));reader.readAsDataURL(file);});
-      const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/product-identify",{method:"POST",headers:supabaseHeaders,body:JSON.stringify({mode:"photo",file_b64:base64,filename:file.name})});
+      const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/product-identify",{method:"POST",headers:getSupabaseHeaders(),body:JSON.stringify({mode:"photo",file_b64:base64,filename:file.name})});
       const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Photo recognition failed");
       setPhotoText(payload.text??"");if(!payload.text)setError("No clear text found. Enter the product brand or model manually.");
     } catch(e){setError(e instanceof Error?e.message:"Photo recognition failed");}
@@ -143,7 +143,7 @@ export default function PriceCheckerPage() {
     });
   },[products,buying,category,volume,kg]);
   return <main className="page">
-    <header className="top"><Link href="/" aria-label="Ekhaya Technologies home"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={230} height={190} className="logo" priority/></Link><span className="pill">PRICE INTELLIGENCE · LIVE RESEARCH</span></header>
+    <header className="top"><Link href="/" aria-label="Ekhaya Technologies home"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={230} height={190} className="logo" priority/></Link><span className="pill">PRICE INTELLIGENCE · LIVE RESEARCH</span><Link href="/account/" className="pill">SELLER ACCOUNT</Link></header>
     <section className="hero"><p className="eyebrow">SELL SMARTER. PRICE WITH CONFIDENCE.</p><h1>Know your numbers<br/><em>before you buy.</em></h1><p>Find a product, enter your buying price and compare estimated profit after marketplace fulfilment fees.</p></section>
     <section className="panel">
       <div className="heading"><div><small>01 / FIND A PRODUCT</small><h2>How would you like to search?</h2></div><span className="connected">● MARKETPLACE DATA</span></div>
