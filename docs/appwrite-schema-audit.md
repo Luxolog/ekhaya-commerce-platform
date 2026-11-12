@@ -46,3 +46,21 @@ Appwrite confirms 18 tables. The 18-table inventory exists, but table count alon
 5. Run access-control tests with unauthenticated, seller and owner identities before enabling frontend access.
 
 No production Supabase schema or data has been changed by this audit.
+
+## Additive corrections applied to the isolated Appwrite database
+
+The following operations were accepted by Appwrite and subsequently verified with column listing (status `available`):
+
+- `marketplace_price_cache.variant_label` (optional string)
+- `marketplace_price_cache.updated_at` (optional datetime)
+- `subscriptions.intro_payment_completed_at` (optional datetime)
+- `subscriptions.grace_period_ends_at` (optional datetime)
+- `payment_transactions.merchant_reference` (optional string)
+- `payment_transactions.payment_kind` (optional enum: introductory, renewal, manual_renewal, one_off)
+- `payment_transactions.payment_provider` (optional string defaulting to payfast)
+
+A unique index on `payment_transactions.merchant_reference` was accepted by Appwrite and entered processing. Its final availability still needs a follow-up index listing.
+
+**Blocked:** Appwrite rejected adding `marketplace_price_cache.last_error` with `column_limit_exceeded`. The table is at its maximum column/size allowance. Do not try to bypass this by dropping existing fields. Preserve the error in the function log/ledger until a schema redesign or plan limit change is approved.
+
+**Still unresolved:** the `subscriptions.billing_mode` enum remains `manual/recurring`, not the source's `manual/automatic`; the search-credit unique index remains overly restrictive on `request_id` alone; payment status vocabulary remains different (`paid` vs source `complete`); and several source indexes/partial uniqueness rules need server-side equivalents. These are release blockers, not completed parity.
