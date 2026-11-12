@@ -51,6 +51,12 @@ Deno.serve(async (req: Request) => {
   let body: { marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean };
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
 
+  if (body.action === "get_cache_settings") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const response = await fetch(new URL("/rest/v1/marketplace_cache_settings?id=eq.true&select=refresh_enabled,cache_ttl_minutes,updated_at", supabaseUrl), { headers: adminHeaders });
+    if (!response.ok) return json({ error: "Could not load cache policy." }, 500);
+    return json({ ok: true, settings: (await response.json())[0] ?? null });
+  }
   if (body.action === "configure_cache") {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
     const ttl = body.cache_ttl_minutes;
