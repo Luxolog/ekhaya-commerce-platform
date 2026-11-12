@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 const plans = [
-  { code: "starter", name: "Starter", monthly: 99, description: "For sellers getting started", features: ["Ekhaya Price Checker access", "Price and profit research tools", "Starter monthly allowance"] },
-  { code: "growth", name: "Growth", monthly: 149, description: "For sellers building momentum", features: ["Ekhaya Price Checker access", "Price and profit research tools", "Growth monthly allowance"] },
-  { code: "pro", name: "Pro", monthly: 199, description: "For active marketplace sellers", features: ["Ekhaya Price Checker access", "Price and profit research tools", "Pro monthly allowance"] },
-  { code: "business", name: "Business", monthly: 299, description: "For established selling operations", features: ["Ekhaya Price Checker access", "Price and profit research tools", "Business monthly allowance"] },
+  { code: "starter", name: "Starter", monthly: 99, searches: "50 searches per month", description: "For sellers getting started", features: ["50 monthly product searches", "Price comparisons and profit estimates", "R99 per month after the R49 intro month"] },
+  { code: "growth", name: "Growth", monthly: 149, searches: "100 searches per month", description: "For sellers building momentum", features: ["100 monthly product searches", "Price comparisons and profit estimates", "R149 per month after the R49 intro month"] },
+  { code: "pro", name: "Pro", monthly: 199, searches: "150 searches per month", description: "For active marketplace sellers", features: ["150 monthly product searches", "Price comparisons and profit estimates", "R199 per month after the R49 intro month"] },
+  { code: "business", name: "Business", monthly: 299, searches: "200–350 searches per month", description: "For established selling operations", features: ["200–350 monthly product searches", "Price comparisons and profit estimates", "R299 per month after the R49 intro month"] },
 ] as const;
 
 function nextMonthlyDate() {
@@ -39,6 +39,7 @@ export default function PricingPage() {
             <button key={item.code} onClick={() => setSelected(item.code)} aria-pressed={selected === item.code} style={{ textAlign: "left", padding: 20, borderRadius: 12, border: selected === item.code ? "2px solid #079BD3" : "1px solid #DCE8F1", background: "#fff", color: "#071B31", cursor: "pointer", boxShadow: selected === item.code ? "0 8px 24px #079bd31a" : "none" }}>
               <span style={{ fontSize: 18, fontWeight: 800 }}>{item.name}</span>
               <span style={{ display: "block", color: "#60758A", fontSize: 12, marginTop: 5 }}>{item.description}</span>
+              <span style={{ display: "block", color: "#079BD3", fontSize: 13, fontWeight: 800, marginTop: 12 }}>{item.searches}</span>
               <span style={{ display: "block", fontSize: 30, fontWeight: 800, marginTop: 18 }}>R{item.monthly}<small style={{ fontSize: 12, color: "#60758A", fontWeight: 500 }}>/month</small></span>
               <span style={{ display: "block", fontSize: 12, color: "#079BD3", fontWeight: 700, marginTop: 8 }}>R49 first month</span>
               <ul style={{ paddingLeft: 18, color: "#60758A", fontSize: 12, lineHeight: 1.9, marginTop: 14 }}>{item.features.map((feature) => <li key={feature}>{feature}</li>)}</ul>
