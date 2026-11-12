@@ -39,15 +39,29 @@ export default function PriceCheckerPage() {
   const [error,setError]=useState("");
   const [source,setSource]=useState("");
   const [photoBusy,setPhotoBusy]=useState(false);
+  const [barcodeProduct,setBarcodeProduct]=useState("");
+  const [barcodeBusy,setBarcodeBusy]=useState(false);
+  const supabaseHeaders={"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eHhuaGNqaml5bnJtaXZleGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM5MjA0MjEsImV4cCI6MjEwOTQ5NjQyMX0.f6nIHY00_1p0bu7E84RkVVa1832UrFpiLIu5SLxzLFU"};
   const buying=Number(cost);
   const validCost=cost.trim()!=="" && Number.isFinite(buying) && buying>0;
-  const productQuery=mode==="barcode"?barcode.trim():mode==="photo"?photoText.trim():query.trim();
+  const productQuery=mode==="barcode"?barcodeProduct.trim():mode==="photo"?photoText.trim():query.trim();
   const volume=Math.max(0,Number(length)||0)*Math.max(0,Number(width)||0)*Math.max(0,Number(height)||0);
   const kg=Math.max(0,Number(weight)||0);
 
+  async function identifyBarcode(value:string) {
+    if(!/^\\d{8,14}$/.test(value.trim())){setError("Enter a valid 8–14 digit barcode.");return;}
+    setBarcodeBusy(true);setError("");setBarcodeProduct("");
+    try {
+      const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/product-identify",{method:"POST",headers:supabaseHeaders,body:JSON.stringify({mode:"barcode",barcode:value.trim()})});
+      const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Barcode lookup failed");
+      setBarcodeProduct(payload.product.brand?payload.product.brand+" "+payload.product.title:payload.product.title);
+      if(payload.product.weight_grams)setWeight(String(payload.product.weight_grams/1000));
+    } catch(e){setError(e instanceof Error?e.message:"Barcode lookup failed");}
+    finally{setBarcodeBusy(false);}
+  }
   async function search() {
     if(!validCost){setError("Enter your buying price first. This is required before searching.");return;}
-    if(mode==="barcode"){setError("Resolve the barcode to a product name before searching. You can enter the product name in Search by name.");return;}
+    if(mode==="barcode"&&!barcodeProduct){setError("Identify the barcode first.");return;}
     if(productQuery.length<2){setError("Enter at least 2 characters to search.");return;}
     if(!marketplaces.length){setError("Choose at least one marketplace.");return;}
     setLoading(true);setError("");setProducts([]);setSource("");
