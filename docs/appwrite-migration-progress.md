@@ -39,6 +39,12 @@
 5. **No Appwrite functions have been deployed.** ReefAPI search, product identification, credit accounting, cache, owner controls and rate limiting still need migration.
 6. **No automated build/test result is recorded for this branch yet.** The GitHub connector can inspect and commit source, but this session has not run the repository's local package install, TypeScript check, tests or production build.
 
+## Latest architecture and schema audit updates
+
+- Architecture decision recorded in `docs/appwrite-architecture-decision.md`: preserve static Next.js export/Capacitor packaging and implement privileged backend APIs as Appwrite Functions. The existing Next.js session route is not suitable for the static export build and remains a prototype, not an integrated auth path.
+- Initial live Appwrite schema comparison recorded in `docs/appwrite-schema-audit.md`. Confirmed discrepancies include subscription billing mode/columns, cache fields, search-credit uniqueness, payment transaction fields/status, and missing index coverage.
+- No schema mutations have been applied while the source-of-truth differences and current business pricing are being reconciled.
+
 ## Next work sequence
 
 1. Resolve server-rendered API versus static Android packaging architecture without changing production.
