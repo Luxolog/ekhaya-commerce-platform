@@ -36,9 +36,13 @@ export default function PriceCheckerPage() {
     setSearchError("");
     setProducts([]);
     setSearchSource("");
-    try {
-      const targets = searchMarketplace === "both" ? ["takealot", "amazon"] as const : [searchMarketplace] as const;
-      const responses = await Promise.all(targets.map(async (marketplace) => {
+    const targets = searchMarketplace === "both" ? ["takealot", "amazon"] as const : [searchMarketplace] as const;
+    const errors: string[] = [];
+    let completed = 0;
+    await Promise.all(targets.map(async (marketplace) => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 10000);
         const response = await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search", {
           method: "POST",
           headers: {
@@ -47,20 +51,26 @@ export default function PriceCheckerPage() {
             "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eHhuaGNqaml5bnJtaXZleGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM5MjA0MjEsImV4cCI6MjEwOTQ5NjQyMX0.f6nIHY00_1p0bu7E84RkVVa1832UrFpiLIu5SLxzLFU",
           },
           body: JSON.stringify({ marketplace, query: searchQuery.trim() }),
-        });
+          signal: controller.signal,
+        }).finally(() => window.clearTimeout(timeoutId));
         const payload = await response.json();
-        if (!response.ok) throw new Error(`${marketplace}: ${payload.error ?? payload.message ?? "Search failed"}`);
-        return { ...payload, marketplace };
-      }));
-      const combined = responses.flatMap((payload) => (payload.products ?? []).map((product: MarketplaceProduct) => ({ ...product, marketplace: payload.marketplace })));
-      setProducts(combined);
-      setSearchSource(responses.every((item) => item.source === "cache") ? "Shared cache" : "Live marketplace data");
-      if (!combined.length) setSearchError("No products were found. Try a different search phrase.");
-    } catch (error) {
-      setSearchError(error instanceof Error ? error.message : "Unable to search right now.");
-    } finally {
-      setSearchLoading(false);
-    }
+        if (!response.ok) throw new Error(payload.error ?? payload.message ?? "Search failed");
+        const incoming = (payload.products ?? []).map((product: MarketplaceProduct) => ({ ...product, marketplace }));
+        setProducts((current) => [...current.filter((item) => item.marketplace !== marketplace), ...incoming]);
+        setSearchSource((current) => current === "Shared cache" && payload.source !== "cache"
+          ? "Live marketplace data"
+          : payload.source === "cache" ? "Shared cache" : "Live marketplace data");
+      } catch (error) {
+        const message = error instanceof Error && error.name === "AbortError"
+          ? "Request timed out"
+          : error instanceof Error ? error.message : "Search failed";
+        errors.push(`${marketplace === "amazon" ? "Amazon SA" : "Takealot"}: ${message}`);
+        setSearchError(errors.join(" · "));
+      } finally {
+        completed += 1;
+        if (completed === targets.length) setSearchLoading(false);
+      }
+    }));
   }
 
   const result = useMemo(() => {
@@ -108,6 +118,7 @@ export default function PriceCheckerPage() {
           </select>
           <button type="button" onClick={searchMarketplaceProducts} disabled={searchLoading}>{searchLoading ? "Searching…" : "Search products"}</button>
         </div>
+        {searchLoading && products.length > 0 && <p className="search-source" role="status">Results are arriving; checking the other marketplace…</p>}
         {searchError && <p className="search-error" role="status">{searchError}</p>}
         {searchSource && <p className="search-source">{searchSource} · Prices are indicative and can change at any time.</p>}
         {products.length > 0 && <div className="product-results">{products.map((product, index) => <article className="product-result" key={product.id || index}>
