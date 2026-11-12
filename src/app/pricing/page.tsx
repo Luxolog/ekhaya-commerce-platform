@@ -6,8 +6,7 @@ import { useMemo, useState } from "react";
 const plans = [
   { code: "starter", name: "Starter", monthly: 99, searches: "50 searches per month", description: "For sellers getting started", features: ["50 monthly product searches", "Price comparisons and profit estimates", "R99 per month after the R49 intro month"] },
   { code: "growth", name: "Growth", monthly: 149, searches: "100 searches per month", description: "For sellers building momentum", features: ["100 monthly product searches", "Price comparisons and profit estimates", "R149 per month after the R49 intro month"] },
-  { code: "pro", name: "Pro", monthly: 199, searches: "150 searches per month", description: "For active marketplace sellers", features: ["150 monthly product searches", "Price comparisons and profit estimates", "R199 per month after the R49 intro month"] },
-  { code: "business", name: "Business", monthly: 299, searches: "200–350 searches per month", description: "For established selling operations", features: ["200–350 monthly product searches", "Price comparisons and profit estimates", "R299 per month after the R49 intro month"] },
+  { code: "pro", name: "Pro", monthly: 199, searches: "Up to 350 searches per month", description: "For active sellers ready to scale", features: ["Up to 350 monthly product searches", "Price comparisons and profit estimates", "R199 per month after the R49 intro month"] },
 ] as const;
 
 function nextMonthlyDate() {
@@ -47,6 +46,11 @@ export default function PricingPage() {
             </button>
           ))}
         </div>
+
+        <section style={{ marginTop: 18, background: "#fff", border: "1px solid #DCE8F1", borderRadius: 14, padding: "22px 24px", maxWidth: 1120, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+          <div><h2 style={{ fontSize: 19, margin: "0 0 6px" }}>Need more than Pro?</h2><p style={{ color: "#60758A", fontSize: 13, lineHeight: 1.6, margin: 0 }}>Talk to us about a tailored solution for your business and search requirements.</p></div>
+          <a href="mailto:support@ekhayatech.co.za?subject=Custom%20Price%20Checker%20Solution" style={{ display: "inline-block", padding: "12px 18px", borderRadius: 8, background: "#071B31", color: "#fff", fontSize: 12, fontWeight: 800, textDecoration: "none" }}>CONTACT US</a>
+        </section>
 
         <section style={{ marginTop: 28, background: "#fff", border: "1px solid #DCE8F1", borderRadius: 14, padding: "clamp(20px, 4vw, 32px)", maxWidth: 760 }}>
           <h2 style={{ fontSize: 22, margin: "0 0 8px" }}>Review your checkout</h2>
