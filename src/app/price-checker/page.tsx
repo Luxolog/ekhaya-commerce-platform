@@ -106,7 +106,7 @@ export default function PriceCheckerPage() {
         const controller=new AbortController();const timer=window.setTimeout(()=>controller.abort(),10000);
         const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{
           method:"POST",headers:getSupabaseHeaders(),
-          body:JSON.stringify({marketplace,query:productQuery}),signal:controller.signal
+          body:JSON.stringify({marketplace,query:productQuery,request_id:crypto.randomUUID()}),signal:controller.signal
         }).finally(()=>window.clearTimeout(timer));
         const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Search failed");
         const incoming=(payload.products??[]).map((p:MarketplaceProduct)=>({...p,marketplace}));
