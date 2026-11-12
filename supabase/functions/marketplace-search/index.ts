@@ -48,7 +48,7 @@ Deno.serve(async (req: Request) => {
   const appMetadata = (user.app_metadata ?? {}) as Record<string, unknown>;
   const isOwner = appMetadata.role === "owner" || appMetadata.is_owner === true;
 
-  let body: { marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean };
+  let body: { page?: number; user_id?: string; password?: string; marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean };
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
 
   if (body.action === "get_cache_settings") {
@@ -73,6 +73,44 @@ Deno.serve(async (req: Request) => {
     });
     if (!saved.ok) return json({ error: "Could not save cache policy.", detail: await saved.text() }, 500);
     return json({ ok: true, settings: (await saved.json())[0] });
+  }
+
+
+  if (body.action === "list_users") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const page = Number.isInteger(body.page) ? Math.max(1, Math.min(20, body.page as number)) : 1;
+    const usersResponse = await fetch(new URL(`/auth/v1/admin/users?page=${page}&per_page=100`, supabaseUrl), { headers: adminHeaders });
+    if (!usersResponse.ok) return json({ error: "Could not load users." }, 502);
+    const usersPayload = await usersResponse.json();
+    const users = Array.isArray(usersPayload.users) ? usersPayload.users.map((u: Record<string, unknown>) => ({
+      id: u.id, email: u.email, created_at: u.created_at,
+      last_sign_in_at: u.last_sign_in_at,
+      email_confirmed_at: u.email_confirmed_at,
+      role: ((u.app_metadata ?? {}) as Record<string, unknown>).role ?? "seller"
+    })) : [];
+    return json({ ok: true, users, page, total: users.length });
+  }
+
+  if (body.action === "set_user_password") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const targetUserId = typeof body.user_id === "string" ? body.user_id : "";
+    const newPassword = typeof body.password === "string" ? body.password : "";
+    if (!targetUserId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetUserId)) {
+      return json({ error: "Select a valid user." }, 400);
+    }
+    if (newPassword.length < 12 || newPassword.length > 72) {
+      return json({ error: "Password must be between 12 and 72 characters." }, 400);
+    }
+    const updateResponse = await fetch(new URL(`/auth/v1/admin/users/${targetUserId}`, supabaseUrl), {
+      method: "PUT",
+      headers: { ...adminHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ password: newPassword }),
+    });
+    if (!updateResponse.ok) {
+      const detail = await updateResponse.text();
+      return json({ error: "Supabase could not update this user's password.", detail }, 502);
+    }
+    return json({ ok: true, user_id: targetUserId, message: "Password updated successfully." });
   }
 
   const marketplace = body.marketplace;
