@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
 
 type MarketplaceProduct = { marketplace?: string; id: string; title: string; brand?: string | null; price: number | null; currency: string; image?: string | null; url?: string | null; in_stock?: boolean | null; rating?: number | null; review_count?: number | null; seller?: string | null; };
 type Mode = "name" | "barcode" | "photo";
@@ -48,7 +49,7 @@ export default function PriceCheckerPage() {
   const [scanMessage,setScanMessage]=useState("");
   const videoRef=useRef<HTMLVideoElement|null>(null);
   const streamRef=useRef<MediaStream|null>(null);
-  const scanTimerRef=useRef<number|null>(null);
+  const scannerControlsRef=useRef<IScannerControls|null>(null);
   const getSupabaseHeaders=()=>{const session=typeof window!=="undefined"?localStorage.getItem("ekhaya_session"):null;const token=session?JSON.parse(session).access_token:null;return {"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":token?`Bearer ${token}`:"Bearer"};};
   const buying=Number(cost);
   const validCost=cost.trim()!=="" && Number.isFinite(buying) && buying>0;
@@ -56,35 +57,39 @@ export default function PriceCheckerPage() {
   const volume=Math.max(0,Number(length)||0)*Math.max(0,Number(width)||0)*Math.max(0,Number(height)||0);
   const kg=Math.max(0,Number(weight)||0);
 
-  useEffect(()=>()=>{if(scanTimerRef.current!==null)window.clearInterval(scanTimerRef.current);streamRef.current?.getTracks().forEach(t=>t.stop());},[]);
+  useEffect(()=>()=>{scannerControlsRef.current?.stop();streamRef.current?.getTracks().forEach(t=>t.stop());},[]);
   async function startScanner(){
     setScanMessage("");
-    const Detector=(window as any).BarcodeDetector;
-    if(!Detector){setScanMessage("Camera barcode scanning is not supported. Enter the barcode manually.");return;}
-    try{
-      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
-      streamRef.current=stream;setScannerOpen(true);
-      window.setTimeout(async()=>{
-        const video=videoRef.current;if(!video)return;
-        video.srcObject=stream;await video.play();
-        const detector=new Detector({formats:["ean_13","ean_8","upc_a","upc_e","code_128"]});
-        scanTimerRef.current=window.setInterval(async()=>{
-          try{
-            const hits=await detector.detect(video);
-            if(hits.length&&hits[0].rawValue){
-              const found=hits[0].rawValue;
-              if(scanTimerRef.current!==null)window.clearInterval(scanTimerRef.current);
-              scanTimerRef.current=null;stream.getTracks().forEach(t=>t.stop());streamRef.current=null;
-              setScannerOpen(false);setBarcode(found);await identifyBarcode(found);
-            }
-          }catch{}
-        },300);
-      },150);
-    }catch{setScanMessage("Camera access was blocked. Allow permission or enter the barcode manually.");}
+    if(!navigator.mediaDevices?.getUserMedia){setScanMessage("Camera access is unavailable in this browser. Enter the barcode manually.");return;}
+    setScannerOpen(true);
+    window.setTimeout(async()=>{
+      const video=videoRef.current;
+      if(!video){setScanMessage("Camera preview could not start. Please try again.");setScannerOpen(false);return;}
+      try{
+        const reader=new BrowserMultiFormatReader();
+        scannerControlsRef.current=await reader.decodeFromConstraints(
+          {audio:false,video:{facingMode:{ideal:"environment"}}},
+          video,
+          async(result)=>{
+            if(!result)return;
+            const found=result.getText();
+            scannerControlsRef.current?.stop();scannerControlsRef.current=null;
+            streamRef.current?.getTracks().forEach(t=>t.stop());streamRef.current=null;
+            setScannerOpen(false);setBarcode(found);await identifyBarcode(found);
+          }
+        );
+        streamRef.current=video.srcObject instanceof MediaStream?video.srcObject:null;
+      }catch(error){
+        scannerControlsRef.current?.stop();scannerControlsRef.current=null;
+        streamRef.current?.getTracks().forEach(t=>t.stop());streamRef.current=null;
+        setScannerOpen(false);
+        setScanMessage(error instanceof Error&&error.name==="NotAllowedError"?"Camera permission was denied. Allow camera access in Android settings, then try again.":"Could not start the camera scanner. Enter the barcode manually or try again.");
+      }
+    },250);
   }
   function stopScanner(){
-    if(scanTimerRef.current!==null)window.clearInterval(scanTimerRef.current);
-    scanTimerRef.current=null;streamRef.current?.getTracks().forEach(t=>t.stop());streamRef.current=null;setScannerOpen(false);
+    scannerControlsRef.current?.stop();scannerControlsRef.current=null;
+    streamRef.current?.getTracks().forEach(t=>t.stop());streamRef.current=null;setScannerOpen(false);
   }
   async function identifyBarcode(value:string) {
     if(!/^\d{8,14}$/.test(value.trim())){setError("Enter a valid 8–14 digit barcode.");return;}
