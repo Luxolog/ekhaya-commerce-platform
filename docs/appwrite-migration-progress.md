@@ -45,7 +45,7 @@
 - Initial live Appwrite schema comparison recorded in `docs/appwrite-schema-audit.md`. Confirmed discrepancies include subscription billing mode/columns, cache fields, search-credit uniqueness, payment transaction fields/status, and missing index coverage.
 - No schema mutations have been applied while the source-of-truth differences and current business pricing are being reconciled.
 
-## Next work sequence
+## Latest implementation changes\n\n- Removed the incompatible, unintegrated Next.js session route from the migration branch. Supabase production is unaffected.\n- Added an Appwrite Node Function scaffold that verifies the invocation JWT against the Appwrite Account API and checks the authenticated user ID. This is not yet deployed, and its runtime contract still needs an Appwrite preview execution test.\n\n## Next work sequence
 
 1. Resolve server-rendered API versus static Android packaging architecture without changing production.
 2. Complete an authoritative schema inventory from Supabase migrations and compare all 18 Appwrite tables; record every discrepancy before making schema changes.
