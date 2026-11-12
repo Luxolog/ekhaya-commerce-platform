@@ -5,278 +5,109 @@ import Link from "next/link";
 import Image from "next/image";
 
 type MarketplaceProduct = { marketplace?: string; id: string; title: string; brand?: string | null; price: number | null; currency: string; image?: string | null; url?: string | null; in_stock?: boolean | null; rating?: number | null; review_count?: number | null; seller?: string | null; };
-
-const money = (value: number) =>
-  new Intl.NumberFormat("en-ZA", {
-    style: "currency",
-    currency: "ZAR",
-    maximumFractionDigits: 2,
-  }).format(value);
-
+type Mode = "name" | "barcode" | "photo";
+const money = (v: number) => new Intl.NumberFormat("en-ZA",{style:"currency",currency:"ZAR",maximumFractionDigits:2}).format(v);
+const categories = [
+  ["general","General / other"],["beauty","Beauty & personal care"],["electronics","Electronics / computers"],
+  ["home","Home & kitchen"],["clothing","Clothing & accessories"],["toys","Toys"],["books","Books"],["automotive","Automotive"]
+] as const;
+const takealotRates: Record<string,number> = {general:12,beauty:13,electronics:10,home:13,clothing:18,toys:12,books:14,automotive:10};
+function takealotFulfilment(category:string, volume:number, kg:number) {
+  const size = volume <= 35000 ? "standard" : volume <= 130000 ? "large" : volume <= 200000 ? "oversize" : volume <= 545000 ? "bulky" : "extra bulky";
+  const band = kg <= 7 ? 0 : kg <= 25 ? 1 : kg <= 40 ? 2 : 3;
+  const rates: Record<string,number[]> = {
+    standard: category==="beauty" ? [33,52,107,107] : category==="electronics" ? [60,60,107,107] : [45,60,107,107],
+    large:[60,65,107,118], oversize:[107,130,160,160], bulky:[107,145,160,172], "extra bulky":[270,270,320,390]
+  };
+  return {fee:rates[size][band],size};
+}
 export default function PriceCheckerPage() {
-  const [cost, setCost] = useState("55");
-  const [sellingPrice, setSellingPrice] = useState("99");
-  const [feePercent, setFeePercent] = useState("15");
-  const [fixedFee, setFixedFee] = useState("0");
-  const [shipping, setShipping] = useState("0");
-  const [targetMargin, setTargetMargin] = useState("25");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchMarketplace, setSearchMarketplace] = useState<"takealot" | "amazon" | "both">("both");
-  const [products, setProducts] = useState<MarketplaceProduct[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchError, setSearchError] = useState("");
-  const [searchSource, setSearchSource] = useState("");
+  const [mode,setMode]=useState<Mode>("name");
+  const [query,setQuery]=useState("");
+  const [barcode,setBarcode]=useState("");
+  const [photoText,setPhotoText]=useState("");
+  const [photoName,setPhotoName]=useState("");
+  const [cost,setCost]=useState("");
+  const [marketplaces,setMarketplaces]=useState<("takealot"|"amazon")[]>(["takealot","amazon"]);
+  const [category,setCategory]=useState("general");
+  const [weight,setWeight]=useState("0.5");
+  const [length,setLength]=useState("20");
+  const [width,setWidth]=useState("15");
+  const [height,setHeight]=useState("10");
+  const [products,setProducts]=useState<MarketplaceProduct[]>([]);
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState("");
+  const [source,setSource]=useState("");
+  const [photoBusy,setPhotoBusy]=useState(false);
+  const buying=Number(cost);
+  const validCost=cost.trim()!=="" && Number.isFinite(buying) && buying>0;
+  const productQuery=mode==="barcode"?barcode.trim():mode==="photo"?photoText.trim():query.trim();
+  const volume=Math.max(0,Number(length)||0)*Math.max(0,Number(width)||0)*Math.max(0,Number(height)||0);
+  const kg=Math.max(0,Number(weight)||0);
 
-  async function searchMarketplaceProducts() {
-    if (searchQuery.trim().length < 2) {
-      setSearchError("Enter at least 2 characters to search.");
-      return;
-    }
-    setSearchLoading(true);
-    setSearchError("");
-    setProducts([]);
-    setSearchSource("");
-    const targets = searchMarketplace === "both" ? ["takealot", "amazon"] as const : [searchMarketplace] as const;
-    const errors: string[] = [];
-    let completed = 0;
-    await Promise.all(targets.map(async (marketplace) => {
-      try {
-        const controller = new AbortController();
-        const timeoutId = window.setTimeout(() => controller.abort(), 10000);
-        const response = await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "apikey": "sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t",
-            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eHhuaGNqaml5bnJtaXZleGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM5MjA0MjEsImV4cCI6MjEwOTQ5NjQyMX0.f6nIHY00_1p0bu7E84RkVVa1832UrFpiLIu5SLxzLFU",
-          },
-          body: JSON.stringify({ marketplace, query: searchQuery.trim() }),
-          signal: controller.signal,
-        }).finally(() => window.clearTimeout(timeoutId));
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error ?? payload.message ?? "Search failed");
-        const incoming = (payload.products ?? []).map((product: MarketplaceProduct) => ({ ...product, marketplace }));
-        setProducts((current) => [...current.filter((item) => item.marketplace !== marketplace), ...incoming]);
-        setSearchSource((current) => current === "Shared cache" && payload.source !== "cache"
-          ? "Live marketplace data"
-          : payload.source === "cache" ? "Shared cache" : "Live marketplace data");
-      } catch (error) {
-        const message = error instanceof Error && error.name === "AbortError"
-          ? "Request timed out"
-          : error instanceof Error ? error.message : "Search failed";
-        errors.push(`${marketplace === "amazon" ? "Amazon SA" : "Takealot"}: ${message}`);
-        setSearchError(errors.join(" · "));
-      } finally {
-        completed += 1;
-        if (completed === targets.length) setSearchLoading(false);
-      }
+  async function search() {
+    if(!validCost){setError("Enter your buying price first. This is required before searching.");return;}
+    if(mode==="barcode"){setError("Resolve the barcode to a product name before searching. You can enter the product name in Search by name.");return;}
+    if(productQuery.length<2){setError("Enter at least 2 characters to search.");return;}
+    if(!marketplaces.length){setError("Choose at least one marketplace.");return;}
+    setLoading(true);setError("");setProducts([]);setSource("");
+    const errors:string[]=[]; let done=0;
+    await Promise.all(marketplaces.map(async marketplace=>{
+      try{
+        const controller=new AbortController();const timer=window.setTimeout(()=>controller.abort(),10000);
+        const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{
+          method:"POST",headers:{"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eHhuaGNqaml5bnJtaXZleGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM5MjA0MjEsImV4cCI6MjEwOTQ5NjQyMX0.f6nIHY00_1p0bu7E84RkVVa1832UrFpiLIu5SLxzLFU"},
+          body:JSON.stringify({marketplace,query:productQuery}),signal:controller.signal
+        }).finally(()=>window.clearTimeout(timer));
+        const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Search failed");
+        const incoming=(payload.products??[]).map((p:MarketplaceProduct)=>({...p,marketplace}));
+        setProducts(old=>[...old.filter(p=>p.marketplace!==marketplace),...incoming]);
+        setSource(old=>old==="Shared cache"&&payload.source!=="cache"?"Live marketplace data":payload.source==="cache"?"Shared cache":"Live marketplace data");
+      }catch(e){errors.push((marketplace==="amazon"?"Amazon SA":"Takealot")+": "+(e instanceof Error?e.message:"Search failed"));setError(errors.join(" · "));}
+      finally{done++;if(done===marketplaces.length)setLoading(false);}
     }));
   }
-
-  const result = useMemo(() => {
-    const buying = Math.max(0, Number(cost) || 0);
-    const price = Math.max(0, Number(sellingPrice) || 0);
-    const feeRate = Math.min(100, Math.max(0, Number(feePercent) || 0)) / 100;
-    const fixed = Math.max(0, Number(fixedFee) || 0);
-    const delivery = Math.max(0, Number(shipping) || 0);
-    const marginTarget = Math.min(95, Math.max(0, Number(targetMargin) || 0)) / 100;
-    const marketplaceFee = price * feeRate + fixed;
-    const netProfit = price - buying - marketplaceFee - delivery;
-    const margin = price > 0 ? (netProfit / price) * 100 : 0;
-    const suggested = (buying + fixed + delivery) / (1 - feeRate - marginTarget);
-
-    return { marketplaceFee, netProfit, margin, suggested };
-  }, [cost, sellingPrice, feePercent, fixedFee, shipping, targetMargin]);
-
-  return (
-    <main className="price-page">
-      <header className="topbar">
-        <Link className="brand" href="/" aria-label="Ekhaya Technologies home">
-          <Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={230} height={190} priority className="brand-logo" />
-        </Link>
-        <span className="phase-pill">PRICE INTELLIGENCE · LIVE RESEARCH</span>
-      </header>
-
-      <section className="hero">
-        <p className="eyebrow">SELL SMARTER. PRICE WITH CONFIDENCE.</p>
-        <h1>Know your numbers<br /><em>before you buy.</em></h1>
-        <p className="hero-copy">
-          Check your potential profit, account for marketplace costs, and find a
-          selling price that works for your business.
-        </p>
-      </section>
-
-      <section className="search-panel panel">
-        <div className="panel-heading">
-          <div><span className="step">LIVE PRODUCT RESEARCH</span><h2>Search marketplace listings</h2></div>
-          <span className="live-dot">● CONNECTED</span>
-        </div>
-        <div className="search-controls">
-          <input aria-label="Product search" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") searchMarketplaceProducts(); }} placeholder="Search a product, e.g. wireless mouse" />
-          <select aria-label="Marketplace" value={searchMarketplace} onChange={(e) => setSearchMarketplace(e.target.value as "takealot" | "amazon")}>
-            <option value="both">Compare both marketplaces</option><option value="takealot">Takealot only</option><option value="amazon">Amazon South Africa only</option>
-          </select>
-          <button type="button" onClick={searchMarketplaceProducts} disabled={searchLoading}>{searchLoading ? "Searching…" : "Search products"}</button>
-        </div>
-        {searchLoading && products.length > 0 && <p className="search-source" role="status">Results are arriving; checking the other marketplace…</p>}
-        {searchError && <p className="search-error" role="status">{searchError}</p>}
-        {searchSource && <p className="search-source">{searchSource} · Prices are indicative and can change at any time.</p>}
-        {products.length > 0 && <div className="product-results">{products.map((product, index) => <article className="product-result" key={product.id || index}>
-          {product.image ? <img src={product.image} alt="" /> : <div className="product-placeholder">E</div>}
-          <div className="product-info"><strong>{product.title}</strong><span>{product.marketplace === "amazon" ? "Amazon SA" : "Takealot"} · {product.brand ?? "Marketplace listing"}{product.rating ? ` · ★ ${product.rating}` : ""}{product.review_count ? ` (${product.review_count})` : ""}</span><b>{product.price == null ? "Price unavailable" : new Intl.NumberFormat("en-ZA", { style: "currency", currency: product.currency || "ZAR" }).format(product.price)}</b><small>{product.in_stock === true ? "In stock" : product.in_stock === false ? "Currently unavailable" : "Stock not confirmed"}</small>{product.url && <a href={product.url} target="_blank" rel="noreferrer">View listing ↗</a>}</div>
-        </article>)}</div>}
-      </section>
-
-      <section className="workspace" aria-label="Price checker calculator">
-        <div className="panel inputs-panel">
-          <div className="panel-heading">
-            <div>
-              <span className="step">01 / YOUR PRODUCT</span>
-              <h2>Price calculator</h2>
-            </div>
-            <span className="live-dot">● LIVE</span>
-          </div>
-
-          <label>
-            Your buying cost <span>(R)</span>
-            <input inputMode="decimal" type="number" min="0" value={cost} onChange={(e) => setCost(e.target.value)} />
-          </label>
-          <label>
-            Planned selling price <span>(R)</span>
-            <input inputMode="decimal" type="number" min="0" value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} />
-          </label>
-
-          <div className="field-row">
-            <label>
-              Marketplace fee <span>(%)</span>
-              <input inputMode="decimal" type="number" min="0" max="100" value={feePercent} onChange={(e) => setFeePercent(e.target.value)} />
-            </label>
-            <label>
-              Fixed fee <span>(R)</span>
-              <input inputMode="decimal" type="number" min="0" value={fixedFee} onChange={(e) => setFixedFee(e.target.value)} />
-            </label>
-          </div>
-
-          <label>
-            Other costs / shipping contribution <span>(R)</span>
-            <input inputMode="decimal" type="number" min="0" value={shipping} onChange={(e) => setShipping(e.target.value)} />
-          </label>
-
-          <div className="target-box">
-            <label>
-              Target profit margin <strong>{targetMargin}%</strong>
-            </label>
-            <input className="range" type="range" min="5" max="70" step="1" value={targetMargin} onChange={(e) => setTargetMargin(e.target.value)} />
-            <div className="range-labels"><span>5% margin</span><span>70% margin</span></div>
-          </div>
-          <p className="fine-print">Fees are estimates you enter. Actual marketplace fees and fulfilment costs may differ.</p>
-        </div>
-
-        <div className="panel results-panel">
-          <div className="panel-heading">
-            <div>
-              <span className="step">02 / YOUR RESULT</span>
-              <h2>Profit snapshot</h2>
-            </div>
-            <span className="sparkle">✳</span>
-          </div>
-
-          <div className="profit-card">
-            <span>Estimated profit per sale</span>
-            <strong className={result.netProfit >= 0 ? "positive" : "negative"}>{money(result.netProfit)}</strong>
-            <span className="profit-foot">After entered costs and marketplace fees</span>
-          </div>
-
-          <div className="metrics">
-            <div><span>Profit margin</span><strong>{result.margin.toFixed(1)}%</strong></div>
-            <div><span>Marketplace fees</span><strong>{money(result.marketplaceFee)}</strong></div>
-          </div>
-
-          <div className="recommendation">
-            <div className="recommendation-icon">↗</div>
-            <div>
-              <span className="step">SUGGESTED SELLING PRICE</span>
-              <strong>{Number.isFinite(result.suggested) ? money(result.suggested) : "—"}</strong>
-              <p>Estimated price to reach your selected margin.</p>
-            </div>
-          </div>
-
-          <div className="launch-note">
-            <span className="note-icon">✦</span>
-            <div><strong>Marketplace research is now connected</strong><p>Search live Takealot and Amazon South Africa listings above. Compare listing prices, then use the calculator to estimate your margin.</p></div>
-          </div>
-        </div>
-      </section>
-
-      <footer className="page-footer">
-        <span>DIGITAL SOLUTIONS · BUILT FOR SOUTH AFRICAN SELLERS</span>
-        <span>EKHAYA TECHNOLOGIES © 2026</span>
-      </footer>
-
-      <style jsx>{`
-        .price-page { min-height: 100vh; background: #F4F8FC; color: #071B31; padding: 0 5.5%; font-family: 'DM Sans', 'Manrope', Arial, sans-serif; }
-        .topbar { height: 82px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #DCE8F1; }
-        .brand { display:flex; align-items:center; color:#071B31; text-decoration:none; }\n        .brand-logo { display:block; width:154px; height:auto; }
-        
-        .brand-mark { width:34px; height:34px; display:grid; place-items:center; background:#071B31; color:#FFFFFF; font-family:'Manrope',Arial,sans-serif; font-size:23px; border-radius:50%; }
-        .phase-pill { border:1px solid #d8d6cf; border-radius:30px; padding:9px 13px; color:#686b62; font-size:9px; letter-spacing:1.5px; }
-        .hero { max-width:760px; margin:65px auto 42px; text-align:center; }
-        .eyebrow,.step { font-size:10px; letter-spacing:2px; color:#079BD3; font-weight:700; }
-        h1 { font-family:'Manrope',Arial,sans-serif; font-size:clamp(42px,6vw,72px); font-weight:400; letter-spacing:-2px; line-height:1.02; margin:18px 0; }
-        h1 em { color:#079BD3; font-weight:400; }
-        .hero-copy { max-width:510px; margin:0 auto; color:#60758A; line-height:1.7; font-size:14px; }
-        .search-panel { max-width:1040px; margin:0 auto 20px; }
-        .search-controls { display:grid; grid-template-columns:1fr 190px auto; gap:10px; }
-        .search-controls input,.search-controls select { min-width:0; height:46px; border:1px solid #DCE8F1; border-radius:8px; padding:0 12px; color:#071B31; background:#fff; }
-        .search-controls button { border:0; border-radius:8px; padding:0 18px; background:#079BD3; color:#fff; font-weight:700; cursor:pointer; }
-        .search-controls button:disabled { opacity:.6; cursor:wait; }
-        .search-error { color:#B42318; font-size:12px; margin:12px 0 0; }
-        .search-source { color:#60758A; font-size:11px; margin:12px 0 0; }
-        .product-results { display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:12px; margin-top:18px; }
-        .product-result { display:flex; gap:12px; border:1px solid #DCE8F1; border-radius:10px; padding:12px; min-width:0; }
-        .product-result img,.product-placeholder { width:76px; height:76px; flex:0 0 76px; object-fit:contain; border-radius:7px; background:#F4F8FC; }
-        .product-placeholder { display:grid; place-items:center; color:#079BD3; font-size:28px; font-weight:800; }
-        .product-info { display:flex; flex-direction:column; align-items:flex-start; gap:5px; min-width:0; }
-        .product-info strong { font-size:12px; line-height:1.4; }
-        .product-info span,.product-info small { color:#60758A; font-size:10px; }
-        .product-info b { color:#071B31; font-size:16px; }
-        .product-info a { color:#079BD3; font-size:10px; font-weight:700; }
-        .workspace { max-width:1040px; margin:0 auto; display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:stretch; }
-        .panel { background:#fff; border:1px solid #DCE8F1; border-radius:14px; padding:28px; box-shadow:0 8px 30px rgba(30,32,26,.035); }
-        .panel-heading { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:25px; }
-        h2 { margin:8px 0 0; font-family:Georgia,serif; font-weight:400; font-size:26px; }
-        .live-dot { color:#079BD3; font-size:9px; letter-spacing:1px; }
-        .sparkle { color:#00A9E8; font-size:24px; }
-        label { display:block; color:#304B63; font-size:12px; font-weight:600; margin-bottom:17px; }
-        label span { color:#8195A8; font-weight:400; }
-        input:not(.range) { display:block; box-sizing:border-box; width:100%; height:45px; margin-top:8px; padding:0 12px; border:1px solid #DCE8F1; border-radius:7px; background:#FFFFFF; color:#071B31; font-size:15px; outline:none; }
-        input:focus { border-color:#079BD3; box-shadow:0 0 0 3px rgba(7,155,211,.12); }
-        .field-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-        .target-box { padding:15px; border-radius:9px; background:#F4F8FC; margin-top:2px; }
-        .target-box label { display:flex; justify-content:space-between; margin-bottom:12px; }
-        .target-box strong { color:#079BD3; }
-        .range { width:100%; accent-color:#079BD3; }
-        .range-labels { display:flex; justify-content:space-between; color:#8195A8; font-size:10px; margin-top:6px; }
-        .fine-print { color:#8195A8; font-size:10px; line-height:1.5; margin:16px 0 0; }
-        .profit-card { background:#071B31; border-radius:10px; padding:24px; color:#fff; }
-        .profit-card>span:first-child { display:block; color:#D4E2EC; font-size:12px; }
-        .profit-card strong { display:block; font-family:Georgia,serif; font-size:clamp(34px,4vw,48px); font-weight:400; margin:12px 0 8px; }
-        .positive { color:#00A9E8; }.negative { color:#f3a7a0; }
-        .profit-foot { color:#B6C8D7; font-size:10px; }
-        .metrics { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:14px 0; }
-        .metrics div { border:1px solid #DCE8F1; border-radius:9px; padding:15px; }
-        .metrics span { display:block; color:#60758A; font-size:11px; margin-bottom:8px; }
-        .metrics strong { font-size:19px; font-weight:600; }
-        .recommendation { display:flex; align-items:center; gap:14px; border:1px solid #DCE8F1; background:#F4F8FC; border-radius:9px; padding:16px; }
-        .recommendation-icon { display:grid; place-items:center; width:36px; height:36px; border-radius:50%; background:#D9F1FA; color:#079BD3; font-size:21px; }
-        .recommendation strong { display:block; font-family:Georgia,serif; font-size:25px; font-weight:400; margin:5px 0; }
-        .recommendation p,.launch-note p { margin:0; color:#60758A; font-size:11px; line-height:1.5; }
-        .launch-note { display:flex; gap:12px; padding:17px 3px 0; margin-top:17px; border-top:1px solid #DCE8F1; }
-        .note-icon { color:#079BD3; font-size:18px; }
-        .launch-note strong { display:block; font-size:12px; margin-bottom:5px; }
-        .page-footer { max-width:1040px; margin:38px auto 0; padding:20px 0 28px; border-top:1px solid #DCE8F1; display:flex; justify-content:space-between; gap:12px; color:#8195A8; font-size:9px; letter-spacing:1px; }
-        @media(max-width:760px) { .search-controls { grid-template-columns:1fr; }.search-controls button { min-height:44px; }.price-page{padding:0 5%;}.topbar{height:70px}.phase-pill{font-size:8px;padding:7px 9px}.hero{margin:48px auto 30px}.workspace{grid-template-columns:1fr}.panel{padding:22px}.page-footer{flex-direction:column;text-align:center} }
-      `}</style>
-    </main>
-  );
+  async function readPhoto(file?:File) {
+    if(!file)return;
+    setPhotoName(file.name);setPhotoText("");setError("Photo text recognition needs the image-identification service to be enabled. For now, enter the visible brand/model text below, then search.");
+    setPhotoBusy(false);
+  }
+  const calculations=useMemo(()=>{
+    return products.map(p=>{
+      const price=Number(p.price)||0;
+      const tal=takealotFulfilment(category,volume,kg);
+      const success=price*(takealotRates[category]??12)/100;
+      const talFees=(success+tal.fee)*1.15;
+      const amazonReferral=price*.05;
+      const amazonFba=category==="clothing"? (kg<=.25?27:kg<=.5?28:kg<=1?29:kg<=2?31:kg<=5?34:kg<=10?41:kg<=20?46:87):0;
+      const amzFees=(amazonReferral+amazonFba)*1.15;
+      const fee=p.marketplace==="takealot"?talFees:amzFees;
+      const profit=price-buying-fee;
+      return {id:p.id,fee,profit,margin:price?profit/price*100:0,fulfilment:p.marketplace==="takealot"?tal.fee:amazonFba,success:p.marketplace==="takealot"?success:amazonReferral,size:tal.size};
+    });
+  },[products,buying,category,volume,kg]);
+  return <main className="page">
+    <header className="top"><Link href="/" aria-label="Ekhaya Technologies home"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={230} height={190} className="logo" priority/></Link><span className="pill">PRICE INTELLIGENCE · LIVE RESEARCH</span></header>
+    <section className="hero"><p className="eyebrow">SELL SMARTER. PRICE WITH CONFIDENCE.</p><h1>Know your numbers<br/><em>before you buy.</em></h1><p>Find a product, enter your buying price and compare estimated profit after marketplace fulfilment fees.</p></section>
+    <section className="panel">
+      <div className="heading"><div><small>01 / FIND A PRODUCT</small><h2>How would you like to search?</h2></div><span className="connected">● MARKETPLACE DATA</span></div>
+      <div className="modes">{(["barcode","photo","name"] as Mode[]).map(m=><button key={m} className={mode===m?"active":""} onClick={()=>{setMode(m);setError("");}}>{m==="barcode"?"▦ Scan barcode":m==="photo"?"▧ Take a picture":"⌕ Search by name"}</button>)}</div>
+      {mode==="name"&&<input className="wide" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Product name, brand or model (e.g. Logitech M171)"/>}
+      {mode==="barcode"&&<div className="stack"><input className="wide" value={barcode} onChange={e=>setBarcode(e.target.value)} placeholder="Enter barcode / EAN / UPC"/><p className="hint">Barcode camera lookup will be connected to the product database in the next integration step. You can use the product-name search in the meantime.</p></div>}
+      {mode==="photo"&&<div className="stack"><label className="upload"> <input type="file" accept="image/*" capture="environment" onChange={e=>readPhoto(e.target.files?.[0])}/>Take or upload a product photo</label>{photoName&&<p className="hint">Selected: {photoName}</p>}<input className="wide" value={photoText} onChange={e=>setPhotoText(e.target.value)} placeholder="Enter visible brand, model or product text"/></div>}
+      <div className="buying"><label htmlFor="buying">Your buying price <b>Required</b></label><div className="money-input"><span>R</span><input id="buying" type="number" min="0.01" step="0.01" value={cost} onChange={e=>setCost(e.target.value)} placeholder="Enter supplier / purchase price"/></div></div>
+      <div className="market-choice"><label>Compare marketplaces</label><div className="checks">{(["takealot","amazon"] as const).map(m=><label key={m}><input type="checkbox" checked={marketplaces.includes(m)} onChange={e=>setMarketplaces(old=>e.target.checked?[...old,m]:old.filter(x=>x!==m))}/>{m==="takealot"?"Takealot":"Amazon South Africa"}</label>)}</div></div>
+      <div className="details"><div><label>Product category</label><select value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></div><div><label>Packed weight (kg)</label><input type="number" min="0" step=".01" value={weight} onChange={e=>setWeight(e.target.value)}/></div><div><label>Length (cm)</label><input type="number" min="0" value={length} onChange={e=>setLength(e.target.value)}/></div><div><label>Width (cm)</label><input type="number" min="0" value={width} onChange={e=>setWidth(e.target.value)}/></div><div><label>Height (cm)</label><input type="number" min="0" value={height} onChange={e=>setHeight(e.target.value)}/></div></div>
+      <p className="hint">Fulfilment assumption: you send inventory to the marketplace fulfilment centre. The marketplace stores, picks, packs and delivers each customer order.</p>
+      <button className="search" disabled={loading||!validCost||!marketplaces.length||mode==="barcode"} onClick={search}>{loading?"Searching marketplaces…":"Find product & calculate profit →"}</button>
+      {!validCost&&<p className="hint">Enter a buying price greater than R0 to unlock product search.</p>}
+      {error&&<p className="error" role="status">{error}</p>}{source&&<p className="hint">{source} · Listing prices may change.</p>}
+    </section>
+    {products.length>0&&<section className="results"><div className="heading"><div><small>02 / COMPARE YOUR OPTIONS</small><h2>Product profitability</h2></div><span className="hint">Buying price: {money(buying)}</span></div><div className="cards">{products.map((p,i)=>{const c=calculations.find(x=>x.id===p.id);return <article className="product" key={p.marketplace+"-"+p.id+"-"+i}>{p.image?<img src={p.image} alt=""/>:<div className="placeholder">E</div>}<div className="info"><span className="market">{p.marketplace==="amazon"?"AMAZON SOUTH AFRICA":"TAKEALOT"}</span><strong>{p.title}</strong><small>{p.brand??"Marketplace listing"} · {p.in_stock===true?"In stock":p.in_stock===false?"Unavailable":"Stock unconfirmed"}</small><b className="price">{p.price==null?"Price unavailable":money(Number(p.price))}</b>{c&&p.price!=null&&<div className="breakdown"><div><span>Marketplace selling fee</span><b>{money(c.success)}</b></div><div><span>Fulfilment estimate</span><b>{c.fulfilment===0?"R0.00*":money(c.fulfilment)}</b></div><div><span>Estimated fees incl. VAT</span><b>{money(c.fee)}</b></div><div className="profit"><span>Estimated profit</span><b className={c.profit>=0?"good":"bad"}>{money(c.profit)}</b></div><div><span>Profit margin</span><b>{c.margin.toFixed(1)}%</b></div></div>}{p.url&&<a href={p.url} target="_blank" rel="noreferrer">View marketplace listing ↗</a>}</div></article>})}</div><p className="disclaimer">Estimates only. Takealot success and fulfilment fees vary by category, packed size and weight. Amazon FBA fulfilment fees may be waived under its current promotion for eligible products; apparel and other exceptions can apply. Figures exclude storage, inbound delivery to the fulfilment centre, returns, subscription allocation and other account-specific charges. *R0 reflects the published Amazon FBA promotion, not a permanent fee.</p></section>}
+    <footer>DIGITAL SOLUTIONS · BUILT FOR SOUTH AFRICAN SELLERS <span>EKHAYA TECHNOLOGIES © 2026</span></footer>
+    <style jsx>{`
+      .page{min-height:100vh;background:#F4F8FC;color:#071B31;padding:0 5.5%;font-family:Arial,sans-serif}.top{height:78px;border-bottom:1px solid #DCE8F1;display:flex;align-items:center;justify-content:space-between}.logo{width:154px;height:auto}.pill{font-size:9px;letter-spacing:1.3px;color:#60758A;border:1px solid #DCE8F1;padding:9px 13px;border-radius:30px}.hero{text-align:center;max-width:720px;margin:58px auto 34px}.eyebrow,small{color:#079BD3;font-size:10px;font-weight:700;letter-spacing:1.7px}.hero h1{font-size:clamp(40px,6vw,66px);font-weight:400;line-height:1.03;letter-spacing:-2px;margin:16px 0}.hero h1 em{color:#079BD3}.hero p:last-child{color:#60758A;line-height:1.6;font-size:14px}.panel,.results{max-width:1040px;margin:0 auto 22px;background:#fff;border:1px solid #DCE8F1;border-radius:14px;padding:28px;box-shadow:0 8px 30px #071b3108}.heading{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px}.heading h2{font:400 25px Georgia,serif;margin:7px 0}.connected{font-size:9px;color:#079BD3}.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:14px}.modes button{background:#F4F8FC;border:1px solid #DCE8F1;border-radius:8px;padding:14px 8px;color:#304B63;font-weight:700;cursor:pointer}.modes button.active{background:#E4F5FB;border-color:#079BD3;color:#056F9A}.wide,.details input,.details select{box-sizing:border-box;width:100%;height:45px;border:1px solid #DCE8F1;border-radius:7px;padding:0 12px;background:#fff;color:#071B31;font-size:14px}.buying{margin-top:22px}.buying>label,.market-choice>label,.details label{display:block;font-size:12px;font-weight:700;color:#304B63;margin-bottom:8px}.buying>label b{color:#B42318;font-size:10px;margin-left:8px}.money-input{display:flex;align-items:center;border:1px solid #079BD3;border-radius:8px;height:52px;padding:0 13px}.money-input span{font-weight:700;color:#60758A}.money-input input{border:0;outline:0;width:100%;height:100%;padding-left:10px;font-size:18px;color:#071B31}.market-choice{margin:20px 0}.checks{display:flex;gap:22px;flex-wrap:wrap}.checks label{font-size:13px;display:flex;gap:8px;align-items:center;color:#304B63}.checks input{accent-color:#079BD3}.details{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.details label{font-size:11px}.hint{font-size:11px;color:#71869A;line-height:1.5}.search{width:100%;height:49px;border:0;border-radius:8px;background:#079BD3;color:white;font-weight:700;margin-top:13px;cursor:pointer}.search:disabled{opacity:.45;cursor:not-allowed}.error{color:#B42318;font-size:12px}.stack{display:grid;gap:9px}.upload{display:block;text-align:center;padding:16px;border:1px dashed #079BD3;border-radius:8px;color:#056F9A;font-weight:700;cursor:pointer}.upload input{display:none}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}.product{display:flex;gap:13px;border:1px solid #DCE8F1;border-radius:10px;padding:14px;min-width:0}.product>img,.placeholder{width:82px;height:82px;object-fit:contain;flex:0 0 82px;background:#F4F8FC;border-radius:7px}.placeholder{display:grid;place-items:center;color:#079BD3;font-size:26px;font-weight:bold}.info{min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:6px;flex:1}.info strong{font-size:12px;line-height:1.4}.info small{font-size:10px;color:#71869A;letter-spacing:0;font-weight:400}.market{font-size:9px;color:#079BD3;font-weight:bold;letter-spacing:1px}.price{font-size:18px}.breakdown{width:100%;border-top:1px solid #DCE8F1;margin-top:6px;padding-top:7px}.breakdown div{display:flex;justify-content:space-between;gap:8px;padding:5px 0;font-size:10px;color:#60758A}.breakdown b{color:#071B31;white-space:nowrap}.breakdown .profit{border-top:1px solid #DCE8F1;margin-top:4px;padding-top:9px;font-size:12px;font-weight:bold}.good{color:#07865B!important}.bad{color:#B42318!important}.info a{font-size:10px;color:#079BD3;font-weight:bold;margin-top:5px}.disclaimer{font-size:10px;line-height:1.6;color:#71869A;margin-top:18px}footer{max-width:1040px;margin:35px auto 0;padding:20px 0 28px;border-top:1px solid #DCE8F1;display:flex;justify-content:space-between;color:#8195A8;font-size:9px;letter-spacing:1px}
+      @media(max-width:760px){.page{padding:0 5%}.hero{margin:42px auto 28px}.panel,.results{padding:20px}.details{grid-template-columns:repeat(2,1fr)}.modes{grid-template-columns:1fr}.heading{gap:10px}.connected{font-size:8px}footer{flex-direction:column;gap:10px;text-align:center}}
+    `}</style>
+  </main>;
 }
