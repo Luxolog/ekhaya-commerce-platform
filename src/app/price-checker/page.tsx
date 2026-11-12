@@ -30,6 +30,7 @@ export default function PriceCheckerPage() {
   const [photoName,setPhotoName]=useState("");
   const [cost,setCost]=useState("");
   const [marketplaces,setMarketplaces]=useState<("takealot"|"amazon")[]>(["takealot","amazon"]);
+  const [allowedMarketplaces,setAllowedMarketplaces]=useState<("takealot"|"amazon")[]>(["takealot","amazon"]);
   const [category,setCategory]=useState("general");
   const [weight,setWeight]=useState("0.5");
   const [length,setLength]=useState("20");
@@ -52,6 +53,27 @@ export default function PriceCheckerPage() {
   const productQuery=mode==="barcode"?barcodeProduct.trim():mode==="photo"?photoText.trim():query.trim();
   const volume=Math.max(0,Number(length)||0)*Math.max(0,Number(width)||0)*Math.max(0,Number(height)||0);
   const kg=Math.max(0,Number(weight)||0);
+
+  useEffect(()=>{
+    let active=true;
+    async function loadMarketplaceAccess(){
+      try{
+        const session=JSON.parse(localStorage.getItem("ekhaya_session")??"null");
+        if(!session?.access_token)return;
+        const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{
+          method:"POST",
+          headers:{"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":`Bearer ${session.access_token}`},
+          body:JSON.stringify({action:"get_my_marketplace_access"})
+        });
+        if(!response.ok)return;
+        const data=await response.json();
+        const access=(Array.isArray(data.marketplace_access)?data.marketplace_access:[]).filter((value:string)=>value==="takealot"||value==="amazon") as ("takealot"|"amazon")[];
+        if(active&&access.length){setAllowedMarketplaces(access);setMarketplaces(access);}
+      }catch{/* Keep the manual calculator available if account preferences cannot be loaded. */}
+    }
+    void loadMarketplaceAccess();
+    return ()=>{active=false;};
+  },[]);
 
   async function identifyBarcode(value:string) {
     if(!/^\d{8,14}$/.test(value.trim())){setError("Enter a valid 8–14 digit barcode.");return;}
@@ -138,7 +160,7 @@ export default function PriceCheckerPage() {
       {mode==="barcode"&&<div className="stack"><input className="wide" inputMode="numeric" value={barcode} onChange={e=>{setBarcode(e.target.value.replace(/\D/g,"").slice(0,14));setBarcodeProduct("");setError("");}} placeholder="Enter barcode / EAN / UPC"/><button type="button" className="secondary" disabled={barcodeBusy||!barcode.trim()} onClick={()=>identifyBarcode(barcode)}>{barcodeBusy?"Looking up barcode…":"Identify barcode"}</button>{barcodeProduct&&<p className="hint">Identified product: <b>{barcodeProduct}</b></p>}<p className="hint">Enter the digits printed below the product barcode, or take a product photo and we’ll check it automatically.</p></div>}
       {mode==="photo"&&<div className="stack"><label className="upload"> <input type="file" accept="image/*" capture="environment" onChange={e=>readPhoto(e.target.files?.[0])}/>Take a product photo (barcode detection included)</label>{photoName&&<p className="hint">Selected: {photoName}</p>}{photoBusy&&<p className="hint">Checking image for barcode and product text…</p>}<textarea className="wide photo-text" value={photoText} onChange={e=>setPhotoText(e.target.value)} placeholder="If no barcode is found, recognised product text appears here. Edit it before searching by name."/></div>}
       <div className="buying"><label htmlFor="buying">Your buying price <b>Required</b></label><div className="money-input"><span>R</span><input id="buying" type="number" min="0.01" step="0.01" value={cost} onChange={e=>setCost(e.target.value)} placeholder="Enter supplier / purchase price"/></div></div>
-      <div className="market-choice"><label>Compare marketplaces</label><div className="checks">{(["takealot","amazon"] as const).map(m=><label key={m}><input type="checkbox" checked={marketplaces.includes(m)} onChange={e=>setMarketplaces(old=>e.target.checked?[...old,m]:old.filter(x=>x!==m))}/>{m==="takealot"?"Takealot":"Amazon South Africa"}</label>)}</div><div className="makro-status"><div><b>Makro Marketplace</b><span>Integration planned · authorised data access pending</span></div><strong>NOT CONNECTED</strong><p>Makro prices and stock are not currently searched or verified. We will enable this marketplace only after an approved data source is available.</p></div></div>
+      <div className="market-choice"><label>Compare marketplaces</label><div className="checks">{(["takealot","amazon"] as const).map(m=><label key={m}><input type="checkbox" checked={marketplaces.includes(m)} disabled={!allowedMarketplaces.includes(m)} onChange={e=>setMarketplaces(old=>e.target.checked?[...old,m]:old.filter(x=>x!==m))}/>{m==="takealot"?"Takealot":"Amazon South Africa"}{!allowedMarketplaces.includes(m)&&<small> · Not enabled</small>}</label>)}</div><div className="makro-status"><div><b>Makro Marketplace</b><span>Integration planned · authorised data access pending</span></div><strong>NOT CONNECTED</strong><p>Makro prices and stock are not currently searched or verified. We will enable this marketplace only after an approved data source is available.</p></div></div>
       <div className="details"><div><label>Product category</label><select value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></div><div><label>Packed weight (kg)</label><input type="number" min="0" step=".01" value={weight} onChange={e=>setWeight(e.target.value)}/></div><div><label>Length (cm)</label><input type="number" min="0" value={length} onChange={e=>setLength(e.target.value)}/></div><div><label>Width (cm)</label><input type="number" min="0" value={width} onChange={e=>setWidth(e.target.value)}/></div><div><label>Height (cm)</label><input type="number" min="0" value={height} onChange={e=>setHeight(e.target.value)}/></div></div>
       <div className="details" style={{marginTop:14}}><div><label>Takealot fulfilment</label><select value={takealotMode} onChange={e=>setTakealotMode(e.target.value as "marketplace"|"seller")}><option value="marketplace">Fulfilled by Takealot</option><option value="seller">Seller fulfilled</option></select></div><div><label>Amazon fulfilment</label><select value={amazonMode} onChange={e=>setAmazonMode(e.target.value as "fba"|"easy"|"self")}><option value="fba">FBA</option><option value="easy">Easy Ship</option><option value="self">Self Ship</option></select></div><div><label>Delivery cost (R/order)</label><input type="number" min="0" step=".01" value={sellerDelivery} onChange={e=>setSellerDelivery(e.target.value)}/></div></div><p className="hint">Fulfilment is selected separately for each marketplace. For Easy Ship and Self Ship, enter your own estimated delivery/handling cost per order. Takealot seller-fulfilled orders exclude marketplace fulfilment charges from this estimate.</p>
       <button className="search" disabled={loading||!validCost||!marketplaces.length||(mode==="barcode"&&!barcodeProduct)} onClick={search}>{loading?"Searching marketplaces…":"Find product & calculate profit →"}</button>
