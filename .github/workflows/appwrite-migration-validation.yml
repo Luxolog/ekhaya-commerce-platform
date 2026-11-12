@@ -1,0 +1,54 @@
+name: Appwrite migration validation
+
+on:
+  push:
+    branches:
+      - feature/appwrite-migration
+  pull_request:
+    branches:
+      - feature/appwrite-migration
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: appwrite-migration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-frontend:
+    name: Validate static frontend and Android web bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out migration branch
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run ESLint
+        run: npm run lint
+      - name: Build static Next.js export
+        run: npm run build
+      - name: Verify Capacitor web assets exist
+        run: test -f out/index.html
+
+  appwrite-function:
+    name: Validate Appwrite Function source
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: functions/price-checker-api
+    steps:
+      - name: Check out migration branch
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate JavaScript syntax
+        run: node --check src/main.js
