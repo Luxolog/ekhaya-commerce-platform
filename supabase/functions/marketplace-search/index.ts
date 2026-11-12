@@ -70,6 +70,8 @@ Deno.serve(async (req: Request) => {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
       body: JSON.stringify(params),
+      // A slow provider must never hold the app's search screen open indefinitely.
+      signal: AbortSignal.timeout(8000),
     });
     const payload = await upstream.json();
     if (!upstream.ok || payload?.ok === false) {
@@ -120,6 +122,9 @@ Deno.serve(async (req: Request) => {
     });
     return json({ source: "live", marketplace, fetched_at: now.toISOString(), products, provider_meta: payload.meta ?? null });
   } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      return json({ error: "Marketplace timed out. Please try again shortly.", code: "PROVIDER_TIMEOUT" }, 504);
+    }
     return json({ error: "Unable to complete marketplace lookup", detail: String(error) }, 500);
   }
 });
