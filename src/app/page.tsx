@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import MarketplaceComingSoon from '@/components/MarketplaceComingSoon';
 
 const pillars = [
   { number: '01', title: 'Compare marketplace prices', detail: 'Research product prices across supported South African marketplaces before you commit to stock.' },
@@ -26,6 +27,7 @@ export default function Home() {
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 18, maxWidth: 1100 }}>
         {pillars.map((p) => <article key={p.number} style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: 14, padding: 26, boxShadow: '0 10px 30px rgba(7,27,49,.04)' }}><div style={{ color: 'var(--blue)', fontSize: 12, fontWeight: 800 }}>{p.number}</div><h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 21, fontWeight: 800, margin: '18px 0 10px' }}>{p.title}</h2><p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.7, margin: 0 }}>{p.detail}</p></article>)}
       </section>
+      <MarketplaceComingSoon />
       <footer style={{ marginTop: 72, paddingTop: 20, borderTop: '1px solid var(--line)', color: 'var(--muted)', fontSize: 12 }}>Ekhaya Price Checker · Android test build · Seller account connections are optional</footer>
     </main>
   );
