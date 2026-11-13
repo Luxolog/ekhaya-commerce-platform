@@ -99,3 +99,13 @@
 - These are deterministic domain rules and unit tests only. They do **not** yet reserve, complete or refund real credits in Appwrite.
 - The live `search_credit_events` unique index remains incorrectly scoped to `request_id` alone. No attempt was made to delete or replace it because the live schema/data impact must be reviewed first.
 - Next step: implement Appwrite TablesDB transaction-backed reservation/completion/refund operations, after confirming the transaction operation payload contract and resolving the legacy unique index without risking existing data.
+
+
+## 2026-11-13 transactional credit service implementation
+
+- Added `src/credit-service.js` with reserve, complete and refund orchestration behind an explicit transaction-capable storage adapter.
+- Added tests for same-request idempotency, separate marketplace events, concurrent quota limits, refund-once behavior and completion/refund state transitions.
+- The service requires a storage adapter whose `withTransaction` method guarantees atomic commit/rollback. The Appwrite TablesDB adapter is **not yet implemented**; no claim is made that this code currently writes to Appwrite.
+- Important adapter requirements: use deterministic composite row IDs; handle unique-conflict races by aborting/re-reading; atomically update the usage counter and event row; decrement only for a reserved event in the event's original period; never accept user ID, plan limit or account status from untrusted client input.
+- The current Appwrite legacy unique index on `request_id` remains a schema blocker. The safest migration path under review is a new versioned credit-event table with a composite unique index, followed by a controlled backfill/verification; do not delete the legacy index in place.
+- Automated tests are wired into GitHub Actions but still require a completed workflow run to confirm execution.
