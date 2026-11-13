@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { BrowserMultiFormatReader } from "@zxing/browser";
 import { currentUser, functions, signOutAppwrite } from "@/lib/appwrite-client";
 
 type Product = { id:string|null; title:string; brand?:string|null; price:number|null; currency?:string; image?:string|null; url?:string|null; in_stock?:boolean|null; seller?:string|null };
@@ -19,6 +20,9 @@ async function compressPhoto(file:File):Promise<string>{
  const context=canvas.getContext("2d");if(!context)throw new Error("Photo could not be prepared on this device.");
  context.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();
  return canvas.toDataURL("image/jpeg",0.78);
+}
+async function decodeBarcodeFromPhoto(dataUrl:string):Promise<string>{
+ try{const image=new Image();image.src=dataUrl;await image.decode();const reader=new BrowserMultiFormatReader();const result=await reader.decodeFromImageElement(image);return result.getText().replace(/\\D/g,"").slice(0,14);}catch{return "";}
 }
 
 export default function PriceCheckerPage(){
@@ -40,7 +44,7 @@ export default function PriceCheckerPage(){
  useEffect(()=>{if("serviceWorker" in navigator){navigator.serviceWorker.register("/price-checker/sw.js",{scope:"/price-checker/"}).catch(()=>{});}},[]);
  useEffect(()=>{let active=true;currentUser().then(user=>{if(!active)return;if(user){setEmail(user.email);setChecking(false);}else router.replace("/account/?next=%2Fprice-checker%2F");}).catch(()=>{if(active)router.replace("/account/?next=%2Fprice-checker%2F");});return()=>{active=false;};},[router]);
  function choosePhoto(file?:File){if(!file)return;if(!file.type.startsWith("image/")){setError("Please choose a product image.");return;}setPhoto(file);setPreview(URL.createObjectURL(file));setIdentified(null);setError("");}
- async function analysePhoto(){if(!photo){setError("Take or upload a product photo first.");return;}setAnalysing(true);setError("");try{const image_data_url=await compressPhoto(photo);const execution=await functions.createExecution(FUNCTION_ID,JSON.stringify({action:"identify_product",image_data_url}),false,"/");let body:Record<string,unknown>={};try{body=JSON.parse(execution.responseBody||"{}");}catch{throw new Error("Photo identification returned an unreadable response.");}if(execution.responseStatusCode<200||execution.responseStatusCode>=300)throw new Error(typeof body.error==="string"?body.error:"Could not identify this product.");const product=body.product as Identified;setIdentified(product);setQuery(String(body.search_query||""));}catch(e){setError(e instanceof Error?e.message:"Photo analysis failed.");}finally{setAnalysing(false);}}
+ async function analysePhoto(){if(!photo){setError("Take or upload a product photo first.");return;}setAnalysing(true);setError("");try{const image_data_url=await compressPhoto(photo);const [barcode,execution]=await Promise.all([decodeBarcodeFromPhoto(image_data_url),functions.createExecution(FUNCTION_ID,JSON.stringify({action:"identify_product",image_data_url}),false,"/")]);let body:Record<string,unknown>={};try{body=JSON.parse(execution.responseBody||"{}");}catch{throw new Error("Photo identification returned an unreadable response.");}if(execution.responseStatusCode<200||execution.responseStatusCode>=300)throw new Error(typeof body.error==="string"?body.error:"Could not identify this product.");const product={...(body.product as Identified),barcode:barcode||String((body.product as Identified).barcode||"")};setIdentified(product);setQuery(barcode||String(body.search_query||""));}catch(e){setError(e instanceof Error?e.message:"Photo analysis failed.");}finally{setAnalysing(false);}}
  async function search(){const term=query.trim();const cost=Number(buying);if(term.length<2){setError("Take a product photo or enter its brand, name or model.");return;}if(!Number.isFinite(cost)||cost<=0){setError("Enter a buying price greater than R0.");return;}if(!marketplaces.length){setError("Choose at least one marketplace.");return;}setBusy(true);setError("");setProducts([]);setSource("");try{const found=await Promise.all(marketplaces.map(async marketplace=>{const execution=await functions.createExecution(FUNCTION_ID,JSON.stringify({marketplace,query:term,request_id:crypto.randomUUID()}),false,"/");let body:Record<string,unknown>={};try{body=JSON.parse(execution.responseBody||"{}");}catch{throw new Error("Marketplace service returned an unreadable response.");}if(execution.responseStatusCode<200||execution.responseStatusCode>=300)throw new Error(typeof body.error==="string"?body.error:"Marketplace search failed.");return{marketplace,source:String(body.source??"unknown"),products:Array.isArray(body.products)?body.products as Product[]:[]};}));setProducts(found.flatMap(item=>item.products.map(product=>({...product,marketplace:item.marketplace}))));setSource([...new Set(found.map(item=>item.source))].join(", "));if(!found.some(item=>item.products.length))setError("No listings found. Try editing the detected product details.");}catch(e){setError(e instanceof Error?e.message:"Search could not be completed.");}finally{setBusy(false);}}
  async function logout(){await signOutAppwrite();router.replace("/account/");}
  if(checking)return <main className="pc-shell"><p>Checking your Ekhaya account…</p></main>;
