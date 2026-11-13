@@ -150,3 +150,17 @@
 - The user ID, marketplace entitlement and monthly limit are derived from verified server-side identity and Appwrite records, not request-body values.
 - Added unit tests for valid context and denial cases, and included the new module in CI syntax checks.
 - This helper is not yet wired into the live marketplace-search endpoint. Owner bypass/owner role is not implemented in this helper and must be established using a trusted server-side role source before any owner-specific behavior is enabled.
+
+
+## 2026-11-13 marketplace search integration implementation
+
+- Added a POST marketplace-search handler with Appwrite JWT identity verification in the Function entrypoint.
+- The handler derives the seller profile, account status, marketplace entitlement and monthly plan allowance from Appwrite TablesDB; client-supplied user IDs and quotas are ignored.
+- Added deterministic search cache row IDs and six-hour cache reads/writes in `marketplace_price_cache`.
+- Live Takealot and Amazon searches call ReefAPI server-side. Makro correctly remains unavailable (501) until a provider is integrated.
+- Search credits are reserved before provider calls, completed after cache persistence, and refunded on failure. Cache hits do not charge credits.
+- Added handler tests for cache hits, request validation and Makro unavailability.
+- Added bounded transaction-conflict retries and narrowed duplicate handling to conflict errors in the credit service.
+- The Appwrite API key is not yet provisioned to the Function. No ReefAPI key was found among the currently visible Vercel project environment variables. The Function therefore cannot run a live marketplace search until both server secrets are securely configured.
+- GitHub Actions has not yet returned a workflow run for the latest migration commits; automated tests remain unconfirmed. The workflow includes syntax checks and Node's built-in test runner.
+- No Appwrite Function has been deployed or enabled; no production traffic has been moved.
