@@ -30,7 +30,7 @@ export default function DownloadPage() {
         <article style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 16, padding: 26 }}>
           <p style={{ color: "var(--blue)", fontSize: 11, fontWeight: 800, letterSpacing: ".12em" }}>COMING NEXT</p>
           <h2 style={{ fontFamily: "Manrope, sans-serif", fontSize: 24, margin: "10px 0" }}>Public app release</h2>
-          <p style={{ color: "var(--muted)", fontSize: 14, lineHeight: 1.7 }}>We're preparing a signed Android release so users can install the app directly from this website. The public download will be published here after device testing and release checks.</p>
+          <p style={{ color: "var(--muted)", fontSize: 14, lineHeight: 1.7 }}>We&apos;re preparing a signed Android release so users can install the app directly from this website. The public download will be published here after device testing and release checks.</p>
           <span style={{ display: "inline-block", marginTop: 12, padding: "10px 14px", borderRadius: 8, background: "var(--pale)", color: "var(--navy)", fontSize: 11, fontWeight: 800 }}>PUBLIC APK · COMING SOON</span>
         </article>
       </section>
