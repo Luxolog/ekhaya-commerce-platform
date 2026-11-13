@@ -168,6 +168,10 @@ Deno.serve(async (req: Request) => {
         rating: p.rating ?? null,
         review_count: p.review_count ?? p.rating_count ?? null,
         seller: p.seller_name ?? null,
+        weight_grams: typeof p.weight_grams === "number" ? p.weight_grams : typeof p.weight === "number" ? p.weight : null,
+        length_cm: typeof p.length_cm === "number" ? p.length_cm : typeof (p.dimensions as Record<string, unknown> | undefined)?.length_cm === "number" ? (p.dimensions as Record<string, number>).length_cm : null,
+        width_cm: typeof p.width_cm === "number" ? p.width_cm : typeof (p.dimensions as Record<string, unknown> | undefined)?.width_cm === "number" ? (p.dimensions as Record<string, number>).width_cm : null,
+        height_cm: typeof p.height_cm === "number" ? p.height_cm : typeof (p.dimensions as Record<string, unknown> | undefined)?.height_cm === "number" ? (p.dimensions as Record<string, number>).height_cm : null,
         variant_selection_required: p.variant_selection_required ?? false,
       }));
       const now = new Date();
