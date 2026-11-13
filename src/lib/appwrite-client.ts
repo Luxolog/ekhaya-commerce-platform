@@ -14,12 +14,27 @@ export async function currentUser() {
   try { return await account.get(); } catch { return null; }
 }
 
-export async function invokeEkhayaFunction(payload:Record<string,unknown>) {
-  const execution=await functions.createExecution(APPWRITE_FUNCTION_ID,JSON.stringify(payload),false,"/","POST");
-  let body:Record<string,unknown>={};
-  try { body=JSON.parse(execution.responseBody||"{}"); } catch { throw new Error("The Ekhaya service returned an unreadable response."); }
-  if(execution.responseStatusCode<200||execution.responseStatusCode>=300) {
-    throw new Error(typeof body.error==="string"?body.error:`Ekhaya service returned HTTP ${execution.responseStatusCode}.`);
+export async function invokeEkhayaFunction(payload: Record<string, unknown>) {
+  // Appwrite's SDK defaults Function executions to POST; omitting the method
+  // avoids passing an untyped string where the SDK expects ExecutionMethod.
+  const execution = await functions.createExecution(
+    APPWRITE_FUNCTION_ID,
+    JSON.stringify(payload),
+    false,
+    "/"
+  );
+  let body: Record<string, unknown> = {};
+  try {
+    body = JSON.parse(execution.responseBody || "{}");
+  } catch {
+    throw new Error("The Ekhaya service returned an unreadable response.");
+  }
+  if (execution.responseStatusCode < 200 || execution.responseStatusCode >= 300) {
+    throw new Error(
+      typeof body.error === "string"
+        ? body.error
+        : `Ekhaya service returned HTTP ${execution.responseStatusCode}.`
+    );
   }
   return body;
 }
