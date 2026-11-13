@@ -58,7 +58,10 @@ export function normalizeAmazonSearchResults(payload, observedAt = new Date().to
   const rows = Array.isArray(payload?.data?.organic_results) ? payload.data.organic_results : [];
   return rows
     .filter((row) => {
-      try { return new URL(row.url).hostname.endsWith("amazon.co.za"); } catch { return false; }
+      try {
+        const url = new URL(row.url);
+        return url.hostname.endsWith("amazon.co.za") && /\/dp\/[A-Z0-9]{10}(?:\/|$)/i.test(url.pathname);
+      } catch { return false; }
     })
     .slice(0, 24)
     .map((row) => {
