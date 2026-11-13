@@ -46,7 +46,36 @@ export default function PriceCheckerPage() {
   const videoRef=useRef<HTMLVideoElement|null>(null);
   const streamRef=useRef<MediaStream|null>(null);
   const scanTimerRef=useRef<number|null>(null);
-  const getSupabaseHeaders=()=>{const session=typeof window!=="undefined"?localStorage.getItem("ekhaya_session"):null;const token=session?JSON.parse(session).access_token:null;return {"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":token?`Bearer ${token}`:"Bearer"};};
+  const getSupabaseHeaders=()=>{
+    if(typeof window==="undefined") throw new Error("Sign in to your Ekhaya seller account before searching.");
+    const readToken=(value:unknown):string|null=>{
+      if(!value||typeof value!=="object")return null;
+      const item=value as Record<string,unknown>;
+      if(typeof item.access_token==="string"&&item.access_token.length>20)return item.access_token;
+      for(const key of ["session","currentSession","data"]){
+        const nested=item[key];
+        if(nested&&typeof nested==="object"){
+          const found=readToken(nested);
+          if(found)return found;
+        }
+      }
+      return null;
+    };
+    let token:string|null=null;
+    try{
+      const saved=localStorage.getItem("ekhaya_session");
+      if(saved)token=readToken(JSON.parse(saved));
+    }catch{localStorage.removeItem("ekhaya_session");}
+    if(!token){
+      const authKey="sb-itxxnhcjjiynrmivexcb-auth-token";
+      try{
+        const saved=localStorage.getItem(authKey);
+        if(saved)token=readToken(JSON.parse(saved));
+      }catch{/* Ignore malformed SDK storage and show a sign-in prompt below. */}
+    }
+    if(!token)throw new Error("Your seller sign-in was not found in this browser tab. Please open Seller Account, sign in again, then return to the Price Checker.");
+    return {"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":`Bearer ${token}`};
+  };
   const buying=Number(cost);
   const validCost=cost.trim()!=="" && Number.isFinite(buying) && buying>0;
   const productQuery=mode==="barcode"?barcodeProduct.trim():mode==="photo"?photoText.trim():query.trim();
@@ -103,8 +132,8 @@ export default function PriceCheckerPage() {
     const errors:string[]=[]; let done=0;
     await Promise.all(marketplaces.map(async marketplace=>{
       try{
-        const controller=new AbortController();const timer=window.setTimeout(()=>controller.abort(),10000);
-        const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{
+        const controller=new AbortController();const timer=window.setTimeout(()=>controller.abort(),25000);
+        const headers=getSupabaseHeaders();\n        const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{
           method:"POST",headers:getSupabaseHeaders(),
           body:JSON.stringify({marketplace,query:productQuery,request_id:crypto.randomUUID()}),signal:controller.signal
         }).finally(()=>window.clearTimeout(timer));
