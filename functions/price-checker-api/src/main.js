@@ -16,7 +16,7 @@ async function verifyIdentity({ userId, userJwt, endpoint, projectId }) {
   if (!userId || !userJwt || !endpoint || !projectId) {
     return { ok: false, status: 401, body: { error: "Authentication required", code: "AUTH_CONTEXT_MISSING" } };
   }
-  const accountResponse = await fetch(`${endpoint.replace(/\\/$/, "")}/account`, {
+  const accountResponse = await fetch(`${endpoint.replace(/\/$/, "")}/account`, {
     method: "GET",
     headers: { "X-Appwrite-Project": projectId, "X-Appwrite-JWT": userJwt },
     signal: AbortSignal.timeout(8000),
