@@ -164,3 +164,12 @@
 - The Appwrite API key is not yet provisioned to the Function. No ReefAPI key was found among the currently visible Vercel project environment variables. The Function therefore cannot run a live marketplace search until both server secrets are securely configured.
 - GitHub Actions has not yet returned a workflow run for the latest migration commits; automated tests remain unconfirmed. The workflow includes syntax checks and Node's built-in test runner.
 - No Appwrite Function has been deployed or enabled; no production traffic has been moved.
+
+
+## 2026-11-13 Appwrite Function shell
+
+- Created Appwrite Function `ekhaya-marketplace-search` in the Ekhaya Price Checker project using Node 22.
+- It is intentionally **disabled** and has no active deployment. It cannot receive production traffic.
+- Configured entrypoint `src/main.js`, build command `npm install`, 30-second timeout and authenticated-user execution permission.
+- Integration source is in the migration branch under `functions/price-checker-api/src`.
+- Deployment is blocked pending a server-scoped Appwrite API key, ReefAPI key, packaged deployment upload, successful CI, and end-to-end tests.
