@@ -41,7 +41,7 @@ export default function MarketplaceComingSoon() {
       <div style={{ maxWidth: 760, marginBottom: 26 }}>
         <p style={{ color: 'var(--blue)', fontWeight: 800, letterSpacing: '.18em', fontSize: 12 }}>COMING TO EKHAYA</p>
         <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 'clamp(30px, 4vw, 46px)', lineHeight: 1.1, letterSpacing: '-.04em', margin: '12px 0' }}>Your business. Your store. More opportunities.</h2>
-        <p style={{ color: 'var(--muted)', fontSize: 16, lineHeight: 1.7 }}>We're building Ekhaya Marketplace to help South African businesses sell online, manage their stores and grow.</p>
+        <p style={{ color: 'var(--muted)', fontSize: 16, lineHeight: 1.7 }}>We&apos;re building Ekhaya Marketplace to help South African businesses sell online, manage their stores and grow.</p>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 14 }}>
         {sellerFeatures.map((feature) => (
@@ -59,7 +59,7 @@ export default function MarketplaceComingSoon() {
             <button type="button" aria-label="Close" onClick={() => setSelected(null)} style={{ position: 'absolute', right: 16, top: 14, border: 0, background: 'transparent', color: 'var(--muted)', fontSize: 25, cursor: 'pointer' }}>×</button>
             <p style={{ color: 'var(--blue)', fontWeight: 800, letterSpacing: '.16em', fontSize: 11 }}>EKHAYA MARKETPLACE</p>
             <h2 id="coming-soon-title" style={{ fontFamily: 'Manrope, sans-serif', fontSize: 29, lineHeight: 1.15, margin: '12px 0' }}>{selected}</h2>
-            <p style={{ color: 'var(--muted)', fontSize: 15, lineHeight: 1.7 }}>We're working on this feature. Ekhaya Marketplace is expected to launch in <strong style={{ color: 'var(--navy)' }}>mid-2027</strong>.</p>
+            <p style={{ color: 'var(--muted)', fontSize: 15, lineHeight: 1.7 }}>We&apos;re working on this feature. Ekhaya Marketplace is expected to launch in <strong style={{ color: 'var(--navy)' }}>mid-2027</strong>.</p>
             <form onSubmit={joinWaitlist} style={{ marginTop: 22, textAlign: 'left' }}>
               <label htmlFor="marketplace-waitlist-email" style={{ display: 'block', color: 'var(--navy)', fontSize: 13, fontWeight: 800, marginBottom: 8 }}>Get notified when this is ready</label>
               <input id="marketplace-waitlist-email" type="email" required maxLength={254} autoComplete="email" placeholder="Enter your email address" value={email} onChange={(event) => setEmail(event.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: '1px solid var(--line)', borderRadius: 8, fontSize: 14, color: 'var(--navy)' }} />
