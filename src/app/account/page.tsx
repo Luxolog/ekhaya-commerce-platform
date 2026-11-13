@@ -4,12 +4,14 @@
 import SiteHeader from '@/components/SiteHeader';
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { account, currentUser, ID, signOutAppwrite } from "@/lib/appwrite-client";
 
 type Mode = "signup" | "signin" | "reset" | "new-password";
 
 export default function AccountPage() {
+  const router = useRouter();
   const [mode,setMode] = useState<Mode>("signin");
   const [email,setEmail] = useState("");
   const [password,setPassword] = useState("");
@@ -23,7 +25,7 @@ export default function AccountPage() {
 
   useEffect(()=>{
     let active=true;
-    void currentUser().then(user=>{if(active&&user)setSignedInEmail(user.email);});
+    void currentUser().then(user=>{if(active&&user){setSignedInEmail(user.email);const next=new URLSearchParams(window.location.search).get("next");if(next&&next.startsWith("/")&&!next.startsWith("//"))router.replace(next);}});
     const params=new URLSearchParams(window.location.search);
     const userId=params.get("userId");
     const secret=params.get("secret");
@@ -49,11 +51,15 @@ export default function AccountPage() {
         const user=await account.get();
         setSignedInEmail(user.email);
         setMessage("Your account has been created and you are signed in. Marketplace access will be enabled by the Ekhaya owner.");
+        const next=new URLSearchParams(window.location.search).get("next");
+        if(next&&next.startsWith("/")&&!next.startsWith("//"))router.replace(next);
       } else {
         await account.createEmailPasswordSession(email,password);
         const user=await account.get();
         setSignedInEmail(user.email);
         setMessage("You are signed in successfully.");
+        const next=new URLSearchParams(window.location.search).get("next");
+        if(next&&next.startsWith("/")&&!next.startsWith("//"))router.replace(next);
       }
     } catch(e) {
       setMessage(e instanceof Error?e.message:"Account request failed. Please try again.");
