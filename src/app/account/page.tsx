@@ -6,6 +6,7 @@ import Image from "next/image";
 
 const supabaseUrl = "https://itxxnhcjjiynrmivexcb.supabase.co";
 const anonKey = "sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t";
+const passwordResetUrl = "https://ekhaya-commerce-platform-git-feat-shared-price-c-f1de80-luxolog.vercel.app/reset-password/";
 
 export default function AccountPage() {
   const [mode,setMode] = useState<"signin"|"signup">("signup");
@@ -34,7 +35,7 @@ export default function AccountPage() {
   async function sendResetEmail() {
     setBusy(true); setMessage("");
     try {
-      const redirectTo = new URL("/reset-password/",window.location.origin).toString();
+      const redirectTo = passwordResetUrl;
       const response = await fetch(supabaseUrl+"/auth/v1/recover?redirect_to="+encodeURIComponent(redirectTo),{
         method:"POST",
         headers:{"Content-Type":"application/json","apikey":anonKey},
