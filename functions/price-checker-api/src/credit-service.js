@@ -33,47 +33,66 @@ export function createCreditService(store) {
       }
       const eventId = creditEventRowId(request);
 
-      return store.withTransaction(async (tx) => {
-        const existing = await tx.getEvent(eventId);
-        if (existing) {
+      try {
+        return await store.withTransaction(async (tx) => {
+          const existing = await tx.getEvent(eventId);
+          if (existing) {
+            return {
+              allowed: true,
+              charged: false,
+              duplicate: true,
+              used: (await tx.getUsage(request.userId, input.periodStart))?.searches_used ?? 0,
+              limit: input.limit,
+            };
+          }
+
+          const usage = await tx.getOrCreateUsage(request.userId, input.periodStart);
+          if (usage.searches_used >= input.limit) {
+            return {
+              allowed: false,
+              reason: "MONTHLY_SEARCH_LIMIT",
+              used: usage.searches_used,
+              limit: input.limit,
+            };
+          }
+
+          await tx.createEvent({
+            id: eventId,
+            user_id: request.userId,
+            request_id: request.requestId,
+            marketplace: request.marketplace,
+            period_start: input.periodStart,
+            status: "reserved",
+            created_at: input.now,
+          });
+          const updated = await tx.incrementUsage(request.userId, input.periodStart, input.limit);
+
           return {
             allowed: true,
-            charged: false,
-            duplicate: true,
-            used: await tx.getUsage(request.userId, input.periodStart),
+            charged: true,
+            duplicate: false,
+            used: updated.searches_used,
             limit: input.limit,
           };
-        }
-
-        const usage = await tx.getOrCreateUsage(request.userId, input.periodStart);
-        if (usage.searches_used >= input.limit) {
-          return {
-            allowed: false,
-            reason: "MONTHLY_SEARCH_LIMIT",
-            used: usage.searches_used,
-            limit: input.limit,
-          };
-        }
-
-        await tx.createEvent({
-          id: eventId,
-          user_id: request.userId,
-          request_id: request.requestId,
-          marketplace: request.marketplace,
-          period_start: input.periodStart,
-          status: "reserved",
-          created_at: input.now,
         });
-        const updated = await tx.incrementUsage(request.userId, input.periodStart);
-
-        return {
-          allowed: true,
-          charged: true,
-          duplicate: false,
-          used: updated.searches_used,
-          limit: input.limit,
-        };
-      });
+      } catch (error) {
+        // A simultaneous identical reservation may win the composite unique
+        // index first. Only classify it as a duplicate after re-reading the row.
+        if (typeof store.getEvent === "function") {
+          const winner = await store.getEvent(eventId);
+          if (winner) {
+            const usage = await store.getUsage?.(request.userId, input.periodStart);
+            return {
+              allowed: true,
+              charged: false,
+              duplicate: true,
+              used: usage?.searches_used ?? 0,
+              limit: input.limit,
+            };
+          }
+        }
+        throw error;
+      }
     },
 
     async complete(input) {
