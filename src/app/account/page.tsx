@@ -1,3 +1,4 @@
+import SiteHeader from '@/components/SiteHeader';
 "use client";
 
 import { useEffect, useState } from "react";
@@ -75,10 +76,7 @@ export default function AccountPage() {
 
   const field:React.CSSProperties={boxSizing:"border-box",width:"100%",height:46,padding:"0 12px",border:"1px solid #DCE8F1",borderRadius:7,marginTop:10,fontSize:14};
   return <main style={{minHeight:"100vh",background:"#F4F8FC",padding:"28px 5%",color:"#071B31",fontFamily:"Arial,sans-serif"}}>
-    <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",maxWidth:760,margin:"0 auto",borderBottom:"1px solid #DCE8F1",paddingBottom:18}}>
-      <Link href="/"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={170} height={100} style={{width:150,height:"auto"}}/></Link>
-      <nav style={{display:"flex",gap:16,alignItems:"center"}}><Link href="/admin/login/" style={{color:"#079BD3",fontWeight:700,fontSize:13}}>Owner login</Link><Link href="/price-checker/" style={{color:"#079BD3",fontWeight:700,fontSize:13}}>Price checker →</Link></nav>
-    </header>
+    <SiteHeader active="account" />
     <section style={{maxWidth:480,margin:"60px auto",background:"#fff",border:"1px solid #DCE8F1",borderRadius:14,padding:28,boxShadow:"0 8px 30px #071b3108"}}>
       <p style={{color:"#079BD3",fontSize:10,fontWeight:800,letterSpacing:2}}>EKHAYA SELLER ACCESS · APPWRITE</p>
       <h1 style={{fontSize:30,fontWeight:700,margin:"8px 0 10px"}}>{signedInEmail?"Your seller account":mode==="signup"?"Create your seller account":mode==="reset"?"Reset your password":mode==="new-password"?"Choose a new password":"Welcome back"}</h1>
