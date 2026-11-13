@@ -1,3 +1,4 @@
+import SiteHeader from '@/components/SiteHeader';
 import Image from 'next/image';
 import Link from 'next/link';
 import MarketplaceComingSoon from '@/components/MarketplaceComingSoon';
@@ -11,10 +12,7 @@ const pillars = [
 export default function Home() {
   return (
     <main style={{ minHeight: '100vh', padding: '28px clamp(20px, 6vw, 88px) 72px', background: 'var(--pale)', color: 'var(--navy)' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, borderBottom: '1px solid var(--line)', paddingBottom: 20 }}>
-        <Link href="/" aria-label="Ekhaya Technologies home"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies — Digital solutions. Built around you." width={230} height={190} priority style={{ width: 170, height: 'auto' }} /></Link>
-        <nav style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}><Link href="/services/" style={{ color: "var(--blue)", fontSize: 12, fontWeight: 800 }}>OUR SERVICES</Link><Link href="/pricing/" style={{ color: "var(--blue)", fontSize: 12, fontWeight: 800 }}>PLANS & PRICING</Link><Link href="/marketplaces/" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800, letterSpacing: ".06em" }}>MARKETPLACE CONNECTIONS</Link><Link href="/download/" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800, letterSpacing: ".06em" }}>DOWNLOAD APP</Link></nav>
-      </header>
+      <SiteHeader active="home" />
       <section style={{ maxWidth: 900, padding: 'clamp(65px, 11vw, 130px) 0 72px' }}>
         <p style={{ color: 'var(--blue)', fontWeight: 800, letterSpacing: '.18em', fontSize: 12 }}>BUILT FOR SOUTH AFRICAN RESELLERS</p>
         <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 'clamp(42px, 7vw, 82px)', lineHeight: 1.04, fontWeight: 800, letterSpacing: '-.055em', margin: '20px 0 24px', color: 'var(--navy)' }}>Know the market before you buy stock.</h1>
