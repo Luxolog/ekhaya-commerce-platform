@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -15,6 +15,8 @@ export default function AccountPage() {
   const [name,setName] = useState("");
   const [message,setMessage] = useState("");
   const [busy,setBusy] = useState(false);
+  const [signedIn,setSignedIn] = useState(false);
+  useEffect(() => { setSignedIn(!!localStorage.getItem("ekhaya_session")); }, []);
   async function submit() {
     setBusy(true); setMessage("");
     try {
@@ -23,7 +25,9 @@ export default function AccountPage() {
       const data = await response.json();
       if(!response.ok) throw new Error(data.msg??data.message??data.error_description??"Unable to process your account request.");
       if(data.access_token) {
-        localStorage.setItem("ekhaya_session",JSON.stringify(data));
+        const session={...data,expires_at:Date.now()+Number(data.expires_in??3600)*1000};
+        localStorage.setItem("ekhaya_session",JSON.stringify(session));
+        setSignedIn(true);
         setMessage("You're signed in. You can now use marketplace searches.");
       } else {
         setMessage("Account created. Check your email to confirm your address, then sign in.");
@@ -52,8 +56,7 @@ export default function AccountPage() {
     } catch(e) { setMessage(e instanceof Error?e.message:"Password reset request failed."); }
     finally { setBusy(false); }
   }
-  function signOut(){localStorage.removeItem("ekhaya_session");setMessage("You have been signed out.");}
-  const signedIn = typeof window !== "undefined" && !!localStorage.getItem("ekhaya_session");
+  function signOut(){localStorage.removeItem("ekhaya_session");setSignedIn(false);setMessage("You have been signed out.");}
   return <main style={{minHeight:"100vh",background:"#F4F8FC",padding:"28px 5%",color:"#071B31",fontFamily:"Arial,sans-serif"}}>
     <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",maxWidth:760,margin:"0 auto",borderBottom:"1px solid #DCE8F1",paddingBottom:18}}>
       <Link href="/"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={170} height={100} style={{width:150,height:"auto"}}/></Link>
