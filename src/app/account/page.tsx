@@ -37,7 +37,7 @@ export default function AccountPage() {
         setMessage("If an account exists for this email, a password reset link has been sent. Check your inbox and spam folder.");
       } else if(mode==="new-password"){
         if(!recovery)throw new Error("The password reset link is missing or expired. Request a new one.");
-        await account.updateRecovery(recovery.userId,recovery.secret,password,password);
+        await account.updateRecovery(recovery.userId,recovery.secret,password);
         window.history.replaceState({},document.title,window.location.pathname);
         setRecovery(null);setPassword("");setMode("signin");
         setMessage("Password updated successfully. Sign in with your new password.");
