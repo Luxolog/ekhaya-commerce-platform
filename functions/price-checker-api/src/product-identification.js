@@ -53,7 +53,7 @@ export async function identifyProductFromImage({ imageDataUrl, env = process.env
           }
         ]
       }),
-      signal: AbortSignal.timeout(25000),
+      signal: AbortSignal.timeout(18000),
     });
 
     const payload = await upstream.json().catch(() => ({}));
