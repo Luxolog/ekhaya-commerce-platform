@@ -58,6 +58,7 @@ jobs:
           node --check src/appwrite-credit-store.js
           node --check src/credit-context.js
           node --check src/marketplace-search.js
+          node --check src/product-identification.js
           node --check src/credit-service.js
       - name: Run Appwrite Function unit tests
         run: npm test
