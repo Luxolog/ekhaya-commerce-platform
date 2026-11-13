@@ -1,3 +1,4 @@
+import SiteHeader from '@/components/SiteHeader';
 import Link from "next/link";
 
 const plans = [
@@ -9,10 +10,7 @@ const plans = [
 export default function PricingPage() {
   return (
     <main style={{ minHeight: "100vh", background: "#F4F8FC", color: "#071B31", padding: "32px 5% 70px", fontFamily: "Arial, sans-serif" }}>
-      <header style={{ maxWidth: 1120, margin: "0 auto 42px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
-        <Link href="/" style={{ color: "#071B31", fontWeight: 800, textDecoration: "none" }}>EKHAYA TECHNOLOGIES</Link>
-        <Link href="/account/" style={{ color: "#079BD3", fontWeight: 700, textDecoration: "none" }}>My account →</Link>
-      </header>
+      <SiteHeader active="pricing" />
       <section style={{ maxWidth: 1120, margin: "0 auto" }}>
         <p style={{ color: "#079BD3", fontSize: 11, fontWeight: 800, letterSpacing: 2 }}>EARLY ACCESS · SOUTH AFRICAN RESELLERS</p>
         <h1 style={{ fontSize: "clamp(34px, 5vw, 54px)", margin: "10px 0", letterSpacing: -1.5 }}>Know the market before you buy stock.</h1>
