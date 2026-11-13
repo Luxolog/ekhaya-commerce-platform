@@ -64,7 +64,7 @@ export default function PriceCheckerPage() {
     if(!refreshed.ok||!next.access_token) {localStorage.removeItem("ekhaya_session");throw new Error("Your sign-in has expired. Please sign in again.");}
     session={...next,expires_at:Date.now()+Number(next.expires_in??3600)*1000};
     localStorage.setItem("ekhaya_session",JSON.stringify(session));
-    return {"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":`Bearer ${session.access_token}`};
+    return {"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":`Bearer ${next.access_token}`};
   };
   const buying=Number(cost);
   const validCost=cost.trim()!=="" && Number.isFinite(buying) && buying>0;
