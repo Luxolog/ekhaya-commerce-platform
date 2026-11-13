@@ -64,3 +64,22 @@ A unique index on `payment_transactions.merchant_reference` was accepted by Appw
 **Blocked:** Appwrite rejected adding `marketplace_price_cache.last_error` with `column_limit_exceeded`. The table is at its maximum column/size allowance. Do not try to bypass this by dropping existing fields. Preserve the error in the function log/ledger until a schema redesign or plan limit change is approved.
 
 **Still unresolved:** the `subscriptions.billing_mode` enum remains `manual/recurring`, not the source's `manual/automatic`; the search-credit unique index remains overly restrictive on `request_id` alone; payment status vocabulary remains different (`paid` vs source `complete`); and several source indexes/partial uniqueness rules need server-side equivalents. These are release blockers, not completed parity.
+
+
+## 2026-11-13 targeted live re-check
+
+The Appwrite TablesDB API was queried directly for the three highest-risk tables. This section supersedes earlier uncertainty where explicitly noted.
+
+- `payment_transactions.merchant_reference_unique` is now **available** (unique index on `merchant_reference`). It is safe to rely on the index's existence, but payment processing is still not implemented.
+- `subscriptions` has 16 columns; both `intro_payment_completed_at` and `grace_period_ends_at` are available. Its `billing_mode` enum is still `manual/recurring`, while the source migration defines `manual/automatic`. No destructive enum rewrite was attempted.
+- `search_credit_events` has 7 columns and its unique index is still only `request_id`. Source uniqueness is `(user_id, request_id, marketplace)`. This mismatch is a hard blocker for correct idempotency; do not deploy credit reservation until the unique-key behavior is redesigned and tested.
+- `payment_transactions` still has the legacy required `provider` column and status enum `created/pending/paid/failed/cancelled/refunded`; the source migration uses `payment_provider` and `complete` rather than `paid`. The additive `payment_provider` and `payment_kind` fields exist, and the merchant-reference unique index is available. The server adapter must normalize provider/status fields consistently before any payment flow is enabled.
+- Appwrite currently offers Node.js 22 runtime (`node-22`), matching the function validation workflow's Node 22 toolchain. This confirms runtime availability only; it does not validate the function deployment package or invocation contract.
+
+### Safe implementation constraints
+
+1. Do not remove or rename legacy columns or indexes while the Appwrite database may contain data.
+2. Until schema parity is achieved, keep these tables server-only and treat the discrepancies as release blockers.
+3. If compatibility mapping is used temporarily, centralize it in a tested adapter; never scatter `recurring`/`automatic` or `paid`/`complete` conversions through handlers.
+4. Credit reservation must be atomic or use a concurrency-safe transaction/locking strategy. A preflight duplicate query followed by a separate insert is not sufficient.
+5. No Appwrite Functions are deployed as of this check.
