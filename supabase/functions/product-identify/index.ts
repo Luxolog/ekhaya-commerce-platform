@@ -48,7 +48,11 @@ Deno.serve(async (req: Request) => {
       return json({ mode: "barcode", product: {
         barcode: p.barcode ?? body.barcode, title: p.title, brand: p.brand ?? null,
         category: p.category ?? null, image: p.image ?? null, weight_grams: p.weight_grams ?? null,
-        weight_confidence: p.weight_confidence ?? null, description: p.description ?? null,
+        weight_confidence: p.weight_confidence ?? null,
+        length_cm: p.length_cm ?? p.dimensions?.length_cm ?? null,
+        width_cm: p.width_cm ?? p.dimensions?.width_cm ?? null,
+        height_cm: p.height_cm ?? p.dimensions?.height_cm ?? null,
+        description: p.description ?? null,
       } });
     }
     return json({ mode: "photo", text: String(data.text ?? ""), confidence: data.mean_confidence ?? null, words: data.words ?? 0 });
