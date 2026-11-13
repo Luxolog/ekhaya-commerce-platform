@@ -1,3 +1,4 @@
+import SiteHeader from '@/components/SiteHeader';
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -151,7 +152,7 @@ export default function PriceCheckerPage() {
     });
   },[products,buying,category,volume,kg,takealotMode,amazonMode,sellerDelivery]);
   return <main className="page">
-    <header className="top"><Link href="/" aria-label="Ekhaya Technologies home"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={230} height={190} className="logo" priority/></Link><span className="pill">PRICE INTELLIGENCE · LIVE RESEARCH</span><Link href="/account/" className="pill">SELLER ACCOUNT</Link></header>
+    <SiteHeader active="price-checker" />
     <section className="hero"><p className="eyebrow">SELL SMARTER. PRICE WITH CONFIDENCE.</p><h1>Know your numbers<br/><em>before you buy.</em></h1><p>Find a product, enter your buying price and compare estimated profit after marketplace fulfilment fees.</p></section>
     <section className="panel">
       <div className="heading"><div><small>01 / FIND A PRODUCT</small><h2>How would you like to search?</h2></div><span className="connected">● MARKETPLACE DATA</span></div>
