@@ -1,3 +1,4 @@
+import SiteHeader from '@/components/SiteHeader';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -23,14 +24,7 @@ const body = { color: '#60758A', fontSize: 14, lineHeight: 1.75, margin: '10px 0
 export default function ServicesPage() {
   return (
     <main style={{ minHeight: '100vh', padding: '24px clamp(20px, 6vw, 88px) 64px', color: '#071B31', background: '#F4F8FC' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 18, flexWrap: 'wrap', borderBottom: '1px solid #DCE8F1', paddingBottom: 18 }}>
-        <Link href="/" aria-label="Ekhaya Technologies home"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies — Digital solutions. Built around you." width={230} height={190} priority style={{ width: 170, height: 'auto' }} /></Link>
-        <nav style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', fontSize: 12, fontWeight: 800 }}>
-          <Link href="/" style={{ color: '#60758A' }}>HOME</Link>
-          <Link href="/services/" style={{ color: '#079BD3' }}>OUR SERVICES</Link>
-          <Link href="/price-checker/" style={{ color: '#60758A' }}>PRICE CHECKER</Link>
-        </nav>
-      </header>
+      <SiteHeader active="services" />
 
       <section style={{ maxWidth: 1050, margin: '66px auto 42px' }}>
         <p style={{ color: '#079BD3', fontSize: 12, letterSpacing: '.18em', fontWeight: 800, margin: 0 }}>EKHAYA TECHNOLOGIES · DIGITAL SOLUTIONS. BUILT AROUND YOU.</p>
