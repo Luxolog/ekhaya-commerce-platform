@@ -33,13 +33,18 @@ export default function AccountPage() {
     finally { setBusy(false); }
   }
   async function sendResetEmail() {
-    setBusy(true); setMessage("");
+    setMessage("");
+    if (!email.trim()) {
+      setMessage("Enter your account email address above, then tap Forgot password again.");
+      return;
+    }
+    setBusy(true);
     try {
       const redirectTo = passwordResetUrl;
       const response = await fetch(supabaseUrl+"/auth/v1/recover?redirect_to="+encodeURIComponent(redirectTo),{
         method:"POST",
         headers:{"Content-Type":"application/json","apikey":anonKey},
-        body:JSON.stringify({email})
+        body:JSON.stringify({email:email.trim()})
       });
       const data = await response.json().catch(()=>({}));
       if(!response.ok) throw new Error(data.msg??data.message??data.error_description??"Unable to send the password reset email.");
@@ -62,7 +67,7 @@ export default function AccountPage() {
       <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address" style={field}/>
       <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password (at least 8 characters)" style={field}/>
       <button onClick={submit} disabled={busy||!email||password.length<8} style={{width:"100%",padding:14,background:"#079BD3",border:0,borderRadius:8,color:"#fff",fontWeight:700,marginTop:12,cursor:"pointer"}}>{busy?"Please wait…":mode==="signup"?"Create account":"Sign in"}</button>
-      {mode==="signin"&&<button onClick={sendResetEmail} disabled={busy||!email} style={{width:"100%",padding:10,background:"transparent",border:0,color:"#079BD3",fontWeight:700,cursor:busy||!email?"not-allowed":"pointer"}}>Forgot password?</button>}
+      <button type="button" onClick={sendResetEmail} disabled={busy} style={{display:"block",position:"relative",zIndex:2,width:"100%",minHeight:44,padding:12,marginTop:4,background:"#fff",border:"1px solid #DCE8F1",borderRadius:8,color:"#079BD3",fontWeight:700,cursor:busy?"wait":"pointer",touchAction:"manipulation"}}>{busy?"Please wait…":"Forgot password?"}</button>
       <button onClick={()=>{setMode(mode==="signup"?"signin":"signup");setMessage("");}} style={{width:"100%",padding:12,background:"transparent",border:0,color:"#079BD3",fontWeight:700,cursor:"pointer"}}>{mode==="signup"?"Already registered? Sign in":"New to Ekhaya? Create an account"}</button>
       {signedIn&&<button onClick={signOut} style={{width:"100%",padding:10,border:"1px solid #DCE8F1",borderRadius:8,background:"#fff",color:"#071B31"}}>Sign out</button>}
       {message&&<p role="status" style={{fontSize:12,lineHeight:1.6,color:"#304B63",background:"#F4F8FC",padding:12,borderRadius:8}}>{message}</p>}
