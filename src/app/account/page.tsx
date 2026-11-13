@@ -31,7 +31,7 @@ export default function AccountPage() {
     const secret=params.get("secret");
     if(userId&&secret){setRecovery({userId,secret});setMode("new-password");setMessage("Choose a new password for your account.");}
     return ()=>{active=false;};
-  },[]);
+  },[router]);
 
   async function submit() {
     setBusy(true);setMessage("");
