@@ -26,7 +26,7 @@ export function validateCreditRequest(input) {
  * may reserve credits independently for more than one marketplace.
  */
 export function creditEventRowId({ userId, requestId, marketplace }) {
-  const tuple = [userId, requestId.toLowerCase(), marketplace].join("\\u0000");
+  const tuple = JSON.stringify([userId, requestId.toLowerCase(), marketplace]);
   const digest = createHash("sha256").update(tuple).digest("hex").slice(0, 32);
   return `cr_${digest}`;
 }
