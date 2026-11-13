@@ -1,5 +1,6 @@
 import { createAppwriteAdminClient } from "./appwrite-client.js";
 import { handleMarketplaceSearch } from "./marketplace-search.js";
+import { identifyProductFromImage } from "./product-identification.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -79,6 +80,11 @@ export default async ({ req, res, error }) => {
 
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return response(res, { error: "A JSON object is required", code: "INVALID_BODY" }, 400);
+    }
+
+    if (body.action === "identify_product") {
+      const result = await identifyProductFromImage({ imageDataUrl: body.image_data_url });
+      return response(res, result.body, result.status);
     }
 
     const { tablesDB, Query } = createAppwriteAdminClient();
