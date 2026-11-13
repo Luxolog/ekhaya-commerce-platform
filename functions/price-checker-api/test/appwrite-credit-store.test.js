@@ -56,3 +56,47 @@ test("rolls back transaction when domain operation fails", async () => {
   );
   assert.deepEqual(calls, [{ transactionId: "tx_2", rollback: true }]);
 });
+
+test("creates a deterministic monthly usage row and increments it within the same transaction", async () => {
+  const calls = [];
+  const tablesDB = {
+    createTransaction: async () => ({ $id: "tx_new_usage" }),
+    listRows: async () => ({ rows: [] }),
+    getRow: async () => { throw Object.assign(new Error("not found"), { code: 404 }); },
+    createOperations: async (args) => calls.push(args.operations),
+    updateTransaction: async (args) => calls.push(args),
+  };
+  const store = createAppwriteCreditStore({ tablesDB, Query });
+  await store.withTransaction(async (tx) => {
+    const row = await tx.getOrCreateUsage("seller_new", "2026-11-01");
+    assert.equal(row.searches_used, 0);
+    const updated = await tx.incrementUsage("seller_new", "2026-11-01", 3);
+    assert.equal(updated.searches_used, 1);
+  });
+  const ops = calls[0];
+  assert.equal(ops.length, 1);
+  assert.equal(ops[0].action, "create");
+  assert.equal(ops[0].data.searches_used, 1);
+  assert.match(ops[0].rowId, /^mu_[a-f0-9]{32}$/);
+});
+
+test("rolls back when Appwrite rejects staged transaction operations", async () => {
+  const calls = [];
+  const tablesDB = {
+    createTransaction: async () => ({ $id: "tx_stage_failure" }),
+    createOperations: async () => { throw new Error("operation rejected"); },
+    updateTransaction: async (args) => calls.push(args),
+  };
+  const store = createAppwriteCreditStore({ tablesDB, Query });
+  await assert.rejects(
+    store.withTransaction(async (tx) => {
+      await tx.createEvent({
+        id: "event_fail", user_id: "seller", period_start: "2026-11-01",
+        request_id: "request", marketplace: "takealot", status: "reserved",
+        created_at: "2026-11-13T00:00:00.000Z",
+      });
+    }),
+    /operation rejected/
+  );
+  assert.deepEqual(calls, [{ transactionId: "tx_stage_failure", rollback: true }]);
+});
