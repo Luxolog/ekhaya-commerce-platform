@@ -16,7 +16,8 @@
     "next": "^15.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@zxing/browser": "^0.1.5"
+    "@zxing/browser": "^0.1.5",
+    "appwrite": "^21.1.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.3",
