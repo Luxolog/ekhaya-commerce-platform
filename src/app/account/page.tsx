@@ -6,7 +6,7 @@ import Image from "next/image";
 
 const supabaseUrl = "https://itxxnhcjjiynrmivexcb.supabase.co";
 const anonKey = "sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t";
-const passwordResetUrl = "https://ekhaya-commerce-platform-git-feat-shared-price-c-f1de80-luxolog.vercel.app/reset-password/";
+const passwordResetUrl = "https://ekhayatech.co.za/reset-password/";
 
 export default function AccountPage() {
   const [mode,setMode] = useState<"signin"|"signup">("signup");
