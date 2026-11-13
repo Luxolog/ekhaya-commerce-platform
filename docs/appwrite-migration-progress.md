@@ -121,3 +121,12 @@
 - Added adapter tests for transaction staging and rollback.
 - The adapter expects the Appwrite Node SDK TablesDB client and Query builder to be injected. It is not yet wired into the deployed Function; no Function is deployed.
 - Before activation, verify actual SDK version and runtime packaging, run the full test workflow, then perform isolated integration tests with a dedicated test user and clean-up. Concurrent quota conflicts should be retried at the request boundary; never silently convert a quota conflict into a duplicate.
+
+
+## 2026-11-13 SDK integration preparation
+
+- Pinned the server-side `node-appwrite` SDK to 29.4.0 and added a server-only client factory that requires `APPWRITE_API_KEY`, project ID and endpoint from Function environment variables.
+- Updated GitHub Actions to install Function dependencies and syntax-check the Appwrite client, transaction adapter and credit service before running tests.
+- Confirmed Appwrite transaction operation payloads against the official TablesDB transaction documentation: supported actions include create/update/increment/decrement, and numeric operations use `{ column, value, min, max }`. The adapter uses this documented shape.
+- Fixed deterministic tuple encoding to use JSON serialization rather than delimiter concatenation.
+- The client factory is not yet invoked by the deployed Function. No API key has been added to GitHub or Appwrite Function settings, and no Function deployment has occurred.
