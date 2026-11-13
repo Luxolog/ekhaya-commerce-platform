@@ -6,7 +6,7 @@ const USAGE_TABLE = "monthly_search_usage";
 
 function usageRowId(userId, periodStart) {
   const digest = createHash("sha256")
-    .update(`${userId}\\u0000${periodStart}`)
+    .update(JSON.stringify([userId, periodStart]))
     .digest("hex")
     .slice(0, 32);
   return `mu_${digest}`;
@@ -117,8 +117,7 @@ export function createAppwriteCreditStore({ tablesDB, Query }) {
         },
 
         incrementUsage: async (userId, periodStart, limit) => {
-          const existing = await findUsage(userId, periodStart, transactionId);
-          const row = existing ?? await findUsage(userId, periodStart, transactionId);
+          const row = await findUsage(userId, periodStart, transactionId);
           if (row) {
             operations.push({
               action: "increment",
