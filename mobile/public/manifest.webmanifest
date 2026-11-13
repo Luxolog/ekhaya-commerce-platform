@@ -1,0 +1,1 @@
+{"name":"Ekhaya Price Checker","short_name":"Price Checker","description":"Compare marketplace listings and understand your product margins.","start_url":"./","scope":"./","display":"standalone","background_color":"#f3f7fb","theme_color":"#071b31","icons":[{"src":"./app-icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
