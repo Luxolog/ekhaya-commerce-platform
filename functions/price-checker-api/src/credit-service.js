@@ -22,7 +22,12 @@ export function createCreditService(store) {
       if (!validated.ok) return { allowed: false, reason: validated.code };
 
       const request = validated.value;
-      if (typeof input.periodStart !== "string" || !/^\d{4}-\d{2}-01$/.test(input.periodStart)) {
+      const periodDate = typeof input.periodStart === "string"
+        ? new Date(`${input.periodStart}T00:00:00.000Z`)
+        : null;
+      if (!periodDate || !/^\d{4}-\d{2}-01$/.test(input.periodStart) ||
+          Number.isNaN(periodDate.getTime()) ||
+          periodDate.toISOString().slice(0, 10) !== input.periodStart) {
         return { allowed: false, reason: "INVALID_PERIOD" };
       }
       if (!Number.isSafeInteger(input.limit) || input.limit < 0) {
