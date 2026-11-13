@@ -59,6 +59,7 @@ export function createAppwriteCreditStore({ tablesDB, Query }) {
 
   return {
     getEvent: async (eventId) => findEvent(eventId),
+    getUsage: async (userId, periodStart) => findUsage(userId, periodStart),
 
     async withTransaction(work) {
       const transaction = await tablesDB.createTransaction({ ttl: 60 });
