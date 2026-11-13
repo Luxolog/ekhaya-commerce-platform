@@ -29,7 +29,7 @@ export default function PriceCheckerPage() {
   const [photoText,setPhotoText]=useState("");
   const [photoName,setPhotoName]=useState("");
   const [cost,setCost]=useState("");
-  const [marketplaces,setMarketplaces]=useState<("takealot"|"amazon")[]>(["takealot","amazon"]);
+  const [marketplaces,setMarketplaces]=useState<("takealot"|"amazon")[]>(["takealot"]);
   const [category,setCategory]=useState("general");
   const [weight,setWeight]=useState("0.5");
   const [length,setLength]=useState("20");
@@ -46,7 +46,41 @@ export default function PriceCheckerPage() {
   const [barcodeProduct,setBarcodeProduct]=useState("");
   const [barcodeBusy,setBarcodeBusy]=useState(false);
 
-  const getSupabaseHeaders=()=>{const session=typeof window!=="undefined"?localStorage.getItem("ekhaya_session"):null;const token=session?JSON.parse(session).access_token:null;return {"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":token?`Bearer ${token}`:"Bearer"};};
+  const getSupabaseHeaders=async()=>{
+    const storageKey="ekhaya_session";
+    let session:Record<string,unknown>;
+    try {
+      const raw=localStorage.getItem(storageKey);
+      if(!raw) throw new Error("Please sign in to your Ekhaya seller account before searching.");
+      session=JSON.parse(raw) as Record<string,unknown>;
+    } catch(error) {
+      if(error instanceof SyntaxError) localStorage.removeItem(storageKey);
+      throw error instanceof Error?error:new Error("Your seller session could not be read. Please sign in again.");
+    }
+    let accessToken=typeof session.access_token==="string"?session.access_token:"";
+    const refreshToken=typeof session.refresh_token==="string"?session.refresh_token:"";
+    const expiresAt=Number(session.expires_at)||((Number(session.created_at)||0)+(Number(session.expires_in)||0));
+    if(!accessToken || !refreshToken) {
+      localStorage.removeItem(storageKey);
+      throw new Error("Your seller session has expired. Please sign in again.");
+    }
+    if(!expiresAt || expiresAt*1000<Date.now()+60_000) {
+      const refreshed=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/auth/v1/token?grant_type=refresh_token",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t"},
+        body:JSON.stringify({refresh_token:refreshToken})
+      });
+      const payload=await refreshed.json().catch(()=>({}));
+      if(!refreshed.ok || typeof payload.access_token!=="string" || typeof payload.refresh_token!=="string") {
+        localStorage.removeItem(storageKey);
+        throw new Error("Your seller session has expired. Please sign in again from Seller Account.");
+      }
+      session={...session,...payload};
+      localStorage.setItem(storageKey,JSON.stringify(session));
+      accessToken=payload.access_token;
+    }
+    return {"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":`Bearer ${accessToken}`};
+  };
   const buying=Number(cost);
   const validCost=cost.trim()!=="" && Number.isFinite(buying) && buying>0;
   const productQuery=mode==="barcode"?barcodeProduct.trim():mode==="photo"?photoText.trim():query.trim();
@@ -57,7 +91,7 @@ export default function PriceCheckerPage() {
     if(!/^\d{8,14}$/.test(value.trim())){setError("Enter a valid 8–14 digit barcode.");return;}
     setBarcodeBusy(true);setError("");setBarcodeProduct("");
     try {
-      const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/product-identify",{method:"POST",headers:getSupabaseHeaders(),body:JSON.stringify({mode:"barcode",barcode:value.trim()})});
+      const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/product-identify",{method:"POST",headers:await getSupabaseHeaders(),body:JSON.stringify({mode:"barcode",barcode:value.trim()})});
       const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Barcode lookup failed");
       setBarcodeProduct(payload.product.brand?payload.product.brand+" "+payload.product.title:payload.product.title);
       if(payload.product.weight_grams)setWeight(String(payload.product.weight_grams/1000));
@@ -70,12 +104,15 @@ export default function PriceCheckerPage() {
     if(productQuery.length<2){setError("Enter at least 2 characters to search.");return;}
     if(!marketplaces.length){setError("Choose at least one marketplace.");return;}
     setLoading(true);setError("");setProducts([]);setSource("");
+    let authHeaders:Record<string,string>;
+    try { authHeaders=await getSupabaseHeaders(); }
+    catch(e) { setError(e instanceof Error?e.message:"Please sign in to your Ekhaya seller account."); setLoading(false); return; }
     const errors:string[]=[]; let done=0;
     await Promise.all(marketplaces.map(async marketplace=>{
       try{
         const controller=new AbortController();const timer=window.setTimeout(()=>controller.abort(),10000);
         const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{
-          method:"POST",headers:getSupabaseHeaders(),
+          method:"POST",headers:authHeaders,
           body:JSON.stringify({marketplace,query:productQuery,request_id:crypto.randomUUID()}),signal:controller.signal
         }).finally(()=>window.clearTimeout(timer));
         const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Search failed");
@@ -117,7 +154,7 @@ export default function PriceCheckerPage() {
       const price=Number(p.price)||0;
       const tal=takealotFulfilment(category,volume,kg);
       const success=price*(takealotRates[category]??12)/100;
-      const talFulfilment=takealotMode==="marketplace"?tal.fee:0;
+      const talFulfilment=takealotMode==="marketplace"?tal.fee:(Number(sellerDelivery)||0);
       const talFees=(success+talFulfilment)*1.15;
       const amazonReferral=price*.05;
       const amazonFba=category==="clothing"? (kg<=.25?27:kg<=.5?28:kg<=1?29:kg<=2?31:kg<=5?34:kg<=10?41:kg<=20?46:87):0;
@@ -138,9 +175,9 @@ export default function PriceCheckerPage() {
       {mode==="barcode"&&<div className="stack"><input className="wide" inputMode="numeric" value={barcode} onChange={e=>{setBarcode(e.target.value.replace(/\D/g,"").slice(0,14));setBarcodeProduct("");setError("");}} placeholder="Enter barcode / EAN / UPC"/><button type="button" className="secondary" disabled={barcodeBusy||!barcode.trim()} onClick={()=>identifyBarcode(barcode)}>{barcodeBusy?"Looking up barcode…":"Identify barcode"}</button>{barcodeProduct&&<p className="hint">Identified product: <b>{barcodeProduct}</b></p>}<p className="hint">Enter the digits printed below the product barcode, or take a product photo and we’ll check it automatically.</p></div>}
       {mode==="photo"&&<div className="stack"><label className="upload"> <input type="file" accept="image/*" capture="environment" onChange={e=>readPhoto(e.target.files?.[0])}/>Take a product photo (barcode detection included)</label>{photoName&&<p className="hint">Selected: {photoName}</p>}{photoBusy&&<p className="hint">Checking image for barcode and product text…</p>}<textarea className="wide photo-text" value={photoText} onChange={e=>setPhotoText(e.target.value)} placeholder="If no barcode is found, recognised product text appears here. Edit it before searching by name."/></div>}
       <div className="buying"><label htmlFor="buying">Your buying price <b>Required</b></label><div className="money-input"><span>R</span><input id="buying" type="number" min="0.01" step="0.01" value={cost} onChange={e=>setCost(e.target.value)} placeholder="Enter supplier / purchase price"/></div></div>
-      <div className="market-choice"><label>Compare marketplaces</label><div className="checks">{(["takealot","amazon"] as const).map(m=><label key={m}><input type="checkbox" checked={marketplaces.includes(m)} onChange={e=>setMarketplaces(old=>e.target.checked?[...old,m]:old.filter(x=>x!==m))}/>{m==="takealot"?"Takealot":"Amazon South Africa"}</label>)}</div><div className="makro-status"><div><b>Makro Marketplace</b><span>Integration planned · authorised data access pending</span></div><strong>NOT CONNECTED</strong><p>Makro prices and stock are not currently searched or verified. We will enable this marketplace only after an approved data source is available.</p></div></div>
+      <div className="market-choice"><label>Compare marketplaces</label><div className="checks">{(["takealot"] as const).map(m=><label key={m}><input type="checkbox" checked={marketplaces.includes(m)} onChange={e=>setMarketplaces(old=>e.target.checked?[...old,m]:old.filter(x=>x!==m))}/>{m==="takealot"?"Takealot":"Amazon South Africa"}</label>)}<label className="market-pending"><input type="checkbox" disabled/>Amazon South Africa <small>temporarily unavailable — local pricing verification pending</small></label></div><div className="makro-status"><div><b>Makro Marketplace</b><span>Integration planned · authorised data access pending</span></div><strong>NOT CONNECTED</strong><p>Makro prices and stock are not currently searched or verified. We will enable this marketplace only after an approved data source is available.</p></div></div>
       <div className="details"><div><label>Product category</label><select value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></div><div><label>Packed weight (kg)</label><input type="number" min="0" step=".01" value={weight} onChange={e=>setWeight(e.target.value)}/></div><div><label>Length (cm)</label><input type="number" min="0" value={length} onChange={e=>setLength(e.target.value)}/></div><div><label>Width (cm)</label><input type="number" min="0" value={width} onChange={e=>setWidth(e.target.value)}/></div><div><label>Height (cm)</label><input type="number" min="0" value={height} onChange={e=>setHeight(e.target.value)}/></div></div>
-      <div className="details" style={{marginTop:14}}><div><label>Takealot fulfilment</label><select value={takealotMode} onChange={e=>setTakealotMode(e.target.value as "marketplace"|"seller")}><option value="marketplace">Fulfilled by Takealot</option><option value="seller">Seller fulfilled</option></select></div><div><label>Amazon fulfilment</label><select value={amazonMode} onChange={e=>setAmazonMode(e.target.value as "fba"|"easy"|"self")}><option value="fba">FBA</option><option value="easy">Easy Ship</option><option value="self">Self Ship</option></select></div><div><label>Delivery cost (R/order)</label><input type="number" min="0" step=".01" value={sellerDelivery} onChange={e=>setSellerDelivery(e.target.value)}/></div></div><p className="hint">Fulfilment is selected separately for each marketplace. For Easy Ship and Self Ship, enter your own estimated delivery/handling cost per order. Takealot seller-fulfilled orders exclude marketplace fulfilment charges from this estimate.</p>
+      <div className="details" style={{marginTop:14}}><div><label>Takealot fulfilment</label><select value={takealotMode} onChange={e=>setTakealotMode(e.target.value as "marketplace"|"seller")}><option value="marketplace">Fulfilled by Takealot</option><option value="seller">Seller fulfilled</option></select></div><div><label>Amazon fulfilment</label><select value={amazonMode} onChange={e=>setAmazonMode(e.target.value as "fba"|"easy"|"self")}><option value="fba">FBA</option><option value="easy">Easy Ship</option><option value="self">Self Ship</option></select></div><div><label>Delivery cost (R/order)</label><input type="number" min="0" step=".01" value={sellerDelivery} onChange={e=>setSellerDelivery(e.target.value)}/></div></div><p className="hint">Fulfilment is selected separately for each marketplace. For seller-fulfilled Takealot orders and Amazon Easy Ship or Self Ship, enter your estimated delivery/handling cost per order. Takealot marketplace-fulfilled orders use the fulfilment estimate above.</p>
       <button className="search" disabled={loading||!validCost||!marketplaces.length||(mode==="barcode"&&!barcodeProduct)} onClick={search}>{loading?"Searching marketplaces…":"Find product & calculate profit →"}</button>
       {!validCost&&<p className="hint">Enter a buying price greater than R0 to unlock product search.</p>}
       {error&&<p className="error" role="status">{error}</p>}{source&&<p className="hint">{source} · Listing prices may change.</p>}
