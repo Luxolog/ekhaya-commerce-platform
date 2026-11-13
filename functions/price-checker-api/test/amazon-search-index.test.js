@@ -32,6 +32,11 @@ test("keeps only Amazon.co.za results and labels indexed prices as not live", ()
           url: "https://www.amazon.com/dp/B012345678",
           snippet: "R 10.00",
         },
+        {
+          title: "Amazon category page",
+          url: "https://www.amazon.co.za/Lip-Balms-12-Care/s?rh=n%3A123",
+          snippet: "R 1 169.87 · FREE delivery",
+        },
       ],
     },
   }, "2026-11-13T10:00:00.000Z");
