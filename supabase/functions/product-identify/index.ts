@@ -49,9 +49,9 @@ Deno.serve(async (req: Request) => {
         barcode: p.barcode ?? body.barcode, title: p.title, brand: p.brand ?? null,
         category: p.category ?? null, image: p.image ?? null, weight_grams: p.weight_grams ?? null,
         weight_confidence: p.weight_confidence ?? null,
-        length_cm: p.length_cm ?? p.dimensions?.length_cm ?? null,
-        width_cm: p.width_cm ?? p.dimensions?.width_cm ?? null,
-        height_cm: p.height_cm ?? p.dimensions?.height_cm ?? null,
+        length_cm: p.length_cm ?? (p.dimensions as Record<string, unknown> | undefined)?.length_cm ?? null,
+        width_cm: p.width_cm ?? (p.dimensions as Record<string, unknown> | undefined)?.width_cm ?? null,
+        height_cm: p.height_cm ?? (p.dimensions as Record<string, unknown> | undefined)?.height_cm ?? null,
         description: p.description ?? null,
       } });
     }
