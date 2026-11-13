@@ -141,3 +141,12 @@
 - Added service validation tests for malformed/impossible UTC monthly periods, invalid limits and timestamps.
 - Corrected the credit period regex and canonical tuple encoding.
 - This validates Appwrite's transaction create/stage/commit/read path. It does **not** yet prove concurrent increments, unique-conflict behavior, refunds, or SDK runtime compatibility. Those require automated/integration tests before activation.
+
+
+## 2026-11-13 server-derived credit authorization
+
+- Added `src/credit-context.js` to load the authenticated user's profile and plan allowance from Appwrite TablesDB.
+- It fails closed for missing/duplicate profiles, suspended accounts, disabled marketplaces, missing plans and missing/invalid quota configuration.
+- The user ID, marketplace entitlement and monthly limit are derived from verified server-side identity and Appwrite records, not request-body values.
+- Added unit tests for valid context and denial cases, and included the new module in CI syntax checks.
+- This helper is not yet wired into the live marketplace-search endpoint. Owner bypass/owner role is not implemented in this helper and must be established using a trusted server-side role source before any owner-specific behavior is enabled.
