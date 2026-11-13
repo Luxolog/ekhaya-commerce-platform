@@ -52,3 +52,5 @@ jobs:
           node-version: 22
       - name: Validate JavaScript syntax
         run: node --check src/main.js
+      - name: Run credit ledger unit tests
+        run: npm test
