@@ -33,7 +33,10 @@ export default function PriceCheckerPage() {
   const [weight,setWeight]=useState("0.5");
   const [length,setLength]=useState("20");
   const [width,setWidth]=useState("15");
-  const [height,setHeight]=useState("10");\n  const [takealotMode,setTakealotMode]=useState<"marketplace"|"seller">("marketplace");\n  const [amazonMode,setAmazonMode]=useState<"fba"|"easy"|"self">("fba");\n  const [sellerDelivery,setSellerDelivery]=useState("0");
+  const [height,setHeight]=useState("10");
+  const [takealotMode,setTakealotMode]=useState<"marketplace"|"seller">("marketplace");
+  const [amazonMode,setAmazonMode]=useState<"fba"|"easy"|"self">("fba");
+  const [sellerDelivery,setSellerDelivery]=useState("0");
   const [products,setProducts]=useState<MarketplaceProduct[]>([]);
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
@@ -133,7 +136,8 @@ export default function PriceCheckerPage() {
     await Promise.all(marketplaces.map(async marketplace=>{
       try{
         const controller=new AbortController();const timer=window.setTimeout(()=>controller.abort(),25000);
-        const headers=getSupabaseHeaders();\n        const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{
+        const headers=getSupabaseHeaders();
+        const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{
           method:"POST",headers:getSupabaseHeaders(),
           body:JSON.stringify({marketplace,query:productQuery,request_id:crypto.randomUUID()}),signal:controller.signal
         }).finally(()=>window.clearTimeout(timer));
@@ -162,10 +166,12 @@ export default function PriceCheckerPage() {
       const price=Number(p.price)||0;
       const tal=takealotFulfilment(category,volume,kg);
       const success=price*(takealotRates[category]??12)/100;
-      const talFulfilment=takealotMode==="marketplace"?tal.fee:0;\n      const talFees=(success+talFulfilment)*1.15;
+      const talFulfilment=takealotMode==="marketplace"?tal.fee:0;
+      const talFees=(success+talFulfilment)*1.15;
       const amazonReferral=price*.05;
       const amazonFba=category==="clothing"? (kg<=.25?27:kg<=.5?28:kg<=1?29:kg<=2?31:kg<=5?34:kg<=10?41:kg<=20?46:87):0;
-      const amzFulfilment=amazonMode==="fba"?amazonFba:amazonMode==="easy"?Number(sellerDelivery)||0:Number(sellerDelivery)||0;\n      const amzFees=(amazonReferral+amzFulfilment)*1.15;
+      const amzFulfilment=amazonMode==="fba"?amazonFba:amazonMode==="easy"?Number(sellerDelivery)||0:Number(sellerDelivery)||0;
+      const amzFees=(amazonReferral+amzFulfilment)*1.15;
       const fee=p.marketplace==="takealot"?talFees:amzFees;
       const profit=price-buying-fee;
       return {id:p.id,fee,profit,margin:price?profit/price*100:0,fulfilment:p.marketplace==="takealot"?talFulfilment:amzFulfilment,success:p.marketplace==="takealot"?success:amazonReferral,size:tal.size};
