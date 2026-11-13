@@ -130,3 +130,14 @@
 - Confirmed Appwrite transaction operation payloads against the official TablesDB transaction documentation: supported actions include create/update/increment/decrement, and numeric operations use `{ column, value, min, max }`. The adapter uses this documented shape.
 - Fixed deterministic tuple encoding to use JSON serialization rather than delimiter concatenation.
 - The client factory is not yet invoked by the deployed Function. No API key has been added to GitHub or Appwrite Function settings, and no Function deployment has occurred.
+
+
+## 2026-11-13 Appwrite transaction smoke test
+
+- Created a 60-second disposable TablesDB transaction in the Ekhaya Price Checker project.
+- Successfully staged a `create` operation against `search_credit_events_v2`, committed it, and read the committed row back.
+- Confirmed the disposable smoke-test row was subsequently absent on readback; no real user or seller data was involved.
+- Added unit tests for deterministic monthly usage row creation, staging the initial increment in the same transaction, and rollback when Appwrite rejects staged operations.
+- Added service validation tests for malformed/impossible UTC monthly periods, invalid limits and timestamps.
+- Corrected the credit period regex and canonical tuple encoding.
+- This validates Appwrite's transaction create/stage/commit/read path. It does **not** yet prove concurrent increments, unique-conflict behavior, refunds, or SDK runtime compatibility. Those require automated/integration tests before activation.
