@@ -1,3 +1,4 @@
+import SiteHeader from '@/components/SiteHeader';
 import Image from "next/image";
 import Link from "next/link";
 
@@ -6,14 +7,7 @@ const actionsUrl = "https://github.com/Luxolog/ekhaya-commerce-platform/actions/
 export default function DownloadPage() {
   return (
     <main style={{ minHeight: "100vh", background: "var(--pale)", color: "var(--navy)", padding: "28px clamp(20px, 6vw, 88px) 72px" }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 20, borderBottom: "1px solid var(--line)", paddingBottom: 20 }}>
-        <Link href="/" aria-label="Ekhaya Technologies home"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={230} height={190} priority style={{ width: 170, height: "auto" }} /></Link>
-        <nav style={{ display: "flex", gap: 18, flexWrap: "wrap", alignItems: "center", fontSize: 12, fontWeight: 800 }}>
-          <Link href="/pricing/" style={{ color: "var(--muted)", textDecoration: "none" }}>PLANS & PRICING</Link>
-          <Link href="/marketplaces/" style={{ color: "var(--muted)", textDecoration: "none" }}>MARKETPLACE CONNECTIONS</Link>
-          <Link href="/download/" style={{ color: "var(--blue)", textDecoration: "none" }}>DOWNLOAD APP</Link>
-        </nav>
-      </header>
+      <SiteHeader active="download" />
       <section style={{ maxWidth: 850, padding: "clamp(58px, 9vw, 110px) 0 50px" }}>
         <p style={{ color: "var(--blue)", fontWeight: 800, letterSpacing: ".18em", fontSize: 12 }}>EKHAYA PRICE CHECKER · ANDROID</p>
         <h1 style={{ fontFamily: "Manrope, sans-serif", fontSize: "clamp(40px, 7vw, 76px)", lineHeight: 1.04, fontWeight: 800, letterSpacing: "-.055em", margin: "18px 0 22px" }}>Take your price checker with you.</h1>
