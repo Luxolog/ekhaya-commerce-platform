@@ -78,3 +78,14 @@
 - Schema parity is still incomplete. Search credit uniqueness, subscription billing-mode enum, payment status vocabulary, partial indexes and missing columns remain unresolved.
 - Appwrite Function remains source-only. Deployment requires a linked Appwrite VCS installation or packaged deployment artifact and a verified runtime test.
 - Current branch contains a CI workflow; check its run status before reporting tests as passed.
+
+
+## 2026-11-13 continued verification
+
+- Re-queried the live Appwrite schema for `subscriptions`, `search_credit_events`, and `payment_transactions`.
+- Confirmed `payment_transactions.merchant_reference_unique` is now **available**.
+- Confirmed the two added subscription timestamps are available.
+- Confirmed two important blockers remain unchanged: `subscriptions.billing_mode` uses `manual/recurring` instead of source `manual/automatic`; `search_credit_events` uniqueness is still only `request_id`, not source composite uniqueness.
+- Confirmed payment transaction status still uses `paid` rather than source `complete`, and the legacy required `provider` field remains alongside the new canonical `payment_provider`.
+- Confirmed Appwrite exposes a Node.js 22 function runtime. The function has not been deployed or execution-tested.
+- No schema-destructive changes, production changes, Supabase changes, or Coki project changes were made.
