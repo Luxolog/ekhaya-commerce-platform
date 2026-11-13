@@ -1,3 +1,6 @@
+import { createAppwriteAdminClient } from "./appwrite-client.js";
+import { handleMarketplaceSearch } from "./marketplace-search.js";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Content-Type, X-Appwrite-Project, X-Appwrite-JWT",
@@ -6,57 +9,81 @@ const corsHeaders = {
 };
 
 function response(res, body, status = 200) {
-  res
-    .setStatusCode(status)
-    .setHeaders(corsHeaders)
-    .send(JSON.stringify(body));
+  res.setStatusCode(status).setHeaders(corsHeaders).send(JSON.stringify(body));
+}
+
+async function verifyIdentity({ userId, userJwt, endpoint, projectId }) {
+  if (!userId || !userJwt || !endpoint || !projectId) {
+    return { ok: false, status: 401, body: { error: "Authentication required", code: "AUTH_CONTEXT_MISSING" } };
+  }
+  const accountResponse = await fetch(`${endpoint.replace(/\\/$/, "")}/account`, {
+    method: "GET",
+    headers: { "X-Appwrite-Project": projectId, "X-Appwrite-JWT": userJwt },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!accountResponse.ok) {
+    return { ok: false, status: 401, body: { error: "Authentication could not be verified", code: "INVALID_SESSION" } };
+  }
+  const account = await accountResponse.json();
+  if (account.$id !== userId) {
+    return { ok: false, status: 403, body: { error: "Authenticated identity mismatch", code: "IDENTITY_MISMATCH" } };
+  }
+  return { ok: true, account };
 }
 
 export default async ({ req, res, log, error }) => {
   if (req.method === "OPTIONS") return response(res, { ok: true });
-  if (req.method !== "GET") return response(res, { error: "Method not allowed" }, 405);
+  if (req.method !== "GET" && req.method !== "POST") {
+    return response(res, { error: "Method not allowed" }, 405);
+  }
 
   const userId = process.env.APPWRITE_FUNCTION_USER_ID;
   const userJwt = process.env.APPWRITE_FUNCTION_USER_JWT;
   const endpoint = process.env.APPWRITE_FUNCTION_API_ENDPOINT;
   const projectId = process.env.APPWRITE_FUNCTION_PROJECT_ID;
 
-  if (!userId || !userJwt || !endpoint || !projectId) {
-    log("Missing Appwrite function user context.");
-    return response(res, { error: "Authentication required", code: "AUTH_CONTEXT_MISSING" }, 401);
-  }
-
   try {
-    const accountResponse = await fetch(`${endpoint.replace(/\/$/, "")}/account`, {
-      method: "GET",
-      headers: {
-        "X-Appwrite-Project": projectId,
-        "X-Appwrite-JWT": userJwt,
-      },
-      signal: AbortSignal.timeout(8000),
-    });
+    const identity = await verifyIdentity({ userId, userJwt, endpoint, projectId });
+    if (!identity.ok) return response(res, identity.body, identity.status);
 
-    if (!accountResponse.ok) {
-      return response(res, { error: "Authentication could not be verified", code: "INVALID_SESSION" }, 401);
+    if (req.method === "GET") {
+      return response(res, {
+        ok: true,
+        authenticated: true,
+        user: {
+          id: identity.account.$id,
+          email: identity.account.email,
+          name: identity.account.name,
+          emailVerification: identity.account.emailVerification,
+        },
+      });
     }
 
-    const account = await accountResponse.json();
-    if (account.$id !== userId) {
-      return response(res, { error: "Authenticated identity mismatch", code: "IDENTITY_MISMATCH" }, 403);
+    let body;
+    try {
+      body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    } catch {
+      return response(res, { error: "Valid JSON required", code: "INVALID_JSON" }, 400);
+    }
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return response(res, { error: "A JSON object is required", code: "INVALID_BODY" }, 400);
     }
 
-    return response(res, {
-      ok: true,
-      authenticated: true,
-      user: {
-        id: account.$id,
-        email: account.email,
-        name: account.name,
-        emailVerification: account.emailVerification,
-      },
+    const { tablesDB, Query } = createAppwriteAdminClient();
+    const result = await handleMarketplaceSearch({
+      body,
+      authUserId: identity.account.$id,
+      tablesDB,
+      Query,
     });
+    return response(res, result.body, result.status);
   } catch (err) {
     error(err instanceof Error ? err.message : String(err));
-    return response(res, { error: "Identity verification unavailable", code: "IDENTITY_CHECK_FAILED" }, 503);
+    const message = err instanceof Error ? err.message : "Unexpected server error";
+    return response(res, {
+      error: "Marketplace search could not be completed.",
+      code: "SEARCH_FAILED",
+      detail: process.env.NODE_ENV === "development" ? message : undefined,
+    }, 502);
   }
 };
