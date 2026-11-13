@@ -58,6 +58,8 @@ export function createAppwriteCreditStore({ tablesDB, Query }) {
   }
 
   return {
+    getEvent: async (eventId) => findEvent(eventId),
+
     async withTransaction(work) {
       const transaction = await tablesDB.createTransaction({ ttl: 60 });
       const transactionId = transaction.$id;
