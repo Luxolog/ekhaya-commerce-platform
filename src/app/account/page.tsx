@@ -1,6 +1,7 @@
-import SiteHeader from '@/components/SiteHeader';
 "use client";
 
+
+import SiteHeader from '@/components/SiteHeader';
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
