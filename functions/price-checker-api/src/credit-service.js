@@ -22,6 +22,15 @@ export function createCreditService(store) {
       if (!validated.ok) return { allowed: false, reason: validated.code };
 
       const request = validated.value;
+      if (typeof input.periodStart !== "string" || !/^\\d{4}-\\d{2}-01$/.test(input.periodStart)) {
+        return { allowed: false, reason: "INVALID_PERIOD" };
+      }
+      if (!Number.isSafeInteger(input.limit) || input.limit < 0) {
+        return { allowed: false, reason: "INVALID_LIMIT" };
+      }
+      if (typeof input.now !== "string" || Number.isNaN(Date.parse(input.now))) {
+        return { allowed: false, reason: "INVALID_TIMESTAMP" };
+      }
       const eventId = creditEventRowId(request);
 
       return store.withTransaction(async (tx) => {
