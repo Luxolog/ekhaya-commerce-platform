@@ -1,20 +1,17 @@
-name: Android debug APK
-# Fresh APK verification build: barcode scanner and photo identification included
+name: Standalone Ekhaya Price Checker Android APK
 
 permissions:
   contents: read
 
 concurrency:
-  group: android-debug-apk-${{ github.ref }}
+  group: price-checker-android-${{ github.ref }}
   cancel-in-progress: false
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - main
-      - feature/marketplace-access-onboarding
-      - feat/shared-price-cache-android
+      - feature/standalone-price-checker-app
 
 jobs:
   build-debug-apk:
@@ -26,6 +23,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -37,27 +35,27 @@ jobs:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - name: Install dependencies
         run: npm install
-      - name: Export web app
-        run: npm run build
+      - name: Build standalone mobile web app
+        run: npm run mobile:build
       - name: Add Android platform
         run: npx cap add android
-      - name: Generate Ekhaya Technologies launcher icons
+      - name: Generate app-specific launcher icons
         run: |
-          mkdir -p resources scripts
+          mkdir -p resources
           npm install --no-save sharp @capacitor/assets
-          node scripts/generate-icons.mjs
+          node -e "const sharp=require('sharp'); sharp('mobile/public/app-icon.svg').resize(1024,1024).png().toFile('resources/icon.png')"
           npx capacitor-assets generate --android
-      - name: Sync Capacitor assets
+      - name: Sync Capacitor
         run: npx cap sync android
       - name: Build debug APK
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug
-      - name: Upload debug APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ekhaya-price-checker-debug-apk
+          name: ekhaya-price-checker-android-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
