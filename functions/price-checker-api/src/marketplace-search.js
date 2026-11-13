@@ -61,7 +61,7 @@ async function writeCache(tablesDB, rowId, data) {
 
 export async function handleMarketplaceSearch({ body, authUserId, tablesDB, Query, env = process.env }) {
   const marketplace = body?.marketplace;
-  const query = typeof body?.query === "string" ? body.query.trim().replace(/\\s+/g, " ").slice(0, 160) : "";
+  const query = typeof body?.query === "string" ? body.query.trim().replace(/\s+/g, " ").slice(0, 160) : "";
   const requestId = typeof body?.request_id === "string" ? body.request_id : "";
 
   if (!VALID_MARKETPLACES.has(marketplace) || query.length < 2) {
@@ -73,10 +73,6 @@ export async function handleMarketplaceSearch({ body, authUserId, tablesDB, Quer
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
     return { status: 400, body: { error: "A valid request_id UUID is required.", code: "INVALID_REQUEST_ID" } };
   }
-  if (!env.REEFAPI_KEY) {
-    return { status: 503, body: { error: "Marketplace provider is not configured.", code: "PROVIDER_NOT_CONFIGURED" } };
-  }
-
   const context = await loadSellerCreditContext({ tablesDB, Query, authUserId, marketplace });
   if (!context.ok) return { status: context.status, body: { error: context.code, code: context.code } };
 
@@ -98,6 +94,10 @@ export async function handleMarketplaceSearch({ body, authUserId, tablesDB, Quer
         credit_charged: false,
       },
     };
+  }
+
+  if (!env.REEFAPI_KEY) {
+    return { status: 503, body: { error: "Marketplace provider is not configured.", code: "PROVIDER_NOT_CONFIGURED" } };
   }
 
   const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
