@@ -1,0 +1,16 @@
+{
+  "id": "/price-checker/",
+  "name": "Ekhaya Price Checker",
+  "short_name": "Price Checker",
+  "description": "Photograph products, identify them and compare marketplace prices.",
+  "start_url": "/price-checker/",
+  "scope": "/price-checker/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F4F8FC",
+  "theme_color": "#071B31",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "categories": ["business", "shopping", "productivity"]
+}
