@@ -89,3 +89,13 @@
 - Confirmed payment transaction status still uses `paid` rather than source `complete`, and the legacy required `provider` field remains alongside the new canonical `payment_provider`.
 - Confirmed Appwrite exposes a Node.js 22 function runtime. The function has not been deployed or execution-tested.
 - No schema-destructive changes, production changes, Supabase changes, or Coki project changes were made.
+
+
+## 2026-11-13 credit-ledger domain layer
+
+- Added `functions/price-checker-api/src/credit-ledger.js` with request validation, stable composite event row IDs, UTC month-boundary calculation, and allowed credit state transitions.
+- Added Node's built-in test suite at `functions/price-checker-api/test/credit-ledger.test.js`.
+- Added `npm test` to the function package and wired the test suite into the Appwrite migration GitHub Actions workflow.
+- These are deterministic domain rules and unit tests only. They do **not** yet reserve, complete or refund real credits in Appwrite.
+- The live `search_credit_events` unique index remains incorrectly scoped to `request_id` alone. No attempt was made to delete or replace it because the live schema/data impact must be reviewed first.
+- Next step: implement Appwrite TablesDB transaction-backed reservation/completion/refund operations, after confirming the transaction operation payload contract and resolving the legacy unique index without risking existing data.
