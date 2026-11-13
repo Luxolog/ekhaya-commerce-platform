@@ -58,6 +58,7 @@ jobs:
           node --check src/appwrite-client.js
           node --check src/appwrite-credit-store.js
           node --check src/credit-context.js
+          node --check src/marketplace-search.js
           node --check src/credit-service.js
       - name: Run credit ledger unit tests
         run: npm test
