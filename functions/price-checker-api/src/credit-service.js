@@ -38,8 +38,10 @@ export function createCreditService(store) {
       }
       const eventId = creditEventRowId(request);
 
-      try {
-        return await store.withTransaction(async (tx) => {
+      const maxAttempts = 3;
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+          return await store.withTransaction(async (tx) => {
           const existing = await tx.getEvent(eventId);
           if (existing) {
             return {
@@ -79,25 +81,33 @@ export function createCreditService(store) {
             used: updated.searches_used,
             limit: input.limit,
           };
-        });
-      } catch (error) {
-        // A simultaneous identical reservation may win the composite unique
-        // index first. Only classify it as a duplicate after re-reading the row.
-        if (typeof store.getEvent === "function") {
-          const winner = await store.getEvent(eventId);
-          if (winner) {
-            const usage = await store.getUsage?.(request.userId, input.periodStart);
-            return {
-              allowed: true,
-              charged: false,
-              duplicate: true,
-              used: usage?.searches_used ?? 0,
-              limit: input.limit,
-            };
+          });
+        } catch (error) {
+          const conflict = error?.code === 409 ||
+            /transaction.*conflict|row.*already.*exists|unique.*constraint/i.test(
+              `${error?.type ?? ""} ${error?.message ?? ""}`
+            );
+          if (!conflict) throw error;
+
+          // Identical requests are idempotent; unrelated transaction conflicts
+          // retry a small bounded number of times to resolve quota contention.
+          if (typeof store.getEvent === "function") {
+            const winner = await store.getEvent(eventId);
+            if (winner) {
+              const usage = await store.getUsage?.(request.userId, input.periodStart);
+              return {
+                allowed: true,
+                charged: false,
+                duplicate: true,
+                used: usage?.searches_used ?? 0,
+                limit: input.limit,
+              };
+            }
           }
+          if (attempt === maxAttempts) throw error;
         }
-        throw error;
       }
+      throw new Error("Credit reservation retry limit reached");
     },
 
     async complete(input) {
