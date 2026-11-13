@@ -35,7 +35,7 @@ export default function AccountPage() {
     setBusy(true);setMessage("");
     try {
       if(mode==="reset"){
-        await account.createRecovery(email,window.location.origin+"/account/");
+        await account.createRecovery(email,"https://ekhayatech.co.za/account/");
         setMessage("If an account exists for this email, a password reset link has been sent. Check your inbox and spam folder.");
       } else if(mode==="new-password"){
         if(!recovery)throw new Error("The password reset link is missing or expired. Request a new one.");
