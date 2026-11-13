@@ -173,3 +173,10 @@
 - Configured entrypoint `src/main.js`, build command `npm install`, 30-second timeout and authenticated-user execution permission.
 - Integration source is in the migration branch under `functions/price-checker-api/src`.
 - Deployment is blocked pending a server-scoped Appwrite API key, ReefAPI key, packaged deployment upload, successful CI, and end-to-end tests.
+
+
+## 2026-11-13 GitHub Actions workflow correction
+
+- The repository does not contain a root `package-lock.json`, but the workflow used `npm ci` and npm dependency caching. That is not valid without a lockfile and can fail before any tests run.
+- Changed the frontend CI install step to `npm install` and removed lockfile-dependent npm caching. The Function package also installs its own pinned Appwrite SDK dependency.
+- Pushing this correction to `feature/appwrite-migration` automatically triggers the workflow. The new run must be inspected before marking automated tests as passed.
