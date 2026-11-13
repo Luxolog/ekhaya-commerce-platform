@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
-type MarketplaceProduct = { marketplace?: string; id: string; title: string; brand?: string | null; price: number | null; currency: string; image?: string | null; url?: string | null; in_stock?: boolean | null; rating?: number | null; review_count?: number | null; seller?: string | null; };
+type MarketplaceProduct = { marketplace?: string; id: string; title: string; brand?: string | null; price: number | null; currency: string; image?: string | null; url?: string | null; in_stock?: boolean | null; rating?: number | null; review_count?: number | null; seller?: string | null; weight_grams?: number | null; length_cm?: number | null; width_cm?: number | null; height_cm?: number | null; }
 type Mode = "name" | "barcode" | "photo";
 const money = (v: number) => new Intl.NumberFormat("en-ZA",{style:"currency",currency:"ZAR",maximumFractionDigits:2}).format(v);
 const categories = [
@@ -110,6 +110,7 @@ export default function PriceCheckerPage() {
       const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Barcode lookup failed");
       setBarcodeProduct(payload.product.brand?payload.product.brand+" "+payload.product.title:payload.product.title);
       if(payload.product.weight_grams){setWeight(String(payload.product.weight_grams/1000));setSpecSource("Barcode data — weight only; dimensions remain estimates");}
+      if(payload.product.length_cm&&payload.product.width_cm&&payload.product.height_cm){setLength(String(payload.product.length_cm));setWidth(String(payload.product.width_cm));setHeight(String(payload.product.height_cm));setSpecSource("Barcode product data — verify packed measurements");}
     } catch(e){setError(e instanceof Error?e.message:"Barcode lookup failed");}
     finally{setBarcodeBusy(false);}
   }
@@ -130,6 +131,8 @@ export default function PriceCheckerPage() {
         }).finally(()=>window.clearTimeout(timer));
         const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Search failed");
         const incoming=(payload.products??[]).map((p:MarketplaceProduct)=>({...p,marketplace}));
+        const spec=incoming.find((p:MarketplaceProduct)=>p.weight_grams||p.length_cm||p.width_cm||p.height_cm);
+        if(spec){if(spec.weight_grams)setWeight(String(spec.weight_grams/1000));if(spec.length_cm)setLength(String(spec.length_cm));if(spec.width_cm)setWidth(String(spec.width_cm));if(spec.height_cm)setHeight(String(spec.height_cm));setSpecSource("Marketplace listing specifications — verify packed measurements");}
         setProducts(old=>[...old.filter(p=>p.marketplace!==marketplace),...incoming]);
         setSource(old=>old==="Shared cache"&&payload.source!=="cache"?"Live marketplace data":payload.source==="cache"?"Shared cache":"Live marketplace data");
       }catch(e){errors.push((marketplace==="amazon"?"Amazon SA":"Takealot")+": "+(e instanceof Error?e.message:"Search failed"));setError(errors.join(" · "));}
