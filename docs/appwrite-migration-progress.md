@@ -109,3 +109,15 @@
 - Important adapter requirements: use deterministic composite row IDs; handle unique-conflict races by aborting/re-reading; atomically update the usage counter and event row; decrement only for a reserved event in the event's original period; never accept user ID, plan limit or account status from untrusted client input.
 - The current Appwrite legacy unique index on `request_id` remains a schema blocker. The safest migration path under review is a new versioned credit-event table with a composite unique index, followed by a controlled backfill/verification; do not delete the legacy index in place.
 - Automated tests are wired into GitHub Actions but still require a completed workflow run to confirm execution.
+
+
+## 2026-11-13 Appwrite credit ledger v2
+
+- Created Appwrite TablesDB table `search_credit_events_v2` in database `ekhaya_price_checker`.
+- Table permissions are empty and row security is enabled. The server-side Function/API key is intended to be the only writer/reader.
+- Verified all columns and indexes reached `available` state. Unique index `credit_event_idempotency_unique` covers `user_id, request_id, marketplace`; lookup indexes cover user/period and request ID.
+- Legacy `search_credit_events` was not modified, deleted, backfilled or switched over.
+- Added `src/appwrite-credit-store.js` using the documented TablesDB transaction API: staged create/increment/update/decrement operations, commit/rollback, bounded increment max, and unique-conflict re-read for identical reservation races.
+- Added adapter tests for transaction staging and rollback.
+- The adapter expects the Appwrite Node SDK TablesDB client and Query builder to be injected. It is not yet wired into the deployed Function; no Function is deployed.
+- Before activation, verify actual SDK version and runtime packaging, run the full test workflow, then perform isolated integration tests with a dedicated test user and clean-up. Concurrent quota conflicts should be retried at the request boundary; never silently convert a quota conflict into a duplicate.
