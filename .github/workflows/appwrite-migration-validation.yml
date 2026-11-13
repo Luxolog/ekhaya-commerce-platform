@@ -50,7 +50,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install Appwrite Function dependencies
+        run: npm install --ignore-scripts
       - name: Validate JavaScript syntax
-        run: node --check src/main.js
+        run: |
+          node --check src/main.js
+          node --check src/appwrite-client.js
+          node --check src/appwrite-credit-store.js
+          node --check src/credit-service.js
       - name: Run credit ledger unit tests
         run: npm test
