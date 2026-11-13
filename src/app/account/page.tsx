@@ -31,6 +31,21 @@ export default function AccountPage() {
     } catch(e) { setMessage(e instanceof Error?e.message:"Account request failed."); }
     finally { setBusy(false); }
   }
+  async function sendResetEmail() {
+    setBusy(true); setMessage("");
+    try {
+      const redirectTo = new URL("/reset-password/",window.location.origin).toString();
+      const response = await fetch(supabaseUrl+"/auth/v1/recover?redirect_to="+encodeURIComponent(redirectTo),{
+        method:"POST",
+        headers:{"Content-Type":"application/json","apikey":anonKey},
+        body:JSON.stringify({email})
+      });
+      const data = await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(data.msg??data.message??data.error_description??"Unable to send the password reset email.");
+      setMessage("If an account exists for this email, a password reset link has been sent. Check your inbox and spam folder.");
+    } catch(e) { setMessage(e instanceof Error?e.message:"Password reset request failed."); }
+    finally { setBusy(false); }
+  }
   function signOut(){localStorage.removeItem("ekhaya_session");setMessage("You have been signed out.");}
   const signedIn = typeof window !== "undefined" && !!localStorage.getItem("ekhaya_session");
   return <main style={{minHeight:"100vh",background:"#F4F8FC",padding:"28px 5%",color:"#071B31",fontFamily:"Arial,sans-serif"}}>
@@ -46,7 +61,8 @@ export default function AccountPage() {
       <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address" style={field}/>
       <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password (at least 8 characters)" style={field}/>
       <button onClick={submit} disabled={busy||!email||password.length<8} style={{width:"100%",padding:14,background:"#079BD3",border:0,borderRadius:8,color:"#fff",fontWeight:700,marginTop:12,cursor:"pointer"}}>{busy?"Please wait…":mode==="signup"?"Create account":"Sign in"}</button>
-      <button onClick={()=>setMode(mode==="signup"?"signin":"signup")} style={{width:"100%",padding:12,background:"transparent",border:0,color:"#079BD3",fontWeight:700,cursor:"pointer"}}>{mode==="signup"?"Already registered? Sign in":"New to Ekhaya? Create an account"}</button>
+      {mode==="signin"&&<button onClick={sendResetEmail} disabled={busy||!email} style={{width:"100%",padding:10,background:"transparent",border:0,color:"#079BD3",fontWeight:700,cursor:busy||!email?"not-allowed":"pointer"}}>Forgot password?</button>}
+      <button onClick={()=>{setMode(mode==="signup"?"signin":"signup");setMessage("");}} style={{width:"100%",padding:12,background:"transparent",border:0,color:"#079BD3",fontWeight:700,cursor:"pointer"}}>{mode==="signup"?"Already registered? Sign in":"New to Ekhaya? Create an account"}</button>
       {signedIn&&<button onClick={signOut} style={{width:"100%",padding:10,border:"1px solid #DCE8F1",borderRadius:8,background:"#fff",color:"#071B31"}}>Sign out</button>}
       {message&&<p role="status" style={{fontSize:12,lineHeight:1.6,color:"#304B63",background:"#F4F8FC",padding:12,borderRadius:8}}>{message}</p>}
       <p style={{fontSize:10,color:"#71869A",lineHeight:1.6,marginTop:16}}>Use a unique password. Ekhaya never asks for your marketplace Seller Central password here.</p>
