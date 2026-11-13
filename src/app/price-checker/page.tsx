@@ -29,7 +29,7 @@ export default function PriceCheckerPage() {
   const [photoText,setPhotoText]=useState("");
   const [photoName,setPhotoName]=useState("");
   const [cost,setCost]=useState("");
-  const [marketplaces,setMarketplaces]=useState<("takealot"|"amazon")[]>(["takealot","amazon"]);
+  const [marketplaces,setMarketplaces]=useState<("takealot"|"amazon")[]>(["takealot"]);
   const [category,setCategory]=useState("general");
   const [weight,setWeight]=useState("0.5");
   const [length,setLength]=useState("20");
@@ -46,7 +46,41 @@ export default function PriceCheckerPage() {
   const [barcodeProduct,setBarcodeProduct]=useState("");
   const [barcodeBusy,setBarcodeBusy]=useState(false);
 
-  const getSupabaseHeaders=()=>{const session=typeof window!=="undefined"?localStorage.getItem("ekhaya_session"):null;const token=session?JSON.parse(session).access_token:null;return {"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":token?`Bearer ${token}`:"Bearer"};};
+  const getSupabaseHeaders=async()=>{
+    const storageKey="ekhaya_session";
+    let session:Record<string,unknown>;
+    try {
+      const raw=localStorage.getItem(storageKey);
+      if(!raw) throw new Error("Please sign in to your Ekhaya seller account before searching.");
+      session=JSON.parse(raw) as Record<string,unknown>;
+    } catch(error) {
+      if(error instanceof SyntaxError) localStorage.removeItem(storageKey);
+      throw error instanceof Error?error:new Error("Your seller session could not be read. Please sign in again.");
+    }
+    let accessToken=typeof session.access_token==="string"?session.access_token:"";
+    const refreshToken=typeof session.refresh_token==="string"?session.refresh_token:"";
+    const expiresAt=Number(session.expires_at)||((Number(session.created_at)||0)+(Number(session.expires_in)||0));
+    if(!accessToken || !refreshToken) {
+      localStorage.removeItem(storageKey);
+      throw new Error("Your seller session has expired. Please sign in again.");
+    }
+    if(!expiresAt || expiresAt*1000<Date.now()+60_000) {
+      const refreshed=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/auth/v1/token?grant_type=refresh_token",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t"},
+        body:JSON.stringify({refresh_token:refreshToken})
+      });
+      const payload=await refreshed.json().catch(()=>({}));
+      if(!refreshed.ok || typeof payload.access_token!=="string" || typeof payload.refresh_token!=="string") {
+        localStorage.removeItem(storageKey);
+        throw new Error("Your seller session has expired. Please sign in again from Seller Account.");
+      }
+      session={...session,...payload};
+      localStorage.setItem(storageKey,JSON.stringify(session));
+      accessToken=payload.access_token;
+    }
+    return {"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":`Bearer ${accessToken}`};
+  };
   const buying=Number(cost);
   const validCost=cost.trim()!=="" && Number.isFinite(buying) && buying>0;
   const productQuery=mode==="barcode"?barcodeProduct.trim():mode==="photo"?photoText.trim():query.trim();
@@ -57,7 +91,7 @@ export default function PriceCheckerPage() {
     if(!/^\d{8,14}$/.test(value.trim())){setError("Enter a valid 8–14 digit barcode.");return;}
     setBarcodeBusy(true);setError("");setBarcodeProduct("");
     try {
-      const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/product-identify",{method:"POST",headers:getSupabaseHeaders(),body:JSON.stringify({mode:"barcode",barcode:value.trim()})});
+      const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/product-identify",{method:"POST",headers:await getSupabaseHeaders(),body:JSON.stringify({mode:"barcode",barcode:value.trim()})});
       const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Barcode lookup failed");
       setBarcodeProduct(payload.product.brand?payload.product.brand+" "+payload.product.title:payload.product.title);
       if(payload.product.weight_grams)setWeight(String(payload.product.weight_grams/1000));
@@ -70,12 +104,15 @@ export default function PriceCheckerPage() {
     if(productQuery.length<2){setError("Enter at least 2 characters to search.");return;}
     if(!marketplaces.length){setError("Choose at least one marketplace.");return;}
     setLoading(true);setError("");setProducts([]);setSource("");
+    let authHeaders:Record<string,string>;
+    try { authHeaders=await getSupabaseHeaders(); }
+    catch(e) { setError(e instanceof Error?e.message:"Please sign in to your Ekhaya seller account."); setLoading(false); return; }
     const errors:string[]=[]; let done=0;
     await Promise.all(marketplaces.map(async marketplace=>{
       try{
         const controller=new AbortController();const timer=window.setTimeout(()=>controller.abort(),10000);
         const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{
-          method:"POST",headers:getSupabaseHeaders(),
+          method:"POST",headers:authHeaders,
           body:JSON.stringify({marketplace,query:productQuery,request_id:crypto.randomUUID()}),signal:controller.signal
         }).finally(()=>window.clearTimeout(timer));
         const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Search failed");
@@ -104,7 +141,7 @@ export default function PriceCheckerPage() {
       } catch { /* No readable barcode: continue with text recognition. */ }
       finally { URL.revokeObjectURL(objectUrl); }
       const base64=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]??"");reader.onerror=()=>reject(new Error("Could not read image"));reader.readAsDataURL(file);});
-      const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/product-identify",{method:"POST",headers:getSupabaseHeaders(),body:JSON.stringify({mode:"photo",file_b64:base64,filename:file.name})});
+      const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/product-identify",{method:"POST",headers:await getSupabaseHeaders(),body:JSON.stringify({mode:"photo",file_b64:base64,filename:file.name})});
       const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Photo recognition failed");
       setPhotoText(payload.text??"");
       if(!payload.text)setError("No readable barcode or product text found. Enter the barcode or product name manually.");
@@ -117,7 +154,7 @@ export default function PriceCheckerPage() {
       const price=Number(p.price)||0;
       const tal=takealotFulfilment(category,volume,kg);
       const success=price*(takealotRates[category]??12)/100;
-      const talFulfilment=takealotMode==="marketplace"?tal.fee:0;
+      const talFulfilment=takealotMode==="marketplace"?tal.fee:(Number(sellerDelivery)||0);
       const talFees=(success+talFulfilment)*1.15;
       const amazonReferral=price*.05;
       const amazonFba=category==="clothing"? (kg<=.25?27:kg<=.5?28:kg<=1?29:kg<=2?31:kg<=5?34:kg<=10?41:kg<=20?46:87):0;
@@ -125,7 +162,7 @@ export default function PriceCheckerPage() {
       const amzFees=(amazonReferral+amzFulfilment)*1.15;
       const fee=p.marketplace==="takealot"?talFees:amzFees;
       const profit=price-buying-fee;
-      return {id:p.id,fee,profit,margin:price?profit/price*100:0,fulfilment:p.marketplace==="takealot"?talFulfilment:amzFulfilment,success:p.marketplace==="takealot"?success:amazonReferral,size:tal.size};
+      return {id:p.id,marketplace:p.marketplace,fee,profit,margin:price?profit/price*100:0,fulfilment:p.marketplace==="takealot"?talFulfilment:amzFulfilment,success:p.marketplace==="takealot"?success:amazonReferral,size:tal.size};
     });
   },[products,buying,category,volume,kg,takealotMode,amazonMode,sellerDelivery]);
   return <main className="page">
@@ -138,14 +175,14 @@ export default function PriceCheckerPage() {
       {mode==="barcode"&&<div className="stack"><input className="wide" inputMode="numeric" value={barcode} onChange={e=>{setBarcode(e.target.value.replace(/\D/g,"").slice(0,14));setBarcodeProduct("");setError("");}} placeholder="Enter barcode / EAN / UPC"/><button type="button" className="secondary" disabled={barcodeBusy||!barcode.trim()} onClick={()=>identifyBarcode(barcode)}>{barcodeBusy?"Looking up barcode…":"Identify barcode"}</button>{barcodeProduct&&<p className="hint">Identified product: <b>{barcodeProduct}</b></p>}<p className="hint">Enter the digits printed below the product barcode, or take a product photo and we’ll check it automatically.</p></div>}
       {mode==="photo"&&<div className="stack"><label className="upload"> <input type="file" accept="image/*" capture="environment" onChange={e=>readPhoto(e.target.files?.[0])}/>Take a product photo (barcode detection included)</label>{photoName&&<p className="hint">Selected: {photoName}</p>}{photoBusy&&<p className="hint">Checking image for barcode and product text…</p>}<textarea className="wide photo-text" value={photoText} onChange={e=>setPhotoText(e.target.value)} placeholder="If no barcode is found, recognised product text appears here. Edit it before searching by name."/></div>}
       <div className="buying"><label htmlFor="buying">Your buying price <b>Required</b></label><div className="money-input"><span>R</span><input id="buying" type="number" min="0.01" step="0.01" value={cost} onChange={e=>setCost(e.target.value)} placeholder="Enter supplier / purchase price"/></div></div>
-      <div className="market-choice"><label>Compare marketplaces</label><div className="checks">{(["takealot","amazon"] as const).map(m=><label key={m}><input type="checkbox" checked={marketplaces.includes(m)} onChange={e=>setMarketplaces(old=>e.target.checked?[...old,m]:old.filter(x=>x!==m))}/>{m==="takealot"?"Takealot":"Amazon South Africa"}</label>)}</div><div className="makro-status"><div><b>Makro Marketplace</b><span>Integration planned · authorised data access pending</span></div><strong>NOT CONNECTED</strong><p>Makro prices and stock are not currently searched or verified. We will enable this marketplace only after an approved data source is available.</p></div></div>
+      <div className="market-choice"><label>Compare marketplaces</label><div className="checks">{(["takealot"] as const).map(m=><label key={m}><input type="checkbox" checked={marketplaces.includes(m)} onChange={e=>setMarketplaces(old=>e.target.checked?[...old,m]:old.filter(x=>x!==m))}/>{m==="takealot"?"Takealot":"Amazon South Africa"}</label>)}<label className="market-pending"><input type="checkbox" disabled/>Amazon South Africa <small>temporarily unavailable — local pricing verification pending</small></label></div><div className="makro-status"><div><b>Makro Marketplace</b><span>Integration planned · authorised data access pending</span></div><strong>NOT CONNECTED</strong><p>Makro prices and stock are not currently searched or verified. We will enable this marketplace only after an approved data source is available.</p></div></div>
       <div className="details"><div><label>Product category</label><select value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></div><div><label>Packed weight (kg)</label><input type="number" min="0" step=".01" value={weight} onChange={e=>setWeight(e.target.value)}/></div><div><label>Length (cm)</label><input type="number" min="0" value={length} onChange={e=>setLength(e.target.value)}/></div><div><label>Width (cm)</label><input type="number" min="0" value={width} onChange={e=>setWidth(e.target.value)}/></div><div><label>Height (cm)</label><input type="number" min="0" value={height} onChange={e=>setHeight(e.target.value)}/></div></div>
-      <div className="details" style={{marginTop:14}}><div><label>Takealot fulfilment</label><select value={takealotMode} onChange={e=>setTakealotMode(e.target.value as "marketplace"|"seller")}><option value="marketplace">Fulfilled by Takealot</option><option value="seller">Seller fulfilled</option></select></div><div><label>Amazon fulfilment</label><select value={amazonMode} onChange={e=>setAmazonMode(e.target.value as "fba"|"easy"|"self")}><option value="fba">FBA</option><option value="easy">Easy Ship</option><option value="self">Self Ship</option></select></div><div><label>Delivery cost (R/order)</label><input type="number" min="0" step=".01" value={sellerDelivery} onChange={e=>setSellerDelivery(e.target.value)}/></div></div><p className="hint">Fulfilment is selected separately for each marketplace. For Easy Ship and Self Ship, enter your own estimated delivery/handling cost per order. Takealot seller-fulfilled orders exclude marketplace fulfilment charges from this estimate.</p>
+      <div className="details" style={{marginTop:14}}><div><label>Takealot fulfilment</label><select value={takealotMode} onChange={e=>setTakealotMode(e.target.value as "marketplace"|"seller")}><option value="marketplace">Fulfilled by Takealot</option><option value="seller">Seller fulfilled</option></select></div><div><label>Amazon fulfilment</label><select value={amazonMode} onChange={e=>setAmazonMode(e.target.value as "fba"|"easy"|"self")}><option value="fba">FBA</option><option value="easy">Easy Ship</option><option value="self">Self Ship</option></select></div><div><label>Delivery cost (R/order)</label><input type="number" min="0" step=".01" value={sellerDelivery} onChange={e=>setSellerDelivery(e.target.value)}/></div></div><p className="hint">Fulfilment is selected separately for each marketplace. For seller-fulfilled Takealot orders and Amazon Easy Ship or Self Ship, enter your estimated delivery/handling cost per order. Takealot marketplace-fulfilled orders use the fulfilment estimate above.</p>
       <button className="search" disabled={loading||!validCost||!marketplaces.length||(mode==="barcode"&&!barcodeProduct)} onClick={search}>{loading?"Searching marketplaces…":"Find product & calculate profit →"}</button>
       {!validCost&&<p className="hint">Enter a buying price greater than R0 to unlock product search.</p>}
       {error&&<p className="error" role="status">{error}</p>}{source&&<p className="hint">{source} · Listing prices may change.</p>}
     </section>
-    {products.length>0&&<section className="results"><div className="heading"><div><small>02 / COMPARE YOUR OPTIONS</small><h2>Product profitability</h2></div><span className="hint">Buying price: {money(buying)}</span></div><div className="cards">{products.map((p,i)=>{const c=calculations.find(x=>x.id===p.id);return <article className="product" key={p.marketplace+"-"+p.id+"-"+i}>{p.image?<img src={p.image} alt=""/>:<div className="placeholder">E</div>}<div className="info"><span className="market">{p.marketplace==="amazon"?"AMAZON SOUTH AFRICA":"TAKEALOT"}</span><strong>{p.title}</strong><small>{p.brand??"Marketplace listing"} · {p.in_stock===true?"In stock":p.in_stock===false?"Unavailable":"Stock unconfirmed"}</small><b className="price">{p.price==null?"Price unavailable":money(Number(p.price))}</b>{c&&p.price!=null&&<div className="breakdown"><div><span>Marketplace selling fee</span><b>{money(c.success)}</b></div><div><span>Fulfilment estimate</span><b>{c.fulfilment===0?"R0.00*":money(c.fulfilment)}</b></div><div><span>Estimated fees incl. VAT</span><b>{money(c.fee)}</b></div><div className="profit"><span>Estimated profit</span><b className={c.profit>=0?"good":"bad"}>{money(c.profit)}</b></div><div><span>Profit margin</span><b>{c.margin.toFixed(1)}%</b></div></div>}{p.url&&<a href={p.url} target="_blank" rel="noreferrer">View marketplace listing ↗</a>}</div></article>})}</div><p className="disclaimer">Estimates only. Takealot success and fulfilment fees vary by category, packed size and weight. Amazon FBA fulfilment fees may be waived under its current promotion for eligible products; apparel and other exceptions can apply. Figures exclude storage, inbound delivery to the fulfilment centre, returns, subscription allocation and other account-specific charges. *R0 reflects the published Amazon FBA promotion, not a permanent fee.</p></section>}
+    {products.length>0&&<section className="results"><div className="heading"><div><small>02 / COMPARE YOUR OPTIONS</small><h2>Product profitability</h2></div><span className="hint">Buying price: {money(buying)}</span></div><div className="cards">{products.map((p,i)=>{const c=calculations.find(x=>x.id===p.id&&x.marketplace===p.marketplace);return <article className="product" key={p.marketplace+"-"+p.id+"-"+i}>{p.image?<img src={p.image} alt=""/>:<div className="placeholder">E</div>}<div className="info"><span className="market">{p.marketplace==="amazon"?"AMAZON SOUTH AFRICA":"TAKEALOT"}</span><strong>{p.title}</strong><small>{p.brand??"Marketplace listing"} · {p.in_stock===true?"In stock":p.in_stock===false?"Unavailable":"Stock unconfirmed"}</small><b className="price">{p.price==null?"Price unavailable":money(Number(p.price))}</b>{c&&p.price!=null&&<div className="breakdown"><div><span>Marketplace selling fee</span><b>{money(c.success)}</b></div><div><span>Fulfilment estimate</span><b>{c.fulfilment===0?"R0.00*":money(c.fulfilment)}</b></div><div><span>Estimated fees incl. VAT</span><b>{money(c.fee)}</b></div><div className="profit"><span>Estimated profit</span><b className={c.profit>=0?"good":"bad"}>{money(c.profit)}</b></div><div><span>Profit margin</span><b>{c.margin.toFixed(1)}%</b></div></div>}{p.url&&<a href={p.url} target="_blank" rel="noreferrer">View marketplace listing ↗</a>}</div></article>})}</div><p className="disclaimer">Estimates only. Takealot success and fulfilment fees vary by category, packed size and weight. Amazon FBA fulfilment fees may be waived under its current promotion for eligible products; apparel and other exceptions can apply. Figures exclude storage, inbound delivery to the fulfilment centre, returns, subscription allocation and other account-specific charges. *R0 reflects the published Amazon FBA promotion, not a permanent fee.</p></section>}
     <footer>DIGITAL SOLUTIONS · BUILT FOR SOUTH AFRICAN SELLERS <span>EKHAYA TECHNOLOGIES © 2026</span></footer>
     <style jsx>{`
       .page{min-height:100vh;background:#F4F8FC;color:#071B31;padding:0 5.5%;font-family:Arial,sans-serif}.top{height:78px;border-bottom:1px solid #DCE8F1;display:flex;align-items:center;justify-content:space-between}.logo{width:154px;height:auto}.pill{font-size:9px;letter-spacing:1.3px;color:#60758A;border:1px solid #DCE8F1;padding:9px 13px;border-radius:30px}.hero{text-align:center;max-width:720px;margin:58px auto 34px}.eyebrow,small{color:#079BD3;font-size:10px;font-weight:700;letter-spacing:1.7px}.hero h1{font-size:clamp(40px,6vw,66px);font-weight:400;line-height:1.03;letter-spacing:-2px;margin:16px 0}.hero h1 em{color:#079BD3}.hero p:last-child{color:#60758A;line-height:1.6;font-size:14px}.panel,.results{max-width:1040px;margin:0 auto 22px;background:#fff;border:1px solid #DCE8F1;border-radius:14px;padding:28px;box-shadow:0 8px 30px #071b3108}.heading{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px}.heading h2{font:400 25px Georgia,serif;margin:7px 0}.connected{font-size:9px;color:#079BD3}.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:14px}.modes button{background:#F4F8FC;border:1px solid #DCE8F1;border-radius:8px;padding:14px 8px;color:#304B63;font-weight:700;cursor:pointer}.modes button.active{background:#E4F5FB;border-color:#079BD3;color:#056F9A}.wide,.details input,.details select{box-sizing:border-box;width:100%;height:45px;border:1px solid #DCE8F1;border-radius:7px;padding:0 12px;background:#fff;color:#071B31;font-size:14px}.buying{margin-top:22px}.buying>label,.market-choice>label,.details label{display:block;font-size:12px;font-weight:700;color:#304B63;margin-bottom:8px}.buying>label b{color:#B42318;font-size:10px;margin-left:8px}.money-input{display:flex;align-items:center;border:1px solid #079BD3;border-radius:8px;height:52px;padding:0 13px}.money-input span{font-weight:700;color:#60758A}.money-input input{border:0;outline:0;width:100%;height:100%;padding-left:10px;font-size:18px;color:#071B31}.market-choice{margin:20px 0}.checks{display:flex;gap:22px;flex-wrap:wrap}.checks label{font-size:13px;display:flex;gap:8px;align-items:center;color:#304B63}.checks input{accent-color:#079BD3}.makro-status{margin-top:14px;padding:13px 14px;border:1px dashed #B9C9D7;border-radius:8px;background:#F8FAFC}.makro-status>div{display:flex;justify-content:space-between;align-items:center;gap:10px}.makro-status b{font-size:12px;color:#304B63}.makro-status span{font-size:10px;color:#71869A}.makro-status strong{display:inline-block;margin-top:8px;font-size:9px;letter-spacing:1px;color:#8A5A16;background:#FFF3D6;padding:5px 7px;border-radius:4px}.makro-status p{font-size:11px;color:#71869A;line-height:1.5;margin:8px 0 0}.details{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.details label{font-size:11px}.hint{font-size:11px;color:#71869A;line-height:1.5}.search{width:100%;height:49px;border:0;border-radius:8px;background:#079BD3;color:white;font-weight:700;margin-top:13px;cursor:pointer}.search:disabled{opacity:.45;cursor:not-allowed}.error{color:#B42318;font-size:12px}.stack{display:grid;gap:9px}.upload{display:block;text-align:center;padding:16px;border:1px dashed #079BD3;border-radius:8px;color:#056F9A;font-weight:700;cursor:pointer}.upload input{display:none}.scanner{display:grid;gap:8px}.scanner video{width:100%;max-height:250px;object-fit:cover;border-radius:8px;background:#071B31}.scanner button{height:38px;border:0;border-radius:7px;background:#071B31;color:#fff}.secondary{height:42px;border:1px solid #079BD3;border-radius:8px;background:#E4F5FB;color:#056F9A;font-weight:700}.photo-text{min-height:100px;padding:12px;resize:vertical}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}.product{display:flex;gap:13px;border:1px solid #DCE8F1;border-radius:10px;padding:14px;min-width:0}.product>img,.placeholder{width:82px;height:82px;object-fit:contain;flex:0 0 82px;background:#F4F8FC;border-radius:7px}.placeholder{display:grid;place-items:center;color:#079BD3;font-size:26px;font-weight:bold}.info{min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:6px;flex:1}.info strong{font-size:12px;line-height:1.4}.info small{font-size:10px;color:#71869A;letter-spacing:0;font-weight:400}.market{font-size:9px;color:#079BD3;font-weight:bold;letter-spacing:1px}.price{font-size:18px}.breakdown{width:100%;border-top:1px solid #DCE8F1;margin-top:6px;padding-top:7px}.breakdown div{display:flex;justify-content:space-between;gap:8px;padding:5px 0;font-size:10px;color:#60758A}.breakdown b{color:#071B31;white-space:nowrap}.breakdown .profit{border-top:1px solid #DCE8F1;margin-top:4px;padding-top:9px;font-size:12px;font-weight:bold}.good{color:#07865B!important}.bad{color:#B42318!important}.info a{font-size:10px;color:#079BD3;font-weight:bold;margin-top:5px}.disclaimer{font-size:10px;line-height:1.6;color:#71869A;margin-top:18px}footer{max-width:1040px;margin:35px auto 0;padding:20px 0 28px;border-top:1px solid #DCE8F1;display:flex;justify-content:space-between;color:#8195A8;font-size:9px;letter-spacing:1px}

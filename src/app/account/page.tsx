@@ -52,9 +52,11 @@ export default function AccountPage() {
       const endpoint = mode === "signup" ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
       const response = await fetch(supabaseUrl+endpoint,{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:JSON.stringify(mode==="signup"?{email,password,data:{display_name:name}}:{email,password})});
       const data = await response.json();
-      if(!response.ok) throw new Error(data.msg??data.message??data.error_description??"Unable to process your account request.");
+      if(!response.ok) { const code=String(data.error_code??data.code??""); if(mode==="signin"&&(code==="invalid_credentials"||response.status===400)) throw new Error("Email or password is incorrect. Check your details or use Forgot password to reset your password."); throw new Error(data.msg??data.message??data.error_description??"Unable to process your account request."); }
       if(data.access_token) {
         localStorage.setItem("ekhaya_session",JSON.stringify(data));
+        const next=new URLSearchParams(window.location.search).get("next");
+        if(next&&next.startsWith("/")&&!next.startsWith("//")) { window.location.assign(next); return; }
         setMessage("You're signed in. You can now use marketplace searches.");
       } else {
         setMessage("Account created. Check your email to confirm your address, then sign in.");
