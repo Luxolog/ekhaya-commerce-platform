@@ -203,6 +203,10 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({ p_ip_hash: ipHash, p_limit: 30 }),
     });
     if (!quotaResponse.ok || await quotaResponse.json() !== true) {
+      if (pilotCharged) {
+        await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), { method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" }, body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }) });
+        pilotCharged = false;
+      }
       return json({ error: "Search limit reached. Please try again in an hour." }, 429);
     }
 
