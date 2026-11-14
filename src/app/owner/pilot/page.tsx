@@ -28,6 +28,8 @@ export default function OwnerPilotPage(){
   const [extendDays,setExtendDays]=useState<Record<string,string>>({});
   const [searchFilter,setSearchFilter]=useState("");
   const [statusFilter,setStatusFilter]=useState("all");
+  const [security,setSecurity]=useState<{events:any[];identities:any[];blocked_domains:any[]}>({events:[],identities:[],blocked_domains:[]});
+  const [blockedDomain,setBlockedDomain]=useState(""); const [blockedReason,setBlockedReason]=useState("");
   useEffect(()=>{
     const handler=(event:Event)=>{event.preventDefault();setInstallPrompt(event);};
     const onInstalled=()=>{setInstalled(true);setInstallPrompt(null);};
@@ -62,10 +64,11 @@ export default function OwnerPilotPage(){
     const data=await response.json().catch(()=>({})); if(!response.ok)throw new Error(data.error??"Request failed."); return data;
   }
   async function refresh(){
-    const results=await Promise.allSettled([call("list_seller_pilots"),call("owner_pilot_analytics"),call("owner_list_users")]);
+    const results=await Promise.allSettled([call("list_seller_pilots"),call("owner_pilot_analytics"),call("owner_list_users"),call("owner_security_dashboard")]);
     if(results[0].status==="fulfilled")setSellers(results[0].value.sellers??[]);
     if(results[1].status==="fulfilled")setAnalytics(results[1].value);
     if(results[2].status==="fulfilled")setUsers(results[2].value.users??[]);
+    if(results[3].status==="fulfilled")setSecurity(results[3].value);
     const failed=results.find(x=>x.status==="rejected") as PromiseRejectedResult|undefined;
     if(failed)setStatus(failed.reason instanceof Error?failed.reason.message:"Some dashboard data could not be refreshed.");
     else setStatus("Dashboard updated · "+new Date().toLocaleTimeString("en-ZA"));
@@ -103,7 +106,7 @@ export default function OwnerPilotPage(){
     </header>
     <div style={{maxWidth:1180,margin:"0 auto"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"end",gap:12,flexWrap:"wrap",marginBottom:20}}><div><div style={{fontSize:11,color:"#079BD3",fontWeight:800,letterSpacing:2}}>PRIVATE TEST PROGRAMME</div><h1 style={{fontSize:30,margin:"6px 0"}}>Pilot Operations Dashboard</h1><p style={small}>Manage seller access, monitor usage and collect product feedback.</p></div><div style={{display:"flex",gap:8}}><button style={button} onClick={refresh}>↻ Refresh dashboard</button><button style={button} onClick={()=>{localStorage.removeItem("ekhaya_session");window.location.replace("/owner/login/");}}>Sign out</button></div></div>
-      <nav style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:18}}>{[["overview","Overview"],["users","Users & sellers"],["sellers","Seller management"],["activity","Search activity"],["feedback","Feedback centre"]].map(([id,name])=><button key={id} onClick={()=>setTab(id)} style={{...button,background:tab===id?"#071B31":"#fff",color:tab===id?"#fff":"#071B31",borderColor:tab===id?"#071B31":"#DCE8F1"}}>{name}</button>)}</nav>
+      <nav style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:18}}>{[["overview","Overview"],["users","Users & sellers"],["sellers","Seller management"],["security","Security & Fraud"],["activity","Search activity"],["feedback","Feedback centre"]].map(([id,name])=><button key={id} onClick={()=>setTab(id)} style={{...button,background:tab===id?"#071B31":"#fff",color:tab===id?"#fff":"#071B31",borderColor:tab===id?"#071B31":"#DCE8F1"}}>{name}</button>)}</nav>
       {status&&<div role="status" style={{...card,marginBottom:16,fontSize:13,color:"#304B63"}}>{status}</div>}
       {tab==="overview"&&<div style={{display:"grid",gap:14}}>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
@@ -164,6 +167,40 @@ export default function OwnerPilotPage(){
             <button disabled={busy} style={button} onClick={()=>run("owner_update_pilot",{target_user_id:s.user_id,operation:"extend",days:Number(extendDays[s.user_id]??3)},"Seller pilot period extended.")}>Extend</button>
           </div>
         </article>)}</section>
+      </div>}
+      {tab==="security"&&<div style={{display:"grid",gap:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12}}>
+          <section style={card}><div style={small}>Unreviewed alerts</div><div style={{fontSize:28,fontWeight:800}}>{security.events.filter(e=>!e.reviewed).length}</div></section>
+          <section style={card}><div style={small}>Pending seller IDs</div><div style={{fontSize:28,fontWeight:800}}>{security.identities.filter(i=>i.status==="pending").length}</div></section>
+          <section style={card}><div style={small}>Blocked email domains</div><div style={{fontSize:28,fontWeight:800}}>{security.blocked_domains.filter(d=>d.active).length}</div></section>
+        </div>
+        <section style={card}>
+          <h2 style={{fontSize:18,marginTop:0}}>Marketplace seller identity verification</h2>
+          <p style={small}>Seller IDs are unique per marketplace. Only verified IDs can use the matching marketplace search service.</p>
+          {security.identities.length===0?<p style={small}>No seller IDs submitted yet.</p>:security.identities.map(i=><article key={i.id} style={{padding:"12px 0",borderBottom:"1px solid #EEF2F6",display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+            <div><b style={{fontSize:13}}>{String(i.marketplace).replace("_"," ").toUpperCase()}</b><div style={small}>Seller ID: {i.seller_id}</div><div style={small}>Account: {i.user_id} · Submitted {fmt(i.submitted_at)}</div><div style={{fontSize:11,fontWeight:800,marginTop:4,color:i.status==="verified"?"#16845B":i.status==="rejected"?"#B42318":"#A15C19"}}>{i.status.toUpperCase()}</div></div>
+            {i.status==="pending"&&<div style={{display:"flex",gap:7,alignItems:"center"}}><button disabled={busy} style={primary} onClick={()=>run("owner_review_seller_identity",{identity_id:i.id,status:"verified",note:"Seller identity verified by Ekhaya"},"Seller identity verified.")}>Verify</button><button disabled={busy} style={{...button,color:"#B42318"}} onClick={()=>run("owner_review_seller_identity",{identity_id:i.id,status:"rejected",note:"Seller identity could not be verified"},"Seller identity rejected.")}>Reject</button></div>}
+          </article>)}
+        </section>
+        <section style={card}>
+          <h2 style={{fontSize:18,marginTop:0}}>Security & Fraud Monitor</h2>
+          <p style={small}>Registration spam, blocked search attempts, suspicious queries and high-frequency search patterns. Review alerts before taking action.</p>
+          {security.events.length===0?<p style={small}>No security events recorded.</p>:security.events.map(e=><article key={e.id} style={{padding:"12px 0",borderBottom:"1px solid #EEF2F6",display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+            <div style={{minWidth:240,flex:"1 1 280px"}}><div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><b style={{fontSize:13}}>{String(e.event_type).replaceAll("_"," ")}</b><span style={{fontSize:10,fontWeight:800,color:e.severity==="critical"?"#B42318":e.severity==="high"?"#C05621":"#8A6500"}}>{String(e.severity).toUpperCase()} · RISK {e.risk_score}</span></div><div style={small}>{e.email??e.user_id??"Unknown account"} · {fmt(e.created_at)}</div><pre style={{whiteSpace:"pre-wrap",fontSize:11,color:"#60758A",margin:"6px 0"}}>{JSON.stringify(e.details??{},null,2)}</pre></div>
+            {!e.reviewed&&<button disabled={busy} style={button} onClick={()=>run("owner_mark_fraud_reviewed",{event_id:e.id},"Security alert marked reviewed.")}>Mark reviewed</button>}
+            {e.reviewed&&<span style={{fontSize:11,color:"#16845B",fontWeight:700}}>REVIEWED</span>}
+          </article>)}
+        </section>
+        <section style={card}>
+          <h2 style={{fontSize:18,marginTop:0}}>Email domain blocklist</h2>
+          <p style={small}>Block known spam/disposable domains. Use exact domains rather than blocking entire common providers such as Gmail or Outlook.</p>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:8}}>
+            <input value={blockedDomain} onChange={e=>setBlockedDomain(e.target.value)} placeholder="example-spam.com" style={{height:40,padding:"0 10px",border:"1px solid #DCE8F1",borderRadius:7}}/>
+            <input value={blockedReason} onChange={e=>setBlockedReason(e.target.value)} placeholder="Reason for blocking" style={{height:40,padding:"0 10px",border:"1px solid #DCE8F1",borderRadius:7}}/>
+            <button disabled={busy||!blockedDomain.trim()||!blockedReason.trim()} style={primary} onClick={async()=>{await run("owner_block_email_domain",{domain:blockedDomain,reason:blockedReason},"Email domain added to blocklist.");setBlockedDomain("");setBlockedReason("");}}>Block domain</button>
+          </div>
+          <div style={{marginTop:12}}>{security.blocked_domains.map(d=><div key={d.domain} style={{padding:"7px 0",borderBottom:"1px solid #EEF2F6",fontSize:12}}><b>{d.domain}</b> · {d.reason} · {d.active?"Active":"Disabled"}</div>)}</div>
+        </section>
       </div>}
       {tab==="activity"&&<section style={card}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}><div><h2 style={{fontSize:18,margin:"0 0 4px"}}>Search activity</h2><p style={small}>Recorded successful pilot searches, including cached results.</p></div><button style={primary} onClick={exportCsv}>Export CSV</button></div>
         <input value={searchFilter} onChange={e=>setSearchFilter(e.target.value)} placeholder="Filter by product or seller ID" style={{width:"100%",boxSizing:"border-box",height:40,margin:"12px 0",padding:"0 10px",border:"1px solid #DCE8F1",borderRadius:7}}/>
