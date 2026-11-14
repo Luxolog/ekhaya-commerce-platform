@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import SiteHeader from '@/components/SiteHeader';
 import Link from 'next/link';
 
 const steps = [
@@ -15,10 +15,7 @@ const note = { color: 'var(--blue)', fontSize: 11, lineHeight: 1.65, marginTop: 
 export default function MarketplacesPage() {
   return (
     <main style={{ minHeight: '100vh', padding: '28px clamp(20px, 6vw, 88px) 72px', color: 'var(--navy)', background: 'var(--pale)' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, borderBottom: '1px solid var(--line)', paddingBottom: 20 }}>
-        <Link href="/" aria-label="Ekhaya Technologies home"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={230} height={190} style={{ width: 170, height: 'auto' }} /></Link>
-        <Link href="/price-checker/" style={{ color: 'var(--blue)', fontSize: 13, fontWeight: 800 }}>Open calculator →</Link>
-      </header>
+      <SiteHeader active="marketplaces" />
 
       <section style={{ maxWidth: 850, margin: '68px auto 36px' }}>
         <p style={{ color: 'var(--blue)', fontSize: 11, letterSpacing: '.18em', fontWeight: 800 }}>OPTIONAL MARKETPLACE CONNECTIONS</p>
