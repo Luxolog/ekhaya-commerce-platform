@@ -20,10 +20,9 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  const reefKey = Deno.env.get("REEFAPI_KEY");
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!reefKey || !supabaseUrl || !serviceKey) {
+  if (!supabaseUrl || !serviceKey) {
     return json({ error: "Server configuration incomplete" }, 503);
   }
   const authorization = req.headers.get("authorization") ?? "";
@@ -48,7 +47,7 @@ Deno.serve(async (req: Request) => {
   const appMetadata = (user.app_metadata ?? {}) as Record<string, unknown>;
   const isOwner = appMetadata.role === "owner" || appMetadata.is_owner === true;
 
-  let body: { page?: number; user_id?: string; password?: string; marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean };
+  let body: { page?: number; user_id?: string; password?: string; marketplace_access?: string[]; marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean };
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
 
   if (body.action === "get_cache_settings") {
@@ -82,12 +81,29 @@ Deno.serve(async (req: Request) => {
     const usersResponse = await fetch(new URL(`/auth/v1/admin/users?page=${page}&per_page=100`, supabaseUrl), { headers: adminHeaders });
     if (!usersResponse.ok) return json({ error: "Could not load users." }, 502);
     const usersPayload = await usersResponse.json();
-    const users = Array.isArray(usersPayload.users) ? usersPayload.users.map((u: Record<string, unknown>) => ({
+    const rawUsers = Array.isArray(usersPayload.users) ? usersPayload.users as Record<string, unknown>[] : [];
+    const userIds = rawUsers.map((u) => String(u.id ?? "")).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+    const accessById: Record<string, string[]> = {};
+    if (userIds.length) {
+      const profileUrl = new URL("/rest/v1/profiles", supabaseUrl);
+      profileUrl.searchParams.set("id", `in.(${userIds.join(",")})`);
+      profileUrl.searchParams.set("select", "id,marketplace_access");
+      const profileResponse = await fetch(profileUrl, { headers: adminHeaders });
+      if (!profileResponse.ok) return json({ error: "Could not load seller marketplace permissions." }, 502);
+      const profileRows = await profileResponse.json();
+      for (const profile of profileRows as Record<string, unknown>[]) {
+        if (typeof profile.id === "string" && Array.isArray(profile.marketplace_access)) {
+          accessById[profile.id] = profile.marketplace_access.filter((value): value is string => value === "takealot" || value === "amazon");
+        }
+      }
+    }
+    const users = rawUsers.map((u) => ({
       id: u.id, email: u.email, created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at,
       email_confirmed_at: u.email_confirmed_at,
-      role: ((u.app_metadata ?? {}) as Record<string, unknown>).role ?? "seller"
-    })) : [];
+      role: ((u.app_metadata ?? {}) as Record<string, unknown>).role ?? "seller",
+      marketplace_access: accessById[String(u.id)] ?? ["takealot", "amazon"]
+    }));
     return json({ ok: true, users, page, total: users.length });
   }
 
@@ -113,6 +129,57 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, user_id: targetUserId, message: "Password updated successfully." });
   }
 
+  if (body.action === "set_user_marketplaces") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const targetUserId = typeof body.user_id === "string" ? body.user_id : "";
+    const access = Array.isArray(body.marketplace_access) ? [...new Set(body.marketplace_access)] : [];
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetUserId)) {
+      return json({ error: "Select a valid user." }, 400);
+    }
+    if (access.length < 1 || access.length > 2 || access.some((value) => value !== "takealot" && value !== "amazon")) {
+      return json({ error: "Choose Takealot, Amazon, or both." }, 400);
+    }
+    const saved = await fetch(new URL(`/rest/v1/profiles?id=eq.${targetUserId}`, supabaseUrl), {
+      method: "PATCH",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ marketplace_access: access, updated_at: new Date().toISOString() })
+    });
+    if (!saved.ok) return json({ error: "Could not update marketplace permissions." }, 502);
+    const rows = await saved.json();
+    if (!Array.isArray(rows) || rows.length !== 1) return json({ error: "Seller profile was not found." }, 404);
+    return json({ ok: true, user_id: targetUserId, marketplace_access: access });
+  }
+
+  if (body.action === "get_my_marketplace_access") {
+    const profileUrl = new URL("/rest/v1/profiles", supabaseUrl);
+    profileUrl.searchParams.set("id", `eq.${userId}`);
+    profileUrl.searchParams.set("select", "marketplace_access");
+    const profileResponse = await fetch(profileUrl, { headers: adminHeaders });
+    if (!profileResponse.ok) return json({ error: "Could not load your marketplace access." }, 502);
+    const rows = await profileResponse.json();
+    const access = Array.isArray(rows?.[0]?.marketplace_access)
+      ? rows[0].marketplace_access.filter((value: unknown) => value === "takealot" || value === "amazon")
+      : ["takealot", "amazon"];
+    return json({ ok: true, marketplace_access: access.length ? access : ["takealot", "amazon"] });
+  }
+
+  if (body.action === "activate_seller_pilot") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const targetUserId = typeof body.user_id === "string" ? body.user_id : "";
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetUserId)) {
+      return json({ error: "Select a valid seller account." }, 400);
+    }
+    const activation = await fetch(new URL("/rest/v1/rpc/activate_seller_pilot", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_user_id: targetUserId, p_admin_id: userId }),
+    });
+    if (!activation.ok) return json({ error: "Could not activate the seller pilot.", detail: await activation.text() }, 502);
+    const result = await activation.json();
+    if (!result?.ok) return json({ error: result?.reason === "PILOT_CAPACITY_REACHED" ? "All 5 pilot places are currently assigned." : "Could not activate this seller.", pilot: result }, 409);
+    return json({ ok: true, pilot: result });
+  }
+
   const marketplace = body.marketplace;
   const query = typeof body.query === "string" ? body.query.trim().slice(0, 160) : "";
   if (!validMarketplaces.includes(marketplace ?? "") || query.length < 2) {
@@ -121,9 +188,55 @@ Deno.serve(async (req: Request) => {
   if (marketplace === "makro") {
     return json({ error: "Makro live product search is not connected yet. We are validating an authorised South African data source before enabling it.", code: "MARKETPLACE_UNAVAILABLE" }, 501);
   }
+  if (!isOwner) {
+    const accessUrl = new URL("/rest/v1/profiles", supabaseUrl);
+    accessUrl.searchParams.set("id", `eq.${userId}`);
+    accessUrl.searchParams.set("select", "marketplace_access");
+    const accessResponse = await fetch(accessUrl, { headers: adminHeaders });
+    if (!accessResponse.ok) return json({ error: "Could not verify your marketplace permissions." }, 502);
+    const accessRows = await accessResponse.json();
+    const allowed = Array.isArray(accessRows?.[0]?.marketplace_access)
+      ? accessRows[0].marketplace_access
+      : ["takealot", "amazon"];
+    if (!allowed.includes(marketplace)) {
+      return json({ error: "This marketplace is not enabled for your account. Contact Ekhaya support if you need access changed.", code: "MARKETPLACE_NOT_ENABLED" }, 403);
+    }
+  }
   if (body.force_refresh && !isOwner) return json({ error: "Only the Ekhaya owner can force a live cache refresh." }, 403);
 
   const lookupKey = query.toLowerCase().replace(/\s+/g, " ");
+  // Pilot access is checked server-side and takes precedence over paid-plan quotas.
+  // Pilot searches are counted even when served from cache.
+  let pilotSearch = false;
+  let pilotUsageDate: string | null = null;
+  const pilotAccessUrl = new URL("/rest/v1/seller_pilot_access", supabaseUrl);
+  pilotAccessUrl.searchParams.set("user_id", `eq.${userId}`);
+  pilotAccessUrl.searchParams.set("select", "status,started_at,ends_at");
+  const pilotAccessResponse = await fetch(pilotAccessUrl, { headers: adminHeaders });
+  if (!pilotAccessResponse.ok) return json({ error: "Could not verify pilot access." }, 502);
+  const pilotRows = await pilotAccessResponse.json();
+  const pilotRecord = pilotRows?.[0];
+  if (pilotRecord) {
+    if (pilotRecord.status !== "active") return json({ error: "Your seller pilot access is no longer active.", code: "PILOT_EXPIRED" }, 403);
+    if (marketplace !== "takealot") return json({ error: "The 10-day seller pilot supports Takealot only.", code: "PILOT_TAKEALOT_ONLY" }, 403);
+    const reservePilot = await fetch(new URL("/rest/v1/rpc/reserve_seller_pilot_search", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace }),
+    });
+    const pilotResult = reservePilot.ok ? await reservePilot.json() : null;
+    if (!reservePilot.ok) return json({ error: "Could not reserve your daily pilot search." }, 502);
+    if (pilotResult?.allowed !== true) {
+      const reason = pilotResult?.reason ?? "PILOT_ACCESS_DENIED";
+      const message = reason === "PILOT_DAILY_LIMIT" ? "You have reached today's 15-search pilot limit." :
+        reason === "PILOT_EXPIRED" ? "Your 10-day seller pilot has ended." :
+        "Your pilot access only includes Takealot searches.";
+      return json({ error: message, code: reason, usage: pilotResult }, 403);
+    }
+    pilotSearch = true;
+    pilotUsageDate = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Johannesburg" });
+  }
+
   const cacheUrl = new URL("/rest/v1/marketplace_price_cache", supabaseUrl);
   cacheUrl.searchParams.set("marketplace", `eq.${marketplace}`);
   cacheUrl.searchParams.set("lookup_key", `eq.search:${lookupKey}`);
@@ -162,7 +275,7 @@ Deno.serve(async (req: Request) => {
 
     const requestId = body.request_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.request_id)
       ? body.request_id : crypto.randomUUID();
-    const charged = !isOwner;
+    const charged = !isOwner && !pilotSearch;
     if (charged) {
       const reserve = await fetch(new URL("/rest/v1/rpc/reserve_monthly_search_credit", supabaseUrl), {
         method: "POST",
@@ -180,34 +293,68 @@ Deno.serve(async (req: Request) => {
     }
 
     try {
-      const provider = marketplace;
-      const params = marketplace === "takealot"
-        ? { query, country: "za" }
-        : { query, marketplace: "co.za", max_results: 24 };
-      const upstream = await fetch(`https://api.reefapi.com/${provider}/v1/search`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
-        body: JSON.stringify(params),
-        signal: AbortSignal.timeout(12000),
-      });
-      const payload = await upstream.json();
-      if (!upstream.ok || payload?.ok === false) throw new Error(payload?.error?.message ?? upstream.statusText ?? "Provider lookup failed");
+      // Ekhaya-owned provider router: each marketplace is pinned to its own authorised provider.
+      const provider = marketplace === "takealot" ? "reefapi" : marketplace === "amazon" ? "steadyapi" : null;
+      if (!provider) {
+        throw new Error("No provider is configured for this marketplace.");
+      }
+      const providerKey = Deno.env.get(provider === "reefapi" ? "REEFAPI_KEY" : "STEADYAPI_KEY");
+      if (!providerKey) {
+        throw new Error(`${provider.toUpperCase()}_KEY is not configured for this marketplace.`);
+      }
 
-      const raw = payload?.data?.results ?? [];
-      const products = raw.map((p: Record<string, unknown>) => ({
-        id: marketplace === "takealot" ? p.plid : p.asin,
-        title: p.title ?? "Untitled product",
-        brand: p.brand ?? null,
-        price: typeof p.price === "number" ? p.price : null,
-        currency: marketplace === "takealot" ? "ZAR" : (p.currency_code ?? "ZAR"),
-        image: p.image ?? null,
-        url: p.url ?? (typeof p.asin === "string" ? `https://www.amazon.co.za/dp/${p.asin}` : null),
-        in_stock: p.in_stock ?? null,
-        rating: p.rating ?? null,
-        review_count: p.review_count ?? p.rating_count ?? null,
-        seller: p.seller_name ?? null,
-        variant_selection_required: p.variant_selection_required ?? false,
-      }));
+      let upstream: Response;
+      if (marketplace === "takealot") {
+        upstream = await fetch("https://api.reefapi.com/takealot/v1/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${providerKey}` },
+          body: JSON.stringify({ query, country: "za" }),
+          signal: AbortSignal.timeout(12000),
+        });
+      } else {
+        const amazonUrl = new URL("https://api.steadyapi.com/v1/amazon/products/search");
+        amazonUrl.searchParams.set("search", query);
+        amazonUrl.searchParams.set("country", "ZA");
+        amazonUrl.searchParams.set("page", "1");
+        amazonUrl.searchParams.set("sort_by", "RELEVANCE");
+        upstream = await fetch(amazonUrl, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${providerKey}`, Accept: "application/json" },
+          signal: AbortSignal.timeout(12000),
+        });
+      }
+
+      const payload = await upstream.json();
+      if (!upstream.ok || payload?.ok === false || (marketplace === "amazon" && payload?.meta?.status >= 400)) {
+        throw new Error(payload?.error?.message ?? payload?.message ?? upstream.statusText ?? "Provider lookup failed");
+      }
+
+      const raw = marketplace === "takealot"
+        ? (payload?.data?.results ?? [])
+        : (Array.isArray(payload?.body) ? payload.body : payload?.body?.items ?? payload?.body?.products ?? payload?.data?.results ?? []);
+      const products = raw.map((p: Record<string, unknown>) => {
+        const asin = typeof p.asin === "string" ? p.asin : (typeof p.id === "string" ? p.id : null);
+        const rawPrice = p.price;
+        const parsedPrice = typeof rawPrice === "number"
+          ? rawPrice
+          : typeof rawPrice === "string"
+            ? Number(rawPrice.replace(/[^0-9,.-]/g, "").replace(",", "."))
+            : NaN;
+        return {
+          id: marketplace === "takealot" ? p.plid : asin,
+          title: p.title ?? "Untitled product",
+          brand: p.brand ?? null,
+          price: Number.isFinite(parsedPrice) ? parsedPrice : null,
+          currency: marketplace === "takealot" ? "ZAR" : (p.currency ?? p.currency_code ?? "ZAR"),
+          image: p.image ?? p.photo ?? p.thumbnail ?? null,
+          url: p.url ?? (asin ? `https://www.amazon.co.za/dp/${asin}` : null),
+          in_stock: p.in_stock ?? (typeof p.availability === "string" ? !/out of stock|unavailable/i.test(p.availability) : null),
+          rating: p.rating ?? p.stars ?? null,
+          review_count: p.review_count ?? p.rating_count ?? p.reviewCount ?? null,
+          seller: p.seller_name ?? p.sellerName ?? null,
+          variant_selection_required: p.variant_selection_required ?? false,
+        };
+      });
       const now = new Date();
       const ttl = Math.max(5, Math.min(10080, Number(settings.cache_ttl_minutes) || 360));
       const expires = new Date(now.getTime() + ttl * 60 * 1000);
@@ -234,13 +381,20 @@ Deno.serve(async (req: Request) => {
         method: "POST",
         headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
         body: JSON.stringify({
-          provider: "reefapi", action: "search", marketplace, lookup_key: `search:${lookupKey}`,
-          credits_charged: Number(payload.meta?.charged_credits ?? 0), request_status: "success",
+          provider, action: "search", marketplace, lookup_key: `search:${lookupKey}`,
+          credits_charged: Number(payload.meta?.charged_credits ?? payload.meta?.credits_charged ?? 0), request_status: "success",
           response_count: products.length, request_id: payload.meta?.request_id ?? null, actor_id: charged ? userId : null,
         }),
       });
-      return json({ source: "live", marketplace, fetched_at: now.toISOString(), products, provider_meta: payload.meta ?? null, credit_charged: charged });
+      return json({ source: "live", marketplace, provider, fetched_at: now.toISOString(), products, provider_meta: payload.meta ?? null, credit_charged: charged, pilot: pilotSearch ? { daily_limit: 15, used: null, ends_at: pilotRecord.ends_at } : null });
     } catch (error) {
+      if (pilotSearch && pilotUsageDate) {
+        await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
+          method: "POST",
+          headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }),
+        });
+      }
       if (charged) {
         await fetch(new URL("/rest/v1/rpc/refund_monthly_search_credit", supabaseUrl), {
           method: "POST",
