@@ -58,6 +58,23 @@ Deno.serve(async (req: Request) => {
   let body: { marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean; [key: string]: unknown };
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
 
+  if (body.action === "owner_list_users") {
+    if (!isOwner) return json({error:"Owner permission required."},403);
+    const [usersResponse,pilotResponse] = await Promise.all([
+      fetch(new URL("/auth/v1/admin/users?page=1&per_page=1000",supabaseUrl),{headers:adminHeaders}),
+      fetch(new URL("/rest/v1/seller_pilot_access?select=user_id,started_at,ends_at,status,daily_limit,pilot_label",supabaseUrl),{headers:adminHeaders})
+    ]);
+    if(!usersResponse.ok || !pilotResponse.ok) return json({error:"Could not load registered users."},502);
+    const usersPayload=await usersResponse.json();
+    const users=Array.isArray(usersPayload)?usersPayload:usersPayload.users??[];
+    const pilots=await pilotResponse.json();
+    const pilotById=new Map(pilots.map((p:Record<string,unknown>)=>[p.user_id,p]));
+    return json({ok:true,users:users.map((u:Record<string,any>)=>{
+      const meta=u.user_metadata??{};
+      const app=u.app_metadata??{};
+      return {user_id:u.id,email:u.email??null,display_name:meta.display_name??meta.full_name??meta.name??null,created_at:u.created_at??null,last_sign_in_at:u.last_sign_in_at??null,email_confirmed_at:u.email_confirmed_at??null,role:app.role??(app.is_owner===true?"owner":"seller"),pilot:pilotById.get(u.id)??null};
+    })});
+  }
   if (body.action === "owner_update_pilot") {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
     const targetId = typeof body.target_user_id === "string" ? body.target_user_id : "";
