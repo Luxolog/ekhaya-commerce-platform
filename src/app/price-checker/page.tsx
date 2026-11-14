@@ -51,13 +51,13 @@ export default function PriceCheckerPage() {
   const videoRef=useRef<HTMLVideoElement|null>(null);
   const streamRef=useRef<MediaStream|null>(null);
   const scanTimerRef=useRef<number|null>(null);
-  const getSupabaseHeaders=async()=>{
+  const getSupabaseHeaders=async(forceRefresh=false)=>{
     if(typeof window==="undefined") throw new Error("Sign in to your Ekhaya seller account before searching.");
     let session:Record<string,any>|null=null;
     try{const raw=localStorage.getItem("ekhaya_session");session=raw?JSON.parse(raw):null;}catch{localStorage.removeItem("ekhaya_session");}
     if(!session?.access_token)throw new Error("Your seller sign-in was not found. Please sign in again.");
     const expiresAt=Number(session.expires_at??0);
-    if(expiresAt && expiresAt>Date.now()+60000) return {"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":`Bearer ${session.access_token}`};
+    if(!forceRefresh && expiresAt && expiresAt>Date.now()+60000) return {"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":`Bearer ${session.access_token}`};
     if(!session.refresh_token)throw new Error("Your sign-in has expired. Please sign in again.");
     const refreshed=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t"},body:JSON.stringify({refresh_token:session.refresh_token})});
     const next=await refreshed.json();
@@ -124,12 +124,20 @@ export default function PriceCheckerPage() {
     await Promise.all(marketplaces.map(async marketplace=>{
       try{
         const controller=new AbortController();const timer=window.setTimeout(()=>controller.abort(),35000);
-        const headers=await getSupabaseHeaders();
-        const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{
-          method:"POST",headers,
-          body:JSON.stringify({marketplace,query:productQuery,request_id:crypto.randomUUID()}),signal:controller.signal
-        }).finally(()=>window.clearTimeout(timer));
-        const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Search failed");
+        const requestBody=JSON.stringify({marketplace,query:productQuery,request_id:crypto.randomUUID()});
+        let headers=await getSupabaseHeaders();
+        let response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{
+          method:"POST",headers,body:requestBody,signal:controller.signal
+        });
+        if(response.status===401){
+          headers=await getSupabaseHeaders(true);
+          response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{
+            method:"POST",headers,body:requestBody,signal:controller.signal
+          });
+        }
+        const payload=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(payload.error??"Search failed");
+        window.clearTimeout(timer);
         const incoming=(payload.products??[]).map((p:MarketplaceProduct)=>({...p,marketplace}));
         const spec=incoming.find((p:MarketplaceProduct)=>p.weight_grams||p.length_cm||p.width_cm||p.height_cm);
         if(spec){if(spec.weight_grams)setWeight(String(spec.weight_grams/1000));if(spec.length_cm)setLength(String(spec.length_cm));if(spec.width_cm)setWidth(String(spec.width_cm));if(spec.height_cm)setHeight(String(spec.height_cm));setSpecSource("Marketplace listing specifications — verify packed measurements");}
