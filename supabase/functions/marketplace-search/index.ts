@@ -123,6 +123,21 @@ Deno.serve(async (req: Request) => {
     }
     return json({ok:true,totals:{searches:activity.length,failures:activity.filter((x:Record<string,unknown>)=>x.result_status!=="success").length,feedback:feedback.length,open_feedback:feedback.filter((x:Record<string,unknown>)=>x.status==="open").length},by_seller:bySeller,popular_queries:Object.entries(popular).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([query,count])=>({query,count})),feedback,activity:activity.slice(0,200)});
   }
+  if (body.action === "owner_financial_analytics") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const paths = [
+      "/rest/v1/billing_plans?select=code,name,monthly_price,currency,is_active&order=display_order",
+      "/rest/v1/profiles?select=id,plan_code,account_status,created_at",
+      "/rest/v1/payment_transactions?select=user_id,amount,currency,status,payment_kind,paid_at,created_at&order=created_at.desc&limit=5000",
+      "/rest/v1/subscriptions?select=user_id,plan_code,status,current_period_start,current_period_end&order=created_at.desc&limit=5000",
+      "/rest/v1/api_usage_ledger?select=provider,action,marketplace,credits_charged,request_status,actor_id,created_at&order=created_at.desc&limit=10000"
+    ];
+    const responses = await Promise.all(paths.map(path => fetch(new URL(path, supabaseUrl), { headers: adminHeaders })));
+    const failed = responses.findIndex(response => !response.ok);
+    if (failed >= 0) return json({ error: "Could not load financial analytics.", source: paths[failed] }, 502);
+    const [plans, profiles, payments, subscriptions, apiUsage] = await Promise.all(responses.map(response => response.json()));
+    return json({ ok: true, plans, profiles, payments, subscriptions, api_usage: apiUsage, generated_at: new Date().toISOString() });
+  }
   if (body.action === "submit_pilot_feedback") {
     if (typeof body.message !== "string" || body.message.trim().length < 5 || body.message.trim().length > 2000) return json({error:"Feedback must be between 5 and 2,000 characters."},400);
     const category = ["bug","product_feedback","data_quality","other"].includes(String(body.category)) ? body.category : "other";
