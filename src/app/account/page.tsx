@@ -38,6 +38,19 @@ export default function AccountPage() {
     } catch(e) { setMessage(e instanceof Error?e.message:"Account request failed."); }
     finally { setBusy(false); }
   }
+  async function submitAdditionalSellerIdentity() {
+    if(!sellerId.trim()){setMessage("Enter your marketplace Seller ID.");return;}
+    setBusy(true);setMessage("");
+    try {
+      const session=JSON.parse(localStorage.getItem("ekhaya_session")??"null");
+      if(!session?.access_token) throw new Error("Please sign in first.");
+      const response=await fetch(supabaseUrl+"/functions/v1/marketplace-search",{method:"POST",headers:{"Content-Type":"application/json",apikey:anonKey,Authorization:"Bearer "+session.access_token},body:JSON.stringify({action:"seller_submit_identity",marketplace:sellerMarketplace,seller_id:sellerId.trim()})});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(data.error??"Could not submit seller identity.");
+      setSellerId("");setMessage("Seller ID submitted. It is pending Ekhaya verification.");
+    } catch(e) {setMessage(e instanceof Error?e.message:"Could not submit seller ID.");}
+    finally {setBusy(false);}
+  }
   async function sendResetEmail() {
     setMessage("");
     if (!email.trim()) {
@@ -72,6 +85,13 @@ export default function AccountPage() {
       <button onClick={submit} disabled={busy||!email||password.length<8||(mode==="signup"&&(!name.trim()||!sellerId.trim()))} style={{width:"100%",padding:14,background:"#079BD3",border:0,borderRadius:8,color:"#fff",fontWeight:700,marginTop:12,cursor:"pointer"}}>{busy?"Please wait…":mode==="signup"?"Create account":"Sign in"}</button>
       <button type="button" onClick={sendResetEmail} disabled={busy} style={{display:"block",position:"relative",zIndex:2,width:"100%",minHeight:44,padding:12,marginTop:4,background:"#fff",border:"1px solid #DCE8F1",borderRadius:8,color:"#079BD3",fontWeight:700,cursor:busy?"wait":"pointer",touchAction:"manipulation"}}>{busy?"Please wait…":"Forgot password?"}</button>
       <button onClick={()=>{setMode(mode==="signup"?"signin":"signup");setMessage("");}} style={{width:"100%",padding:12,background:"transparent",border:0,color:"#079BD3",fontWeight:700,cursor:"pointer"}}>{mode==="signup"?"Already registered? Sign in":"New to Ekhaya? Create an account"}</button>
+      {signedIn&&<section style={{marginTop:18,paddingTop:16,borderTop:"1px solid #DCE8F1"}}>
+        <h2 style={{fontSize:16}}>Add another marketplace Seller ID</h2>
+        <p style={{fontSize:12,color:"#60758A",lineHeight:1.5}}>Submit one Seller ID for every marketplace you operate on. Each identity is reviewed separately.</p>
+        <select value={sellerMarketplace} onChange={e=>setSellerMarketplace(e.target.value)} style={field}><option value="takealot">Takealot</option><option value="amazon">Amazon South Africa</option><option value="makro">Makro</option><option value="bobshop">Bob Shop</option><option value="leroy_merlin">Leroy Merlin</option></select>
+        <input value={sellerId} onChange={e=>setSellerId(e.target.value)} placeholder="Marketplace Seller ID" style={field}/>
+        <button type="button" disabled={busy||!sellerId.trim()} onClick={submitAdditionalSellerIdentity} style={{width:"100%",padding:12,marginTop:10,background:"#071B31",border:0,borderRadius:8,color:"#fff",fontWeight:700}}>Submit Seller ID for verification</button>
+      </section>}
       {signedIn&&<button onClick={signOut} style={{width:"100%",padding:10,border:"1px solid #DCE8F1",borderRadius:8,background:"#fff",color:"#071B31"}}>Sign out</button>}
       {message&&<p role="status" style={{fontSize:12,lineHeight:1.6,color:"#304B63",background:"#F4F8FC",padding:12,borderRadius:8}}>{message}</p>}
       <p style={{fontSize:10,color:"#71869A",lineHeight:1.6,marginTop:16}}>Use a unique password. Ekhaya never asks for your marketplace Seller Central password here.</p>
