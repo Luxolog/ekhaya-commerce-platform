@@ -38,10 +38,6 @@ export default function PricingPage() {
           <a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Price%20Checker%20Custom%20Plan" style={{display:"inline-block",marginTop:12,color:"#fff",fontWeight:800,fontSize:12}}>REQUEST A CUSTOM PLAN →</a>
         </article>
       </div>
-      <div style={{marginTop:22,padding:22,background:"#EAF6FC",border:"1px solid #CFEAF7",borderRadius:14}}>
-        <h3 style={{fontFamily:"Manrope,sans-serif",fontSize:19,margin:"0 0 8px"}}>Early seller pilot access</h3>
-        <p style={{...muted,margin:0}}>Selected pilot sellers receive free access during the pilot period ending 30 November 2026. Paid Price Checker subscriptions are scheduled to begin on 1 December 2026. Pilot search limits are separate from the monthly plans shown above.</p>
-      </div>
       <p style={{...muted,fontSize:12,marginTop:14}}>New accounts may receive 5 welcome searches once per account. Search allowances apply per seller account and are not shared between sellers.</p>
       <Link href="/account/" style={{display:"inline-block",marginTop:8,padding:"13px 19px",background:"#079BD3",color:"#fff",borderRadius:8,textDecoration:"none",fontWeight:800,fontSize:12}}>CREATE SELLER ACCOUNT →</Link>
     </section>
@@ -51,6 +47,7 @@ export default function PricingPage() {
       <h2 style={{fontFamily:"Manrope,sans-serif",fontSize:"clamp(30px,4vw,44px)",letterSpacing:"-.04em",margin:"10px 0"}}>Business solutions & pricing</h2>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,250px),1fr))",gap:18,marginTop:24}}>
         <article style={card}><h3 style={{fontFamily:"Manrope,sans-serif",fontSize:21,margin:"0 0 8px"}}>Online store</h3><p style={{margin:"0 0 6px"}}><strong style={{fontSize:32}}>R99</strong><span style={{color:"#60758A",fontSize:13}}>/ month</span></p><p style={{...muted,margin:0}}>Online store service. Hosting and domain are excluded and must be arranged and paid for separately.</p></article>
+        <article style={card}><h3 style={{fontFamily:"Manrope,sans-serif",fontSize:21,margin:"0 0 8px"}}>Web hosting + 2 business emails</h3><p style={{margin:"0 0 6px"}}><strong style={{fontSize:32}}>R99</strong><span style={{color:"#60758A",fontSize:13}}>/ month</span></p><p style={{...muted,margin:0}}>Website hosting with two business email accounts included.</p></article>
         <article style={card}><h3 style={{fontFamily:"Manrope,sans-serif",fontSize:21,margin:"0 0 8px"}}>Custom business applications</h3><p style={{...muted,margin:0}}>Quoted according to agreed features, integrations, scope and delivery milestones.</p></article>
         <article style={card}><h3 style={{fontFamily:"Manrope,sans-serif",fontSize:21,margin:"0 0 8px"}}>Business systems & integrations</h3><p style={{...muted,margin:0}}>Pricing depends on the workflows, systems and support required.</p></article>
         <article style={card}><h3 style={{fontFamily:"Manrope,sans-serif",fontSize:21,margin:"0 0 8px"}}>Business intelligence & analytics</h3><p style={{...muted,margin:0}}>Scoped quotations for reporting, dashboards and data tools.</p></article>
