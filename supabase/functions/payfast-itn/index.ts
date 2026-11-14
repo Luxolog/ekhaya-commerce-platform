@@ -69,7 +69,54 @@ Deno.serve(async (req) => {
     if (!txResponse.ok) throw new Error("Unable to locate payment transaction.");
     const rows = await txResponse.json();
     const tx = rows?.[0];
-    if (!tx) return new Response("Unknown merchant reference", { status: 404 });
+    if (!tx) {
+      // Subsequent PayFast automatic subscription charges may arrive against the original
+      // merchant reference. Identify the subscription by PayFast's recurring token and
+      // record each distinct provider payment as its own renewal transaction.
+      const token = params.get("token");
+      if (!token || paymentStatus !== "COMPLETE") return new Response("Unknown merchant reference", { status: 404 });
+      const existingPayment = await fetch(
+        `${supabaseUrl}/rest/v1/payment_transactions?payment_provider=eq.payfast&provider_payment_id=eq.${encodeURIComponent(paymentId)}&select=id`,
+        { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+      );
+      const existingRows = await existingPayment.json();
+      if (existingRows?.length) return new Response("OK", { status: 200 });
+      const subLookup = await fetch(
+        `${supabaseUrl}/rest/v1/subscriptions?provider_subscription_id=eq.${encodeURIComponent(token)}&select=id,user_id,plan_code,renewal_amount,current_period_end`,
+        { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+      );
+      const recurringSubs = await subLookup.json();
+      const recurringSub = recurringSubs?.[0];
+      if (!recurringSub) return new Response("Unknown recurring subscription", { status: 404 });
+      if (Math.abs(Number(recurringSub.renewal_amount) - gross) > 0.01) return new Response("Renewal amount mismatch", { status: 400 });
+      const renewalReference = `PF-RN-${paymentId}`;
+      const now = new Date();
+      const periodBase = recurringSub.current_period_end && new Date(recurringSub.current_period_end) > now
+        ? new Date(recurringSub.current_period_end) : now;
+      const nextEnd = new Date(periodBase);
+      nextEnd.setUTCMonth(nextEnd.getUTCMonth() + 1);
+      const renewalInsert = await fetch(`${supabaseUrl}/rest/v1/payment_transactions`, {
+        method: "POST",
+        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({
+          user_id: recurringSub.user_id, subscription_id: recurringSub.id, payment_provider: "payfast",
+          provider_payment_id: paymentId, merchant_reference: renewalReference, payment_kind: "renewal",
+          billing_mode: "automatic", amount: gross, currency: "ZAR", status: "complete",
+          paid_at: now.toISOString(), provider_response: Object.fromEntries(params.entries()),
+        }),
+      });
+      if (!renewalInsert.ok) {
+        if (renewalInsert.status === 409) return new Response("OK", { status: 200 });
+        throw new Error("Unable to record recurring payment.");
+      }
+      const renewalPatch = await fetch(`${supabaseUrl}/rest/v1/subscriptions?id=eq.${recurringSub.id}`, {
+        method: "PATCH",
+        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ status: "active", current_period_start: now.toISOString(), current_period_end: nextEnd.toISOString(), grace_period_ends_at: null }),
+      });
+      if (!renewalPatch.ok) throw new Error("Unable to extend recurring subscription.");
+      return new Response("OK", { status: 200 });
+    }
     if (Math.abs(Number(tx.amount) - gross) > 0.01) return new Response("Amount mismatch", { status: 400 });
     if (tx.status === "complete") return new Response("OK", { status: 200 });
     if (paymentStatus !== "COMPLETE") {
