@@ -40,6 +40,7 @@ export default function PriceCheckerPage() {
   const [amazonMode,setAmazonMode]=useState<"fba"|"easy"|"self">("fba");
   const [sellerDelivery,setSellerDelivery]=useState("0");
   const [products,setProducts]=useState<MarketplaceProduct[]>([]);
+  const [pilotStatus,setPilotStatus]=useState<{active:boolean;searches_used?:number;daily_limit?:number;remaining?:number;ends_at?:string}|null>(null);
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
   const [source,setSource]=useState("");
@@ -114,6 +115,19 @@ export default function PriceCheckerPage() {
     } catch(e){setError(e instanceof Error?e.message:"Barcode lookup failed");}
     finally{setBarcodeBusy(false);}
   }
+  useEffect(()=>{
+    let cancelled=false;
+    try {
+      const session=JSON.parse(localStorage.getItem("ekhaya_session")??"null");
+      if(session?.access_token){
+        fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{
+          method:"POST",headers:{apikey:"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t",Authorization:"Bearer "+session.access_token,"Content-Type":"application/json"},
+          body:JSON.stringify({action:"get_pilot_status"})
+        }).then(r=>r.ok?r.json():null).then(data=>{if(!cancelled&&data?.active)setPilotStatus(data);}).catch(()=>{});
+      }
+    } catch {}
+    return ()=>{cancelled=true;};
+  },[]);
   async function search() {
     if(!validCost){setError("Enter your buying price first. This is required before searching.");return;}
     if(mode==="barcode"&&!barcodeProduct){setError("Identify the barcode first.");return;}
@@ -178,7 +192,7 @@ export default function PriceCheckerPage() {
   return <main className="page">
     <header className="top"><Link href="/" aria-label="Ekhaya Technologies home"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={230} height={190} className="logo" priority/></Link><span className="pill">PRICE INTELLIGENCE · LIVE RESEARCH</span><Link href="/account/" className="pill">SELLER ACCOUNT</Link></header>
     <section className="hero"><p className="eyebrow">SELL SMARTER. PRICE WITH CONFIDENCE.</p><h1>Know your numbers<br/><em>before you buy.</em></h1><p>Find a product, enter your buying price and compare estimated profit after marketplace fulfilment fees.</p></section>
-    <section className="panel">
+    {pilotStatus?.active&&<div style={{maxWidth:1100,margin:"0 auto 18px",padding:"12px 16px",border:"1px solid #CFE7DC",borderRadius:10,background:"#F1FAF6",color:"#175C43",fontSize:13,display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}><strong>10-day seller pilot · Takealot only</strong><span>{pilotStatus.remaining} of {pilotStatus.daily_limit} searches remaining today · ends {pilotStatus.ends_at?new Date(pilotStatus.ends_at).toLocaleDateString("en-ZA",{timeZone:"Africa/Johannesburg"}):"soon"}</span></div>}\n    <section className="panel">
       <div className="heading"><div><small>01 / FIND A PRODUCT</small><h2>How would you like to search?</h2></div><span className="connected">● MARKETPLACE DATA</span></div>
       <div className="modes">{(["barcode","photo","name"] as Mode[]).map(m=><button key={m} className={mode===m?"active":""} onClick={()=>{setMode(m);setError("");}}>{m==="barcode"?"▦ Scan barcode":m==="photo"?"▧ Take a picture":"⌕ Search by name"}</button>)}</div>
       {mode==="name"&&<input className="wide" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Product name, brand or model (e.g. Logitech M171)"/>}
