@@ -178,7 +178,7 @@ Deno.serve(async (req: Request) => {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
           body: JSON.stringify({ query, country: "za" }),
-          signal: AbortSignal.timeout(25000),
+          signal: AbortSignal.timeout(9000),
         });
         payload = await upstream.json();
         if (!upstream.ok || payload?.ok === false) throw new Error(payload?.error?.message ?? upstream.statusText ?? "Provider lookup failed");
