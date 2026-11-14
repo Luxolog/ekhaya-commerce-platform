@@ -123,7 +123,7 @@ export default function PriceCheckerPage() {
     const errors:string[]=[]; let done=0;
     await Promise.all(marketplaces.map(async marketplace=>{
       try{
-        const controller=new AbortController();const timer=window.setTimeout(()=>controller.abort(),30000);
+        const controller=new AbortController();const timer=window.setTimeout(()=>controller.abort(),35000);
         const headers=await getSupabaseHeaders();
         const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{
           method:"POST",headers,
