@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import SiteHeader from "@/components/SiteHeader";
 
 const supabaseUrl = "https://itxxnhcjjiynrmivexcb.supabase.co";
 const anonKey = "sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t";
@@ -58,10 +58,7 @@ export default function AccountPage() {
   }
   function signOut(){localStorage.removeItem("ekhaya_session");setSignedIn(false);setMessage("You have been signed out.");}
   return <main style={{minHeight:"100vh",background:"#F4F8FC",padding:"28px 5%",color:"#071B31",fontFamily:"Arial,sans-serif"}}>
-    <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",maxWidth:760,margin:"0 auto",borderBottom:"1px solid #DCE8F1",paddingBottom:18}}>
-      <Link href="/"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={170} height={100} style={{width:150,height:"auto"}}/></Link>
-      <Link href="/price-checker/" style={{color:"#079BD3",fontWeight:700,fontSize:13}}>Price checker →</Link>
-    </header>
+    <SiteHeader active="account" />
     <section style={{maxWidth:480,margin:"70px auto",background:"#fff",border:"1px solid #DCE8F1",borderRadius:14,padding:28,boxShadow:"0 8px 30px #071b3108"}}>
       <p style={{color:"#079BD3",fontSize:10,fontWeight:800,letterSpacing:2}}>EKHAYA SELLER ACCESS</p>
       <h1 style={{fontSize:30,fontWeight:700,margin:"8px 0 10px"}}>{mode==="signup"?"Create your seller account":"Welcome back"}</h1>
