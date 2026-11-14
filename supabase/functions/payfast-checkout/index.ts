@@ -29,12 +29,6 @@ function credentials(mode: string) {
   if (!merchantId || !merchantKey || !passphrase) throw new Error(`PayFast ${mode} credentials are not fully configured.`);
   return { merchantId, merchantKey, passphrase };
 }
-function addMonths(date: Date, months: number) {
-  const next = new Date(date);
-  next.setUTCMonth(next.getUTCMonth() + months);
-  return next;
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -72,12 +66,12 @@ Deno.serve(async (req) => {
       return json({ error: "Sandbox recurring billing credentials are not configured." }, 503);
     }
     const activeSubResponse = await fetch(
-      `${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${encodeURIComponent(user.id)}&status=eq.active&current_period_end=gt.${encodeURIComponent(new Date().toISOString())}&select=id,plan_code,current_period_end`,
+      `${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${encodeURIComponent(user.id)}&status=in.(pending,active)&select=id,plan_code,status,current_period_end`,
       { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
     );
     if (!activeSubResponse.ok) throw new Error("Unable to check your current subscription.");
     const activeSubs = await activeSubResponse.json();
-    if (activeSubs?.length) return json({ error: "You already have an active subscription. Subscription changes and cancellations will be available in account billing management." }, 409);
+    if (activeSubs?.some((sub: { status: string; current_period_end?: string | null }) => sub.status === "pending" || (sub.current_period_end && new Date(sub.current_period_end) > new Date()))) return json({ error: "You already have a pending or active subscription. Please complete or contact support about that subscription before starting another." }, 409);
 
     const amount = Number(plan.monthly_price);
     const now = new Date();
@@ -118,10 +112,9 @@ Deno.serve(async (req) => {
       throw new Error("Unable to create payment record.");
     }
 
-    const { merchantId, merchantKey, passphrase } = credentials(mode);
+    const { merchantId, passphrase } = credentials(mode);
     const fields: Record<string, string> = {
       merchant_id: merchantId,
-      merchant_key: merchantKey,
       return_url: `${baseUrl.replace(/\/$/, "")}/account/billing?payment=return`,
       cancel_url: `${baseUrl.replace(/\/$/, "")}/account/billing?payment=cancelled`,
       notify_url: `${supabaseUrl}/functions/v1/payfast-itn`,
