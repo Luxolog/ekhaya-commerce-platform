@@ -14,6 +14,23 @@ export default function OwnerPilotPage() {
   const [status,setStatus]=useState("Sign in with the Ekhaya owner account to manage the 10-day seller pilot.");
   const [sellers,setSellers]=useState<Seller[]>([]);
   const [busy,setBusy]=useState(false);
+  const [installPrompt,setInstallPrompt]=useState<any>(null);
+  const [installed,setInstalled]=useState(false);
+
+  useEffect(()=>{
+    const handler=(event:Event)=>{event.preventDefault();setInstallPrompt(event);};
+    const onInstalled=()=>{setInstalled(true);setInstallPrompt(null);};
+    window.addEventListener("beforeinstallprompt",handler);
+    window.addEventListener("appinstalled",onInstalled);
+    if (window.matchMedia("(display-mode: standalone)").matches) setInstalled(true);
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/owner-pilot-sw.js").catch(()=>{});
+    return ()=>{window.removeEventListener("beforeinstallprompt",handler);window.removeEventListener("appinstalled",onInstalled);};
+  },[]);
+
+  async function installDesktop(){
+    if(installPrompt){const prompt=installPrompt;await prompt.prompt();const choice=await prompt.userChoice;if(choice?.outcome==="accepted")setInstallPrompt(null);return;}
+    setStatus("To install on Windows: open this page in Chrome or Edge, select the install icon in the address bar (or browser menu → Cast, save and share → Install page as app), then choose Install.");
+  }
 
   async function call(action:string,extra:Record<string,unknown>={}) {
     const session=JSON.parse(localStorage.getItem("ekhaya_session")??"null");
@@ -39,7 +56,7 @@ export default function OwnerPilotPage() {
     finally { setBusy(false); }
   }
   return <main style={{minHeight:"100vh",background:"#F4F8FC",padding:"32px 6%",color:"#071B31",fontFamily:"Arial,sans-serif"}}>
-    <header style={{maxWidth:820,margin:"0 auto",display:"flex",justifyContent:"space-between",borderBottom:"1px solid #DCE8F1",paddingBottom:18}}><b>EKHAYA TECHNOLOGIES</b><Link href="/price-checker/" style={{color:"#079BD3"}}>Price Checker →</Link></header>
+    <link rel="manifest" href="/owner-pilot.webmanifest" /><meta name="theme-color" content="#071B31" /><header style={{maxWidth:820,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap",borderBottom:"1px solid #DCE8F1",paddingBottom:18}}><b>EKHAYA TECHNOLOGIES</b><div style={{display:"flex",alignItems:"center",gap:14}}><button onClick={installDesktop} disabled={installed} style={{background:"#071B31",color:"#fff",border:0,borderRadius:7,padding:"10px 13px",fontWeight:700,cursor:"pointer"}}>{installed?"Installed on this desktop":"Install desktop app"}</button><Link href="/price-checker/" style={{color:"#079BD3"}}>Price Checker →</Link></div></header>
     <section style={{maxWidth:760,margin:"55px auto",padding:28,background:"#fff",border:"1px solid #DCE8F1",borderRadius:14}}>
       <p style={{color:"#079BD3",fontSize:10,fontWeight:800,letterSpacing:2}}>OWNER CONTROLS · PRIVATE PILOT</p>
       <h1 style={{fontSize:30,margin:"8px 0 12px"}}>10-day seller testing</h1>
