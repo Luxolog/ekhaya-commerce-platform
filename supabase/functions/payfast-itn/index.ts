@@ -63,13 +63,13 @@ Deno.serve(async (req) => {
     if (!reference || !paymentId || !Number.isFinite(gross)) return new Response("Missing payment fields", { status: 400 });
 
     const txResponse = await fetch(
-      `${supabaseUrl}/rest/v1/payment_transactions?merchant_reference=eq.${encodeURIComponent(reference)}&select=id,user_id,subscription_id,amount,status,payment_kind`,
+      `${supabaseUrl}/rest/v1/payment_transactions?merchant_reference=eq.${encodeURIComponent(reference)}&select=id,user_id,subscription_id,amount,status,payment_kind,provider_payment_id`,
       { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
     );
     if (!txResponse.ok) throw new Error("Unable to locate payment transaction.");
     const rows = await txResponse.json();
     const tx = rows?.[0];
-    if (!tx) {
+    if (!tx || (tx.status === "complete" && tx.provider_payment_id !== paymentId)) {
       // Subsequent PayFast automatic subscription charges may arrive against the original
       // merchant reference. Identify the subscription by PayFast's recurring token and
       // record each distinct provider payment as its own renewal transaction.
