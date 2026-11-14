@@ -81,6 +81,9 @@ Deno.serve(async (req: Request) => {
   if (!validMarketplaces.includes(marketplace ?? "") || query.length < 2) {
     return json({ error: "Choose a supported marketplace and enter at least 2 search characters." }, 400);
   }
+  if (marketplace === "amazon" && !isOwner) {
+    return json({ error: "Amazon is temporarily unavailable while we complete provider testing and commercial licensing. Takealot remains available.", code: "MARKETPLACE_UNAVAILABLE" }, 501);
+  }
   if (marketplace === "makro") {
     return json({ error: "Makro live product search is not connected yet. We are validating an authorised South African data source before enabling it.", code: "MARKETPLACE_UNAVAILABLE" }, 501);
   }
@@ -258,6 +261,9 @@ Deno.serve(async (req: Request) => {
           headers: { ...adminHeaders, "Content-Type": "application/json" },
           body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
         });
+      }
+      if (marketplace === "takealot" && cache && Array.isArray(cache.source_payload?.products) && cache.source_payload.products.length > 0) {
+        return json({ source: "stale-cache", marketplace, fetched_at: cache.fetched_at, products: cache.source_payload.products, refresh_paused: false, warning: "Live Takealot refresh failed; showing the last successfully cached results instead." });
       }
       throw error;
     }
