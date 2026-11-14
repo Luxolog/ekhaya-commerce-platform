@@ -5,7 +5,7 @@ import Link from "next/link";
 
 const EDGE_URL = "https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search";
 const KEY = "sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t";
-type PortalUser = {user_id:string;email:string|null;display_name:string|null;created_at:string|null;last_sign_in_at:string|null;email_confirmed_at:string|null;role:string;pilot:Seller|null};
+type PortalUser = {user_id:string;email:string|null;display_name:string|null;created_at:string|null;last_sign_in_at:string|null;email_confirmed_at:string|null;role:string;account_status:"pending"|"active"|"inactive"|"suspended";plan_code:string;pilot:Seller|null};
 type Seller = { email:string|null; user_id:string; started_at:string; ends_at:string; status:string; daily_limit:number; pilot_label:string|null };
 type Activity = { user_id:string; marketplace:string; query:string; result_count:number; result_status:string; source:string|null; created_at:string };
 type Feedback = { id:number; user_id:string; category:string; rating:number|null; message:string; status:string; created_at:string };
@@ -27,6 +27,7 @@ export default function OwnerPilotPage(){
   const [feedbackCategory,setFeedbackCategory]=useState("product_feedback"); const [feedbackRating,setFeedbackRating]=useState("5"); const [feedbackMessage,setFeedbackMessage]=useState("");
   const [extendDays,setExtendDays]=useState<Record<string,string>>({});
   const [searchFilter,setSearchFilter]=useState("");
+  const [statusFilter,setStatusFilter]=useState("all");
   useEffect(()=>{
     const handler=(event:Event)=>{event.preventDefault();setInstallPrompt(event);};
     const onInstalled=()=>{setInstalled(true);setInstallPrompt(null);};
@@ -115,10 +116,37 @@ export default function OwnerPilotPage(){
         <section style={card}><h2 style={{fontSize:17,marginTop:0}}>Seller snapshot</h2>{sellers.length===0?<p style={small}>No seller pilot records yet.</p>:sellers.map(s=><div key={s.user_id} style={{display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap",padding:"10px 0",borderBottom:"1px solid #EEF2F6"}}><div><b style={{fontSize:13}}>{s.pilot_label??s.email??s.user_id}</b><div style={small}>{s.email??s.user_id}</div></div><div style={{textAlign:"right"}}><b style={{fontSize:12}}>{analytics?.by_seller?.[s.user_id]?.searches??0} searches</b><div style={small}>{s.status} · {s.daily_limit}/day</div></div></div>)}</section>
       </div>}
       {tab==="users"&&<section style={card}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}><div><h2 style={{fontSize:18,margin:"0 0 4px"}}>Registered users & sellers</h2><p style={small}>Directory of accounts registered on Price Checker. Owner access is verified by Supabase.</p></div><b>{users.length} accounts</b></div>
-        <input value={searchFilter} onChange={e=>setSearchFilter(e.target.value)} placeholder="Search name, email or account ID" style={{width:"100%",boxSizing:"border-box",height:40,margin:"12px 0",padding:"0 10px",border:"1px solid #DCE8F1",borderRadius:7}}/>
-        <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:760}}><thead><tr>{["User","Email","Account type","Pilot status","Allowance","Approval","Registered","Last sign-in"].map(x=><th key={x} style={{textAlign:"left",padding:9,borderBottom:"1px solid #DCE8F1",color:"#60758A"}}>{x}</th>)}</tr></thead><tbody>{users.filter(u=>[u.email,u.display_name,u.user_id].some(v=>String(v??"").toLowerCase().includes(searchFilter.toLowerCase()))).map(u=><tr key={u.user_id}><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.display_name??u.user_id.slice(0,8)}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.email??"—"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.role==="owner"?"Owner":"Seller / user"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.pilot?.status??"Not activated"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.pilot?u.pilot.daily_limit+"/day":"—"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.role==="owner"?"Owner exempt":u.pilot?.status==="active"&&new Date(u.pilot.ends_at)>new Date()?"Approved":<button disabled={busy||!u.email} style={primary} onClick={()=>u.email&&run("activate_seller_pilot",{email:u.email,daily_limit:15,pilot_label:""},"Approved "+u.email+" for 15 searches/day.")}>Approve · 15/day</button>}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.created_at?fmt(u.created_at):"—"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.last_sign_in_at?fmt(u.last_sign_in_at):"Never"}</td></tr>)}</tbody></table></div>
-        {users.length===0&&<p style={small}>No registered accounts returned.</p>}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <div><h2 style={{fontSize:18,margin:"0 0 4px"}}>All registered accounts</h2><p style={small}>Every Supabase account is listed, including pending, inactive and suspended users. Only approved active accounts can search.</p></div>
+          <b>{users.length} total accounts</b>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(115px,1fr))",gap:8,marginTop:14}}>
+          {(["pending","active","inactive","suspended"] as const).map(s=><button key={s} onClick={()=>setStatusFilter(statusFilter===s?"all":s)} style={{...button,textAlign:"left",borderColor:statusFilter===s?"#079BD3":"#DCE8F1",background:statusFilter===s?"#EAF7FC":"#fff"}}><div style={{fontSize:11,color:"#60758A",textTransform:"capitalize"}}>{s}</div><div style={{fontSize:22,fontWeight:800}}>{users.filter(u=>u.role!=="owner"&&u.account_status===s).length}</div></button>)}
+        </div>
+        <div style={{display:"flex",gap:9,flexWrap:"wrap",marginTop:12}}>
+          <input value={searchFilter} onChange={e=>setSearchFilter(e.target.value)} placeholder="Search name, email or account ID" style={{flex:"1 1 260px",boxSizing:"border-box",height:40,padding:"0 10px",border:"1px solid #DCE8F1",borderRadius:7}}/>
+          <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={{height:40,padding:"0 10px",border:"1px solid #DCE8F1",borderRadius:7}}><option value="all">All statuses</option><option value="pending">Pending</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="suspended">Suspended</option></select>
+        </div>
+        <div style={{overflowX:"auto",marginTop:12}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:1050}}>
+          <thead><tr>{["User","Email","Account","Status","Pilot access","Searches","Registered","Last sign-in","Actions"].map(x=><th key={x} style={{textAlign:"left",padding:9,borderBottom:"1px solid #DCE8F1",color:"#60758A"}}>{x}</th>)}</tr></thead>
+          <tbody>{users.filter(u=>(statusFilter==="all"||u.account_status===statusFilter)&&(u.role==="owner"||[u.email,u.display_name,u.user_id].some(v=>String(v??"").toLowerCase().includes(searchFilter.toLowerCase())))).map(u=><tr key={u.user_id}>
+            <td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.display_name??u.user_id.slice(0,8)}</td>
+            <td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.email??"—"}</td>
+            <td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.role==="owner"?"Owner":u.plan_code}</td>
+            <td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}><span style={{fontWeight:800,color:u.account_status==="active"?"#16845B":u.account_status==="suspended"?"#B42318":u.account_status==="inactive"?"#A15C19":"#60758A"}}>{u.role==="owner"?"OWNER":u.account_status.toUpperCase()}</span></td>
+            <td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.pilot?.status??"Not enrolled"}</td>
+            <td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{analytics?.by_seller?.[u.user_id]?.searches??0}</td>
+            <td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.created_at?fmt(u.created_at):"—"}</td>
+            <td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.last_sign_in_at?fmt(u.last_sign_in_at):"Never"}</td>
+            <td style={{padding:9,borderBottom:"1px solid #EEF2F6",whiteSpace:"nowrap"}}>
+              {u.role==="owner"?"—":<div style={{display:"flex",gap:6}}>
+                {u.account_status!=="active"&&<button disabled={busy} style={primary} onClick={()=>run("owner_set_user_status",{target_user_id:u.user_id,status:"active",reason:"Approved by Ekhaya owner"},"Account approved and activated for searches.")}>Approve / restore</button>}
+                {u.account_status!=="suspended"&&<button disabled={busy} style={{...button,color:"#B42318",borderColor:"#E7B7B4"}} onClick={()=>{const reason=window.prompt("Reason for suspending this account (required):");if(reason&&reason.trim().length>=5)void run("owner_set_user_status",{target_user_id:u.user_id,status:"suspended",reason},"Account suspended. Search access blocked.");else if(reason!==null)setStatus("Please enter a suspension reason of at least five characters.");}}>Suspend</button>}
+              </div>}
+            </td>
+          </tr>)}</tbody>
+        </table></div>
+        {users.filter(u=>(statusFilter==="all"||u.account_status===statusFilter)&&(u.role==="owner"||[u.email,u.display_name,u.user_id].some(v=>String(v??"").toLowerCase().includes(searchFilter.toLowerCase())))).length===0&&<p style={small}>No accounts match this filter.</p>}
       </section>}
       {tab==="sellers"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:14,alignItems:"start"}}>
         <section style={card}><h2 style={{fontSize:18,marginTop:0}}>Activate a seller</h2><p style={small}>The 10-day countdown starts only when you activate a registered account.</p>
