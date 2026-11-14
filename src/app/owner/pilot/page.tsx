@@ -5,6 +5,7 @@ import Link from "next/link";
 
 const URL = "https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search";
 const KEY = "sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t";
+type PortalUser = {user_id:string;email:string|null;display_name:string|null;created_at:string|null;last_sign_in_at:string|null;email_confirmed_at:string|null;role:string;pilot:Seller|null};
 type Seller = { email:string|null; user_id:string; started_at:string; ends_at:string; status:string; daily_limit:number; pilot_label:string|null };
 type Activity = { user_id:string; marketplace:string; query:string; result_count:number; result_status:string; source:string|null; created_at:string };
 type Feedback = { id:number; user_id:string; category:string; rating:number|null; message:string; status:string; created_at:string };
@@ -19,7 +20,7 @@ const fmt=(value:string)=>new Date(value).toLocaleString("en-ZA",{timeZone:"Afri
 export default function OwnerPilotPage(){
   const [email,setEmail]=useState(""); const [limit,setLimit]=useState("15"); const [label,setLabel]=useState("");
   const [status,setStatus]=useState("Sign in with the Ekhaya owner account to manage the seller pilot.");
-  const [sellers,setSellers]=useState<Seller[]>([]); const [analytics,setAnalytics]=useState<Analytics|null>(null);
+  const [sellers,setSellers]=useState<Seller[]>([]); const [users,setUsers]=useState<PortalUser[]>([]); const [analytics,setAnalytics]=useState<Analytics|null>(null);
   const [busy,setBusy]=useState(false); const [tab,setTab]=useState("overview");
   const [installPrompt,setInstallPrompt]=useState<any>(null); const [installed,setInstalled]=useState(false);
   const [feedbackCategory,setFeedbackCategory]=useState("product_feedback"); const [feedbackRating,setFeedbackRating]=useState("5"); const [feedbackMessage,setFeedbackMessage]=useState("");
@@ -44,10 +45,10 @@ export default function OwnerPilotPage(){
     const data=await response.json().catch(()=>({})); if(!response.ok)throw new Error(data.error??"Request failed."); return data;
   }
   async function refresh(){
-    try{const [s,a]=await Promise.all([call("list_seller_pilots"),call("owner_pilot_analytics")]);setSellers(s.sellers??[]);setAnalytics(a);}
+    try{const [s,a,u]=await Promise.all([call("list_seller_pilots"),call("owner_pilot_analytics"),call("owner_list_users")]);setSellers(s.sellers??[]);setAnalytics(a);setUsers(u.users??[]);}
     catch(e){setStatus(e instanceof Error?e.message:"Could not load pilot operations.");}
   }
-  useEffect(()=>{refresh();},[]);
+  useEffect(()=>{if(!localStorage.getItem("ekhaya_session")){window.location.replace("/owner/login/");return;}refresh();},[]);
   async function run(action:string,extra:Record<string,unknown>,success:string){
     setBusy(true);setStatus("");
     try{await call(action,extra);setStatus(success);await refresh();}
@@ -79,8 +80,8 @@ export default function OwnerPilotPage(){
       <div style={{display:"flex",gap:9,alignItems:"center",flexWrap:"wrap"}}><button onClick={installDesktop} disabled={installed} style={primary}>{installed?"Desktop app installed":"Install desktop app"}</button><Link href="/price-checker/" style={{color:"#079BD3",fontWeight:700,textDecoration:"none"}}>Open Price Checker →</Link></div>
     </header>
     <div style={{maxWidth:1180,margin:"0 auto"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"end",gap:12,flexWrap:"wrap",marginBottom:20}}><div><div style={{fontSize:11,color:"#079BD3",fontWeight:800,letterSpacing:2}}>PRIVATE TEST PROGRAMME</div><h1 style={{fontSize:30,margin:"6px 0"}}>Pilot Operations Dashboard</h1><p style={small}>Manage seller access, monitor usage and collect product feedback.</p></div><button style={button} onClick={refresh}>↻ Refresh dashboard</button></div>
-      <nav style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:18}}>{[["overview","Overview"],["sellers","Seller management"],["activity","Search activity"],["feedback","Feedback centre"]].map(([id,name])=><button key={id} onClick={()=>setTab(id)} style={{...button,background:tab===id?"#071B31":"#fff",color:tab===id?"#fff":"#071B31",borderColor:tab===id?"#071B31":"#DCE8F1"}}>{name}</button>)}</nav>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"end",gap:12,flexWrap:"wrap",marginBottom:20}}><div><div style={{fontSize:11,color:"#079BD3",fontWeight:800,letterSpacing:2}}>PRIVATE TEST PROGRAMME</div><h1 style={{fontSize:30,margin:"6px 0"}}>Pilot Operations Dashboard</h1><p style={small}>Manage seller access, monitor usage and collect product feedback.</p></div><div style={{display:"flex",gap:8}}><button style={button} onClick={refresh}>↻ Refresh dashboard</button><button style={button} onClick={()=>{localStorage.removeItem("ekhaya_session");window.location.replace("/owner/login/");}}>Sign out</button></div></div>
+      <nav style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:18}}>{[["overview","Overview"],["users","Users & sellers"],["sellers","Seller management"],["activity","Search activity"],["feedback","Feedback centre"]].map(([id,name])=><button key={id} onClick={()=>setTab(id)} style={{...button,background:tab===id?"#071B31":"#fff",color:tab===id?"#fff":"#071B31",borderColor:tab===id?"#071B31":"#DCE8F1"}}>{name}</button>)}</nav>
       {status&&<div role="status" style={{...card,marginBottom:16,fontSize:13,color:"#304B63"}}>{status}</div>}
       {tab==="overview"&&<div style={{display:"grid",gap:14}}>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
@@ -92,6 +93,12 @@ export default function OwnerPilotPage(){
         </div>
         <section style={card}><h2 style={{fontSize:17,marginTop:0}}>Seller snapshot</h2>{sellers.length===0?<p style={small}>No seller pilot records yet.</p>:sellers.map(s=><div key={s.user_id} style={{display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap",padding:"10px 0",borderBottom:"1px solid #EEF2F6"}}><div><b style={{fontSize:13}}>{s.pilot_label??s.email??s.user_id}</b><div style={small}>{s.email??s.user_id}</div></div><div style={{textAlign:"right"}}><b style={{fontSize:12}}>{analytics?.by_seller?.[s.user_id]?.searches??0} searches</b><div style={small}>{s.status} · {s.daily_limit}/day</div></div></div>)}</section>
       </div>}
+      {tab==="users"&&<section style={card}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}><div><h2 style={{fontSize:18,margin:"0 0 4px"}}>Registered users & sellers</h2><p style={small}>Directory of accounts registered on Price Checker. Owner access is verified by Supabase.</p></div><b>{users.length} accounts</b></div>
+        <input value={searchFilter} onChange={e=>setSearchFilter(e.target.value)} placeholder="Search name, email or account ID" style={{width:"100%",boxSizing:"border-box",height:40,margin:"12px 0",padding:"0 10px",border:"1px solid #DCE8F1",borderRadius:7}}/>
+        <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:760}}><thead><tr>{["User","Email","Account type","Pilot status","Allowance","Registered","Last sign-in"].map(x=><th key={x} style={{textAlign:"left",padding:9,borderBottom:"1px solid #DCE8F1",color:"#60758A"}}>{x}</th>)}</tr></thead><tbody>{users.filter(u=>[u.email,u.display_name,u.user_id].some(v=>String(v??"").toLowerCase().includes(searchFilter.toLowerCase()))).map(u=><tr key={u.user_id}><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.display_name??u.user_id.slice(0,8)}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.email??"—"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.role==="owner"?"Owner":"Seller / user"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.pilot?.status??"Not activated"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.pilot?u.pilot.daily_limit+"/day":"—"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.created_at?fmt(u.created_at):"—"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.last_sign_in_at?fmt(u.last_sign_in_at):"Never"}</td></tr>)}</tbody></table></div>
+        {users.length===0&&<p style={small}>No registered accounts returned.</p>}
+      </section>}
       {tab==="sellers"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:14,alignItems:"start"}}>
         <section style={card}><h2 style={{fontSize:18,marginTop:0}}>Activate a seller</h2><p style={small}>The 10-day countdown starts only when you activate a registered account.</p>
           <label style={{display:"block",fontSize:12,fontWeight:700,marginTop:14}}>Registered seller email<input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="seller@example.co.za" style={{display:"block",width:"100%",height:42,boxSizing:"border-box",marginTop:6,padding:"0 10px",border:"1px solid #DCE8F1",borderRadius:7}}/></label>
