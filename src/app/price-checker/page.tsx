@@ -143,7 +143,7 @@ export default function PriceCheckerPage() {
         if(spec){if(spec.weight_grams)setWeight(String(spec.weight_grams/1000));if(spec.length_cm)setLength(String(spec.length_cm));if(spec.width_cm)setWidth(String(spec.width_cm));if(spec.height_cm)setHeight(String(spec.height_cm));setSpecSource("Marketplace listing specifications — verify packed measurements");}
         setProducts(old=>[...old.filter(p=>p.marketplace!==marketplace),...incoming]);
         setSource(old=>payload.source==="stale-cache"?"Last verified Takealot results (refresh unavailable)":payload.source==="cache"?"Shared cache":old==="Shared cache"?"Live marketplace data":"Live Takealot data");
-      }catch(e){errors.push((marketplace==="amazon"?"Amazon SA":"Takealot")+": "+(e instanceof Error?e.message:"Search failed"));setError(errors.join(" · "));}
+      }catch(e){errors.push("Takealot: "+(e instanceof Error?e.message:"Search failed"));setError(errors.join(" · "));}
       finally{done++;if(done===marketplaces.length)setLoading(false);}
     }));
   }
