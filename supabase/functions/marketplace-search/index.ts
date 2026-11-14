@@ -339,6 +339,9 @@ Deno.serve(async (req: Request) => {
       });
       return json({ source: "live", marketplace, fetched_at: now.toISOString(), products, provider_meta: payload.meta ?? null, credit_charged: charged });
     } catch (error) {
+      if (marketplace === "takealot" && cache && Array.isArray(cache.source_payload?.products) && cache.source_payload.products.length > 0) {
+        return json({ source: "stale-cache", marketplace, fetched_at: cache.fetched_at, products: cache.source_payload.products, refresh_paused: false, warning: "Live Takealot refresh failed; showing the last successfully cached results instead." });
+      }
       if (pilotCharged) {
         await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
           method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
@@ -351,9 +354,6 @@ Deno.serve(async (req: Request) => {
           headers: { ...adminHeaders, "Content-Type": "application/json" },
           body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
         });
-      }
-      if (marketplace === "takealot" && cache && Array.isArray(cache.source_payload?.products) && cache.source_payload.products.length > 0) {
-        return json({ source: "stale-cache", marketplace, fetched_at: cache.fetched_at, products: cache.source_payload.products, refresh_paused: false, warning: "Live Takealot refresh failed; showing the last successfully cached results instead." });
       }
       throw error;
     }
