@@ -21,9 +21,10 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   const reefKey = Deno.env.get("REEFAPI_KEY");
+  const steadyApiKey = Deno.env.get("STEADYAPI_KEY");
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!reefKey || !supabaseUrl || !serviceKey) {
+  if (!supabaseUrl || !serviceKey) {
     return json({ error: "Server configuration incomplete" }, 503);
   }
   const authorization = req.headers.get("authorization") ?? "";
@@ -142,38 +143,82 @@ Deno.serve(async (req: Request) => {
     }
 
     try {
-      const provider = marketplace;
-      const params = marketplace === "takealot"
-        ? { query, country: "za" }
-        : { query, marketplace: "co.za", max_results: 24 };
-      const upstream = await fetch(`https://api.reefapi.com/${provider}/v1/search`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
-        body: JSON.stringify(params),
-        signal: AbortSignal.timeout(12000),
-      });
-      const payload = await upstream.json();
-      if (!upstream.ok || payload?.ok === false) throw new Error(payload?.error?.message ?? upstream.statusText ?? "Provider lookup failed");
+      let payload: Record<string, any>;
+      let providerName: string;
+      let raw: Record<string, unknown>[];
+      if (marketplace === "amazon") {
+        if (!steadyApiKey) throw new Error("Amazon South Africa search is not configured yet. Add STEADYAPI_KEY to Supabase Edge Function secrets.");
+        const searchUrl = new URL("https://api.steadyapi.com/v1/amazon/products/search");
+        searchUrl.searchParams.set("search", query);
+        searchUrl.searchParams.set("country", "ZA");
+        searchUrl.searchParams.set("sort_by", "RELEVANCE");
+        searchUrl.searchParams.set("page", "1");
+        const upstream = await fetch(searchUrl, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${steadyApiKey}`, Accept: "application/json" },
+          signal: AbortSignal.timeout(20000),
+        });
+        payload = await upstream.json();
+        if (!upstream.ok || Number(payload?.meta?.status ?? upstream.status) >= 400 || !Array.isArray(payload?.body)) {
+          throw new Error(String(payload?.message ?? payload?.error ?? upstream.statusText ?? "SteadyAPI Amazon search failed"));
+        }
+        const marketplaceUrl = String(payload?.meta?.marketplace ?? "");
+        const country = String(payload?.meta?.country ?? "ZA").toUpperCase();
+        if ((marketplaceUrl && !marketplaceUrl.includes("amazon.co.za")) || country !== "ZA") {
+          throw new Error("SteadyAPI returned a marketplace other than Amazon South Africa; results were rejected.");
+        }
+        providerName = "steadyapi";
+        raw = payload.body as Record<string, unknown>[];
+      } else {
+        if (!reefKey) throw new Error("Takealot search is not configured. Add REEFAPI_KEY to Supabase Edge Function secrets.");
+        const upstream = await fetch("https://api.reefapi.com/takealot/v1/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
+          body: JSON.stringify({ query, country: "za" }),
+          signal: AbortSignal.timeout(12000),
+        });
+        payload = await upstream.json();
+        if (!upstream.ok || payload?.ok === false) throw new Error(payload?.error?.message ?? upstream.statusText ?? "Provider lookup failed");
+        providerName = "reefapi";
+        raw = payload?.data?.results ?? [];
+      }
 
-      const raw = payload?.data?.results ?? [];
-      const products = raw.map((p: Record<string, unknown>) => ({
-        id: marketplace === "takealot" ? p.plid : p.asin,
-        title: p.title ?? "Untitled product",
-        brand: p.brand ?? null,
-        price: typeof p.price === "number" ? p.price : null,
-        currency: marketplace === "takealot" ? "ZAR" : (p.currency_code ?? "ZAR"),
-        image: p.image ?? null,
-        url: p.url ?? (typeof p.asin === "string" ? `https://www.amazon.co.za/dp/${p.asin}` : null),
-        in_stock: p.in_stock ?? null,
-        rating: p.rating ?? null,
-        review_count: p.review_count ?? p.rating_count ?? null,
-        seller: p.seller_name ?? null,
-        weight_grams: typeof p.weight_grams === "number" ? p.weight_grams : typeof p.weight === "number" ? p.weight : null,
-        length_cm: typeof p.length_cm === "number" ? p.length_cm : typeof (p.dimensions as Record<string, unknown> | undefined)?.length_cm === "number" ? (p.dimensions as Record<string, number>).length_cm : null,
-        width_cm: typeof p.width_cm === "number" ? p.width_cm : typeof (p.dimensions as Record<string, unknown> | undefined)?.width_cm === "number" ? (p.dimensions as Record<string, number>).width_cm : null,
-        height_cm: typeof p.height_cm === "number" ? p.height_cm : typeof (p.dimensions as Record<string, unknown> | undefined)?.height_cm === "number" ? (p.dimensions as Record<string, number>).height_cm : null,
-        variant_selection_required: p.variant_selection_required ?? false,
-      }));
+      const parsePrice = (value: unknown): number | null => {
+        if (typeof value === "number" && Number.isFinite(value)) return value;
+        if (typeof value !== "string") return null;
+        const cleaned = value.replace(/,/g, "").replace(/[^0-9.]/g, "");
+        if (!cleaned) return null;
+        const parsed = Number(cleaned);
+        return Number.isFinite(parsed) ? parsed : null;
+      };
+      const products = raw.map((p: Record<string, unknown>) => {
+        const isAmazon = marketplace === "amazon";
+        const asin = typeof p.asin === "string" ? p.asin : null;
+        return {
+          id: isAmazon ? asin : p.plid,
+          title: (isAmazon ? p.product_title : p.title) ?? "Untitled product",
+          brand: p.brand ?? null,
+          price: parsePrice(isAmazon ? p.product_price : p.price),
+          original_price: parsePrice(isAmazon ? p.product_original_price : p.original_price),
+          currency: "ZAR",
+          image: (isAmazon ? p.product_photo : p.image) ?? null,
+          url: (isAmazon ? p.product_url : p.url) ?? (asin ? `https://www.amazon.co.za/dp/${asin}` : null),
+          in_stock: p.in_stock ?? null,
+          rating: isAmazon ? p.product_star_rating ?? null : p.rating ?? null,
+          review_count: isAmazon ? p.product_num_ratings ?? null : p.review_count ?? p.rating_count ?? null,
+          seller: p.seller_name ?? null,
+          delivery: p.delivery ?? null,
+          sales_volume: p.sales_volume ?? null,
+          product_badge: p.product_badge ?? null,
+          is_prime: p.is_prime ?? null,
+          is_best_seller: p.is_best_seller ?? null,
+          weight_grams: typeof p.weight_grams === "number" ? p.weight_grams : typeof p.weight === "number" ? p.weight : null,
+          length_cm: typeof p.length_cm === "number" ? p.length_cm : null,
+          width_cm: typeof p.width_cm === "number" ? p.width_cm : null,
+          height_cm: typeof p.height_cm === "number" ? p.height_cm : null,
+          variant_selection_required: p.variant_selection_required ?? p.has_variations ?? false,
+        };
+      });
       const now = new Date();
       const ttl = Math.max(5, Math.min(10080, Number(settings.cache_ttl_minutes) || 360));
       const expires = new Date(now.getTime() + ttl * 60 * 1000);
@@ -200,7 +245,7 @@ Deno.serve(async (req: Request) => {
         method: "POST",
         headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
         body: JSON.stringify({
-          provider: "reefapi", action: "search", marketplace, lookup_key: `search:${lookupKey}`,
+          provider: providerName, action: "search", marketplace, lookup_key: `search:${lookupKey}`,
           credits_charged: Number(payload.meta?.charged_credits ?? 0), request_status: "success",
           response_count: products.length, request_id: payload.meta?.request_id ?? null, actor_id: charged ? userId : null,
         }),
