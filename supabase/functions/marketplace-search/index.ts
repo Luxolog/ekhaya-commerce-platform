@@ -55,7 +55,7 @@ Deno.serve(async (req: Request) => {
   const appMetadata = (user.app_metadata ?? {}) as Record<string, unknown>;
   const isOwner = appMetadata.role === "owner" || appMetadata.is_owner === true;
 
-  let body: { marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean };
+  let body: { marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean; [key: string]: unknown };
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
 
   if (body.action === "owner_update_pilot") {
