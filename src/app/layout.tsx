@@ -2,10 +2,10 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Ekhaya Price Checker | Ekhaya Technologies',
-  description: 'Compare marketplace prices and calculate your selling margins with Ekhaya Technologies.',
+  title: 'Ekhaya Technologies | Digital Commerce & Business Solutions',
+  description: 'Ekhaya Technologies builds digital commerce platforms, marketplace tools and custom business solutions. Explore what is available today and what is coming next.',
   icons: { icon: '/favicon.svg', shortcut: '/favicon.svg', apple: '/favicon.svg' },
-  applicationName: 'Ekhaya Price Checker',
+  applicationName: 'Ekhaya Technologies',
   themeColor: '#071B31',
 };
 
