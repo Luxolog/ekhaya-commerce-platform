@@ -1,0 +1,7 @@
+project_id = "itxxnhcjjiynrmivexcb"
+
+[functions.payfast-checkout]
+verify_jwt = true
+
+[functions.payfast-itn]
+verify_jwt = false
