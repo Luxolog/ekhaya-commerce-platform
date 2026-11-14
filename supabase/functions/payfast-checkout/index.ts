@@ -71,6 +71,14 @@ Deno.serve(async (req) => {
     if (billingMode === "automatic" && mode === "sandbox" && !Deno.env.get("PAYFAST_SANDBOX_MERCHANT_ID") && !Deno.env.get("PAYFAST_MERCHANT_ID")) {
       return json({ error: "Sandbox recurring billing credentials are not configured." }, 503);
     }
+    const activeSubResponse = await fetch(
+      `${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${encodeURIComponent(user.id)}&status=eq.active&current_period_end=gt.${encodeURIComponent(new Date().toISOString())}&select=id,plan_code,current_period_end`,
+      { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+    );
+    if (!activeSubResponse.ok) throw new Error("Unable to check your current subscription.");
+    const activeSubs = await activeSubResponse.json();
+    if (activeSubs?.length) return json({ error: "You already have an active subscription. Subscription changes and cancellations will be available in account billing management." }, 409);
+
     const amount = Number(plan.monthly_price);
     const now = new Date();
     const merchantReference = `EKH-${crypto.randomUUID()}`;
