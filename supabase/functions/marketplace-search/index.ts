@@ -58,6 +58,19 @@ Deno.serve(async (req: Request) => {
   let body: { marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean };
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
 
+  if (body.action === "get_pilot_status") {
+    const accessResponse = await fetch(new URL("/rest/v1/seller_pilot_access?user_id=eq." + encodeURIComponent(userId) + "&select=started_at,ends_at,status,daily_limit,pilot_label", supabaseUrl), { headers: adminHeaders });
+    if (!accessResponse.ok) return json({ error: "Could not load your pilot allowance." }, 502);
+    const accessRows = await accessResponse.json();
+    const access = accessRows?.[0] ?? null;
+    if (!access || access.status !== "active" || new Date(access.ends_at) <= new Date()) return json({ active: false, status: access?.status ?? "not_enrolled", ends_at: access?.ends_at ?? null });
+    const usageDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(new Date());
+    const usageResponse = await fetch(new URL("/rest/v1/seller_pilot_daily_usage?user_id=eq." + encodeURIComponent(userId) + "&usage_date=eq." + usageDate + "&select=searches_used", supabaseUrl), { headers: adminHeaders });
+    if (!usageResponse.ok) return json({ error: "Could not load today's pilot usage." }, 502);
+    const usageRows = await usageResponse.json();
+    const used = Number(usageRows?.[0]?.searches_used ?? 0);
+    return json({ active: true, ...access, usage_date: usageDate, searches_used: used, remaining: Math.max(0, Number(access.daily_limit)-used) });
+  }
   if (body.action === "activate_seller_pilot") {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
