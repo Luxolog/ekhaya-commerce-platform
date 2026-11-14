@@ -28,7 +28,8 @@ export default function OwnerPilotPage(){
   const [extendDays,setExtendDays]=useState<Record<string,string>>({});
   const [searchFilter,setSearchFilter]=useState("");
   const [statusFilter,setStatusFilter]=useState("all");
-  const [security,setSecurity]=useState<{events:any[];identities:any[];blocked_domains:any[]}>({events:[],identities:[],blocked_domains:[]});\n  const [financial,setFinancial]=useState<any|null>(null);
+  const [security,setSecurity]=useState<{events:any[];identities:any[];blocked_domains:any[]}>({events:[],identities:[],blocked_domains:[]});
+  const [financial,setFinancial]=useState<any|null>(null);
   const [blockedDomain,setBlockedDomain]=useState(""); const [blockedReason,setBlockedReason]=useState("");
   useEffect(()=>{
     const handler=(event:Event)=>{event.preventDefault();setInstallPrompt(event);};
