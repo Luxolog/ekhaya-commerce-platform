@@ -112,9 +112,10 @@ Deno.serve(async (req) => {
       throw new Error("Unable to create payment record.");
     }
 
-    const { merchantId, passphrase } = credentials(mode);
+    const { merchantId, merchantKey, passphrase } = credentials(mode);
     const fields: Record<string, string> = {
       merchant_id: merchantId,
+      merchant_key: merchantKey,
       return_url: `${baseUrl.replace(/\/$/, "")}/account/billing?payment=return`,
       cancel_url: `${baseUrl.replace(/\/$/, "")}/account/billing?payment=cancelled`,
       notify_url: `${supabaseUrl}/functions/v1/payfast-itn`,
