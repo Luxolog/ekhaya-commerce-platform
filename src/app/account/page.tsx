@@ -13,6 +13,8 @@ export default function AccountPage() {
   const [email,setEmail] = useState("");
   const [password,setPassword] = useState("");
   const [name,setName] = useState("");
+  const [sellerMarketplace,setSellerMarketplace] = useState("takealot");
+  const [sellerId,setSellerId] = useState("");
   const [message,setMessage] = useState("");
   const [busy,setBusy] = useState(false);
   const [signedIn,setSignedIn] = useState(false);
@@ -21,7 +23,7 @@ export default function AccountPage() {
     setBusy(true); setMessage("");
     try {
       const endpoint = mode === "signup" ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
-      const response = await fetch(supabaseUrl+endpoint,{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:JSON.stringify(mode==="signup"?{email,password,data:{display_name:name}}:{email,password})});
+      const response = await fetch(supabaseUrl+endpoint,{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:JSON.stringify(mode==="signup"?{email,password,data:{display_name:name,seller_marketplace:sellerMarketplace,seller_id:sellerId.trim(),marketplace_access:[sellerMarketplace]}}:{email,password})});
       const data = await response.json();
       if(!response.ok) throw new Error(data.msg??data.message??data.error_description??"Unable to process your account request.");
       if(data.access_token) {
@@ -30,7 +32,7 @@ export default function AccountPage() {
         setSignedIn(true);
         setMessage("You're signed in. You can now use marketplace searches.");
       } else {
-        setMessage("Account created. Check your email to confirm your address, then sign in.");
+        setMessage("Account created. Your Seller ID has been submitted for verification. Confirm your email; Ekhaya must approve your account before searches are enabled.");
         setMode("signin");
       }
     } catch(e) { setMessage(e instanceof Error?e.message:"Account request failed."); }
@@ -63,10 +65,11 @@ export default function AccountPage() {
       <p style={{color:"#079BD3",fontSize:10,fontWeight:800,letterSpacing:2}}>EKHAYA SELLER ACCESS</p>
       <h1 style={{fontSize:30,fontWeight:700,margin:"8px 0 10px"}}>{mode==="signup"?"Create your seller account":"Welcome back"}</h1>
       <p style={{color:"#60758A",fontSize:13,lineHeight:1.6}}>Your account keeps your monthly live marketplace search allowance separate from other sellers.</p>
-      {mode==="signup"&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={field}/>}
+      {mode==="signup"&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Your full name (no links or promotions)" style={field}/>}
+      {mode==="signup"&&<><label style={{display:"block",fontSize:12,fontWeight:700,marginTop:12}}>Marketplace you sell on<select value={sellerMarketplace} onChange={e=>setSellerMarketplace(e.target.value)} style={{...field,display:"block"}}><option value="takealot">Takealot</option><option value="amazon">Amazon South Africa</option><option value="makro">Makro</option><option value="bobshop">Bob Shop</option><option value="leroy_merlin">Leroy Merlin</option></select></label><input value={sellerId} onChange={e=>setSellerId(e.target.value)} placeholder="Marketplace Seller ID" style={field}/></>}
       <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address" style={field}/>
       <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password (at least 8 characters)" style={field}/>
-      <button onClick={submit} disabled={busy||!email||password.length<8} style={{width:"100%",padding:14,background:"#079BD3",border:0,borderRadius:8,color:"#fff",fontWeight:700,marginTop:12,cursor:"pointer"}}>{busy?"Please wait…":mode==="signup"?"Create account":"Sign in"}</button>
+      <button onClick={submit} disabled={busy||!email||password.length<8||(mode==="signup"&&(!name.trim()||!sellerId.trim()))} style={{width:"100%",padding:14,background:"#079BD3",border:0,borderRadius:8,color:"#fff",fontWeight:700,marginTop:12,cursor:"pointer"}}>{busy?"Please wait…":mode==="signup"?"Create account":"Sign in"}</button>
       <button type="button" onClick={sendResetEmail} disabled={busy} style={{display:"block",position:"relative",zIndex:2,width:"100%",minHeight:44,padding:12,marginTop:4,background:"#fff",border:"1px solid #DCE8F1",borderRadius:8,color:"#079BD3",fontWeight:700,cursor:busy?"wait":"pointer",touchAction:"manipulation"}}>{busy?"Please wait…":"Forgot password?"}</button>
       <button onClick={()=>{setMode(mode==="signup"?"signin":"signup");setMessage("");}} style={{width:"100%",padding:12,background:"transparent",border:0,color:"#079BD3",fontWeight:700,cursor:"pointer"}}>{mode==="signup"?"Already registered? Sign in":"New to Ekhaya? Create an account"}</button>
       {signedIn&&<button onClick={signOut} style={{width:"100%",padding:10,border:"1px solid #DCE8F1",borderRadius:8,background:"#fff",color:"#071B31"}}>Sign out</button>}
