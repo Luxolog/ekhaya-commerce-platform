@@ -58,6 +58,52 @@ Deno.serve(async (req: Request) => {
   let body: { marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean };
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
 
+  if (body.action === "activate_seller_pilot") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const dailyLimit = Number(body.daily_limit ?? 15);
+    const label = typeof body.pilot_label === "string" ? body.pilot_label.trim().slice(0,80) : "";
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "Enter a valid seller email address." }, 400);
+    if (![15,20].includes(dailyLimit)) return json({ error: "Pilot daily limit must be 15 or 20." }, 400);
+    if (dailyLimit === 20 && label.toLowerCase() !== "beyond shopping") return json({ error: "The 20-search allocation is reserved for Beyond Shopping." }, 400);
+    if (dailyLimit === 15 && label.toLowerCase() === "beyond shopping") return json({ error: "Beyond Shopping must use the 20-search allocation." }, 400);
+    const usersResponse = await fetch(new URL("/auth/v1/admin/users?page=1&per_page=1000", supabaseUrl), { headers: adminHeaders });
+    if (!usersResponse.ok) return json({ error: "Could not look up registered seller accounts." }, 502);
+    const usersPayload = await usersResponse.json();
+    const users = Array.isArray(usersPayload) ? usersPayload : usersPayload.users ?? [];
+    const seller = users.find((candidate: Record<string, unknown>) => String(candidate.email ?? "").toLowerCase() === email);
+    if (!seller || typeof seller.id !== "string") return json({ error: "No registered seller account was found for that email. Ask the seller to create their account first." }, 404);
+    const activated = await fetch(new URL("/rest/v1/rpc/activate_seller_pilot", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_user_id: seller.id, p_admin_id: userId, p_daily_limit: dailyLimit, p_label: label || null }),
+    });
+    const result = activated.ok ? await activated.json() : null;
+    if (!activated.ok) return json({ error: "Could not activate the seller pilot.", detail: await activated.text() }, 500);
+    if (result?.ok !== true) {
+      const messages: Record<string,string> = {
+        PILOT_CAPACITY_REACHED: "All six pilot seats are occupied.",
+        STANDARD_SEATS_FULL: "All five 15-search seller seats are occupied.",
+        BEYOND_SHOPPING_SEAT_FULL: "The Beyond Shopping 20-search seat is already assigned.",
+        USER_NOT_FOUND: "No registered seller account was found.",
+      };
+      return json({ error: messages[result?.reason] ?? "Pilot activation was not completed.", result }, 409);
+    }
+    return json({ ok: true, email, result });
+  }
+  if (body.action === "list_seller_pilots") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const [accessResponse, usersResponse] = await Promise.all([
+      fetch(new URL("/rest/v1/seller_pilot_access?select=user_id,started_at,ends_at,status,daily_limit,pilot_label&order=created_at.desc", supabaseUrl), { headers: adminHeaders }),
+      fetch(new URL("/auth/v1/admin/users?page=1&per_page=1000", supabaseUrl), { headers: adminHeaders }),
+    ]);
+    if (!accessResponse.ok || !usersResponse.ok) return json({ error: "Could not load pilot seller records." }, 502);
+    const access = await accessResponse.json();
+    const usersPayload = await usersResponse.json();
+    const users = Array.isArray(usersPayload) ? usersPayload : usersPayload.users ?? [];
+    const byId = new Map(users.map((candidate: Record<string, unknown>) => [candidate.id, candidate.email]));
+    return json({ sellers: (access ?? []).map((row: Record<string, unknown>) => ({ ...row, email: byId.get(row.user_id) ?? null })) });
+  }
   if (body.action === "get_cache_settings") {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
     const response = await fetch(new URL("/rest/v1/marketplace_cache_settings?id=eq.true&select=refresh_enabled,cache_ttl_minutes,updated_at", supabaseUrl), { headers: adminHeaders });
@@ -94,6 +140,21 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Choose a supported marketplace." }, 400);
   }
   if (body.force_refresh && !isOwner) return json({ error: "Only the Ekhaya owner can force a live cache refresh." }, 403);
+
+  let pilotCharged = false;
+  const pilotUsageDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(new Date());
+  if (!isOwner) {
+    const pilotReserve = await fetch(new URL("/rest/v1/rpc/reserve_seller_pilot_search", supabaseUrl), {
+      method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace }),
+    });
+    const pilot = pilotReserve.ok ? await pilotReserve.json() : null;
+    if (!pilotReserve.ok) return json({ error: "Could not verify pilot search allowance. Please try again." }, 503);
+    if (pilot?.allowed === true) pilotCharged = true;
+    else if (pilot?.reason === "PILOT_DAILY_LIMIT") return json({ error: "You have used all your Takealot searches for today. Your allowance resets at midnight South African time.", code: "PILOT_DAILY_LIMIT", usage: pilot }, 429);
+    else if (pilot?.reason === "PILOT_EXPIRED") return json({ error: "Your 10-day seller pilot has ended.", code: "PILOT_EXPIRED", usage: pilot }, 402);
+    else if (pilot?.reason !== "PILOT_NOT_ACTIVE") return json({ error: "Your seller pilot access is not available for this marketplace.", code: pilot?.reason ?? "PILOT_ACCESS_ERROR", usage: pilot }, 403);
+  }
 
   const lookupKey = query.toLowerCase().replace(/\s+/g, " ");
   const cacheUrl = new URL("/rest/v1/marketplace_price_cache", supabaseUrl);
@@ -134,7 +195,7 @@ Deno.serve(async (req: Request) => {
 
     const requestId = body.request_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.request_id)
       ? body.request_id : crypto.randomUUID();
-    const charged = !isOwner;
+    const charged = !isOwner && !pilotCharged;
     if (charged) {
       const reserve = await fetch(new URL("/rest/v1/rpc/reserve_monthly_search_credit", supabaseUrl), {
         method: "POST",
@@ -261,6 +322,12 @@ Deno.serve(async (req: Request) => {
       });
       return json({ source: "live", marketplace, fetched_at: now.toISOString(), products, provider_meta: payload.meta ?? null, credit_charged: charged });
     } catch (error) {
+      if (pilotCharged) {
+        await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }),
+        });
+      }
       if (charged) {
         await fetch(new URL("/rest/v1/rpc/refund_monthly_search_credit", supabaseUrl), {
           method: "POST",
