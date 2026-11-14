@@ -43,7 +43,8 @@ Deno.serve(async (req) => {
     const params = new URLSearchParams(rawBody);
     if (!verifySignature(params, passphrase)) return new Response("Invalid signature", { status: 400 });
     if (params.get("merchant_id") !== merchantId) return new Response("Invalid merchant", { status: 400 });
-    if (params.get("payment_status") !== "COMPLETE") return new Response("Payment not complete", { status: 200 });
+    const paymentStatus = params.get("payment_status");
+    if (!paymentStatus || !["COMPLETE", "FAILED", "CANCELLED"].includes(paymentStatus)) return new Response("Notification ignored", { status: 200 });
 
     const validateUrl = mode === "live"
       ? "https://www.payfast.co.za/eng/query/validate"
@@ -71,13 +72,22 @@ Deno.serve(async (req) => {
     if (!tx) return new Response("Unknown merchant reference", { status: 404 });
     if (Math.abs(Number(tx.amount) - gross) > 0.01) return new Response("Amount mismatch", { status: 400 });
     if (tx.status === "complete") return new Response("OK", { status: 200 });
+    if (paymentStatus !== "COMPLETE") {
+      const failedStatus = paymentStatus === "CANCELLED" ? "cancelled" : "failed";
+      await fetch(`${supabaseUrl}/rest/v1/payment_transactions?id=eq.${tx.id}&status=neq.complete`, {
+        method: "PATCH",
+        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ status: failedStatus, provider_payment_id: paymentId, provider_response: Object.fromEntries(params.entries()) }),
+      });
+      return new Response("OK", { status: 200 });
+    }
 
     const now = new Date();
     const end = new Date(now);
     end.setUTCMonth(end.getUTCMonth() + 1);
     const updateTx = await fetch(`${supabaseUrl}/rest/v1/payment_transactions?id=eq.${tx.id}&status=neq.complete`, {
       method: "PATCH",
-      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json", Prefer: "return=representation" },
       body: JSON.stringify({
         provider_payment_id: paymentId,
         status: "complete",
@@ -86,6 +96,8 @@ Deno.serve(async (req) => {
       }),
     });
     if (!updateTx.ok) throw new Error("Unable to record completed payment.");
+    const updatedRows = await updateTx.json().catch(() => []);
+    if (!updatedRows?.length) return new Response("OK", { status: 200 });
 
     if (tx.subscription_id) {
       const subResponse = await fetch(`${supabaseUrl}/rest/v1/subscriptions?id=eq.${tx.subscription_id}&select=id,user_id,plan_code,billing_mode`, {
