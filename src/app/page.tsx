@@ -1,4 +1,5 @@
 import SiteHeader from '@/components/SiteHeader';
+import Link from 'next/link';
 
 const pillars = [
   { number: '01', title: 'Compare marketplace prices', detail: 'Research product prices across supported South African marketplaces before you commit to stock.' },
