@@ -251,6 +251,7 @@ Deno.serve(async (req: Request) => {
     const settings = settingsRows?.[0] ?? { refresh_enabled: true, cache_ttl_minutes: 360 };
     const fresh = cache && new Date(cache.expires_at) > new Date();
     if (cache && !body.force_refresh && (fresh || settings.refresh_enabled === false)) {
+      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:(cache.source_payload?.products??[]).length,result_status:"success",source:fresh?"cache":"stale-cache"})});
       return json({
         source: fresh ? "cache" : "stale-cache",
         marketplace,
@@ -402,6 +403,7 @@ Deno.serve(async (req: Request) => {
           response_count: products.length, request_id: payload.meta?.request_id ?? null, actor_id: charged ? userId : null,
         }),
       });
+      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:products.length,result_status:"success",source:"live"})});
       return json({ source: "live", marketplace, fetched_at: now.toISOString(), products, provider_meta: payload.meta ?? null, credit_charged: charged });
     } catch (error) {
       if (marketplace === "takealot" && cache && Array.isArray(cache.source_payload?.products) && cache.source_payload.products.length > 0) {
