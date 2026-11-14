@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-const URL = "https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search";
+const EDGE_URL = "https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search";
 const KEY = "sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t";
 type PortalUser = {user_id:string;email:string|null;display_name:string|null;created_at:string|null;last_sign_in_at:string|null;email_confirmed_at:string|null;role:string;pilot:Seller|null};
 type Seller = { email:string|null; user_id:string; started_at:string; ends_at:string; status:string; daily_limit:number; pilot_label:string|null };
@@ -41,7 +41,7 @@ export default function OwnerPilotPage(){
   async function call(action:string,extra:Record<string,unknown>={}){
     const session=JSON.parse(localStorage.getItem("ekhaya_session")??"null");
     if(!session?.access_token)throw new Error("Please sign in with the Ekhaya owner account first.");
-    const response=await fetch(URL,{method:"POST",headers:{apikey:KEY,Authorization:"Bearer "+session.access_token,"Content-Type":"application/json"},body:JSON.stringify({action,...extra})});
+    const response=await fetch(EDGE_URL,{method:"POST",headers:{apikey:KEY,Authorization:"Bearer "+session.access_token,"Content-Type":"application/json"},body:JSON.stringify({action,...extra})});
     const data=await response.json().catch(()=>({})); if(!response.ok)throw new Error(data.error??"Request failed."); return data;
   }
   async function refresh(){
