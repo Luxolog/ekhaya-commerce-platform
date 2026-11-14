@@ -58,6 +58,71 @@ Deno.serve(async (req: Request) => {
   let body: { marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean };
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
 
+  if (body.action === "owner_update_pilot") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const targetId = typeof body.target_user_id === "string" ? body.target_user_id : "";
+    const operation = body.operation;
+    if (!targetId || !["suspend","resume","extend"].includes(String(operation))) return json({ error: "Choose a seller and a valid management action." }, 400);
+    const lookup = await fetch(new URL("/rest/v1/seller_pilot_access?user_id=eq."+encodeURIComponent(targetId)+"&select=user_id,status,ends_at,daily_limit,pilot_label",supabaseUrl), {headers:adminHeaders});
+    const rows = lookup.ok ? await lookup.json() : [];
+    if (!lookup.ok || !rows?.[0]) return json({error:"Pilot seller record not found."},404);
+    const row = rows[0];
+    const patch: Record<string,unknown> = {};
+    if (operation === "suspend") patch.status = "suspended";
+    if (operation === "resume") {
+      if (new Date(row.ends_at) <= new Date()) return json({error:"This pilot has expired. A new activation is required."},409);
+      patch.status = "active";
+    }
+    if (operation === "extend") {
+      const days = Number(body.days);
+      if (!Number.isInteger(days) || days < 1 || days > 30) return json({error:"Extension must be between 1 and 30 days."},400);
+      const base = new Date(Math.max(Date.now(),new Date(row.ends_at).getTime()));
+      patch.ends_at = new Date(base.getTime()+days*86400000).toISOString();
+      patch.status = "active";
+    }
+    const saved = await fetch(new URL("/rest/v1/seller_pilot_access?user_id=eq."+encodeURIComponent(targetId),supabaseUrl), {
+      method:"PATCH",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=representation"},body:JSON.stringify(patch)
+    });
+    if (!saved.ok) return json({error:"Could not update pilot seller.",detail:await saved.text()},500);
+    return json({ok:true,seller:(await saved.json())[0]});
+  }
+  if (body.action === "owner_pilot_analytics") {
+    if (!isOwner) return json({error:"Owner permission required."},403);
+    const [activityResponse,feedbackResponse] = await Promise.all([
+      fetch(new URL("/rest/v1/seller_pilot_activity?select=user_id,marketplace,query,result_count,result_status,source,created_at&order=created_at.desc&limit=10000",supabaseUrl),{headers:adminHeaders}),
+      fetch(new URL("/rest/v1/seller_pilot_feedback?select=id,user_id,category,rating,message,status,created_at&order=created_at.desc&limit=500",supabaseUrl),{headers:adminHeaders})
+    ]);
+    if(!activityResponse.ok || !feedbackResponse.ok) return json({error:"Could not load pilot analytics."},502);
+    const activity=await activityResponse.json();
+    const feedback=await feedbackResponse.json();
+    const bySeller:Record<string,{searches:number;failures:number;last_search:string|null}>={};
+    const popular:Record<string,number>={};
+    for(const item of activity){
+      const entry=bySeller[item.user_id]??{searches:0,failures:0,last_search:null};
+      entry.searches++; if(item.result_status!=="success") entry.failures++;
+      if(!entry.last_search || item.created_at>entry.last_search) entry.last_search=item.created_at;
+      bySeller[item.user_id]=entry;
+      const key=String(item.query??"").trim(); if(key) popular[key]=(popular[key]??0)+1;
+    }
+    return json({ok:true,totals:{searches:activity.length,failures:activity.filter((x:Record<string,unknown>)=>x.result_status!=="success").length,feedback:feedback.length,open_feedback:feedback.filter((x:Record<string,unknown>)=>x.status==="open").length},by_seller:bySeller,popular_queries:Object.entries(popular).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([query,count])=>({query,count})),feedback,activity:activity.slice(0,200)});
+  }
+  if (body.action === "submit_pilot_feedback") {
+    if (typeof body.message !== "string" || body.message.trim().length < 5 || body.message.trim().length > 2000) return json({error:"Feedback must be between 5 and 2,000 characters."},400);
+    const category = ["bug","product_feedback","data_quality","other"].includes(String(body.category)) ? body.category : "other";
+    const rating = body.rating == null ? null : Number(body.rating);
+    if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) return json({error:"Rating must be between 1 and 5."},400);
+    const saved=await fetch(new URL("/rest/v1/seller_pilot_feedback",supabaseUrl),{method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=representation"},body:JSON.stringify({user_id:userId,category,rating,message:body.message.trim()})});
+    if(!saved.ok) return json({error:"Could not submit feedback."},500);
+    return json({ok:true,feedback:(await saved.json())[0]});
+  }
+  if (body.action === "owner_update_feedback") {
+    if (!isOwner) return json({error:"Owner permission required."},403);
+    const id=Number(body.feedback_id); const status=body.status;
+    if(!Number.isInteger(id) || !["open","reviewing","resolved"].includes(String(status))) return json({error:"Invalid feedback update."},400);
+    const saved=await fetch(new URL("/rest/v1/seller_pilot_feedback?id=eq."+id,supabaseUrl),{method:"PATCH",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=representation"},body:JSON.stringify({status})});
+    if(!saved.ok) return json({error:"Could not update feedback."},500);
+    return json({ok:true,feedback:(await saved.json())[0]});
+  }
   if (body.action === "get_pilot_status") {
     const accessResponse = await fetch(new URL("/rest/v1/seller_pilot_access?user_id=eq." + encodeURIComponent(userId) + "&select=started_at,ends_at,status,daily_limit,pilot_label", supabaseUrl), { headers: adminHeaders });
     if (!accessResponse.ok) return json({ error: "Could not load your pilot allowance." }, 502);
