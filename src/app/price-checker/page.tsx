@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import SiteHeader from "@/components/SiteHeader";
 
 type MarketplaceProduct = { marketplace?: string; id: string; title: string; brand?: string | null; price: number | null; currency: string; image?: string | null; url?: string | null; in_stock?: boolean | null; rating?: number | null; review_count?: number | null; seller?: string | null; weight_grams?: number | null; length_cm?: number | null; width_cm?: number | null; height_cm?: number | null; }
 type Mode = "name" | "barcode" | "photo";
@@ -195,7 +195,7 @@ export default function PriceCheckerPage() {
     });
   },[products,buying,category,volume,kg,takealotMode,amazonMode,sellerDelivery]);
   return <main className="page">
-    <header className="top"><Link href="/" aria-label="Ekhaya Technologies home"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={230} height={190} className="logo" priority/></Link><span className="pill">PRICE INTELLIGENCE · LIVE RESEARCH</span><Link href="/account/" className="pill">SELLER ACCOUNT</Link></header>
+    <SiteHeader active="price-checker" />
     <section className="hero"><p className="eyebrow">SELL SMARTER. PRICE WITH CONFIDENCE.</p><h1>Know your numbers<br/><em>before you buy.</em></h1><p>Find a product, enter your buying price and compare estimated profit after marketplace fulfilment fees.</p></section>
     {pilotStatus?.active&&<div style={{maxWidth:1100,margin:"0 auto 18px",padding:"12px 16px",border:"1px solid #CFE7DC",borderRadius:10,background:"#F1FAF6",color:"#175C43",fontSize:13,display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}><strong>10-day seller pilot · Takealot only</strong><span>{pilotStatus.remaining} of {pilotStatus.daily_limit} searches remaining today · ends {pilotStatus.ends_at?new Date(pilotStatus.ends_at).toLocaleDateString("en-ZA",{timeZone:"Africa/Johannesburg"}):"soon"}</span></div>}\n    <section className="panel">
       <div className="heading"><div><small>01 / FIND A PRODUCT</small><h2>How would you like to search?</h2></div><span className="connected">● MARKETPLACE DATA</span></div>
