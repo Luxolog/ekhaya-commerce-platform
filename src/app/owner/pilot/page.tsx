@@ -16,6 +16,7 @@ const button:React.CSSProperties={border:"1px solid #DCE8F1",borderRadius:7,padd
 const primary:React.CSSProperties={...button,background:"#079BD3",borderColor:"#079BD3",color:"#fff"};
 const small:React.CSSProperties={fontSize:12,color:"#60758A"};
 const fmt=(value:string)=>new Date(value).toLocaleString("en-ZA",{timeZone:"Africa/Johannesburg"});
+let sessionRefreshPromise:Promise<any>|null=null;
 
 export default function OwnerPilotPage(){
   const [email,setEmail]=useState(""); const [limit,setLimit]=useState("15"); const [label,setLabel]=useState("");
@@ -38,17 +39,37 @@ export default function OwnerPilotPage(){
     if(installPrompt){const p=installPrompt;await p.prompt();const choice=await p.userChoice;if(choice?.outcome==="accepted")setInstallPrompt(null);return;}
     setStatus("In Chrome or Edge, use the install icon in the address bar or browser menu → Install page as app.");
   }
-  async function call(action:string,extra:Record<string,unknown>={}){
-    const session=JSON.parse(localStorage.getItem("ekhaya_session")??"null");
+  async function getOwnerSession(){
+    let session=JSON.parse(localStorage.getItem("ekhaya_session")??"null");
     if(!session?.access_token)throw new Error("Please sign in with the Ekhaya owner account first.");
+    if(Number(session.expires_at??0)>Date.now()+60000)return session;
+    if(!session.refresh_token){localStorage.removeItem("ekhaya_session");throw new Error("Your owner session expired. Please sign in again.");}
+    if(!sessionRefreshPromise){
+      sessionRefreshPromise=(async()=>{
+        const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{"Content-Type":"application/json",apikey:KEY},body:JSON.stringify({refresh_token:session.refresh_token})});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok||!data.access_token){localStorage.removeItem("ekhaya_session");throw new Error("Your owner session expired. Please sign in again.");}
+        const next={...data,expires_at:Date.now()+Number(data.expires_in??3600)*1000};
+        localStorage.setItem("ekhaya_session",JSON.stringify(next));return next;
+      })().finally(()=>{sessionRefreshPromise=null;});
+    }
+    return await sessionRefreshPromise;
+  }
+  async function call(action:string,extra:Record<string,unknown>={}){
+    const session=await getOwnerSession();
     const response=await fetch(EDGE_URL,{method:"POST",headers:{apikey:KEY,Authorization:"Bearer "+session.access_token,"Content-Type":"application/json"},body:JSON.stringify({action,...extra})});
     const data=await response.json().catch(()=>({})); if(!response.ok)throw new Error(data.error??"Request failed."); return data;
   }
   async function refresh(){
-    try{const [s,a,u]=await Promise.all([call("list_seller_pilots"),call("owner_pilot_analytics"),call("owner_list_users")]);setSellers(s.sellers??[]);setAnalytics(a);setUsers(u.users??[]);}
-    catch(e){setStatus(e instanceof Error?e.message:"Could not load pilot operations.");}
+    const results=await Promise.allSettled([call("list_seller_pilots"),call("owner_pilot_analytics"),call("owner_list_users")]);
+    if(results[0].status==="fulfilled")setSellers(results[0].value.sellers??[]);
+    if(results[1].status==="fulfilled")setAnalytics(results[1].value);
+    if(results[2].status==="fulfilled")setUsers(results[2].value.users??[]);
+    const failed=results.find(x=>x.status==="rejected") as PromiseRejectedResult|undefined;
+    if(failed)setStatus(failed.reason instanceof Error?failed.reason.message:"Some dashboard data could not be refreshed.");
+    else setStatus("Dashboard updated · "+new Date().toLocaleTimeString("en-ZA"));
   }
-  useEffect(()=>{if(!localStorage.getItem("ekhaya_session")){window.location.replace("/owner/login/");return;}refresh();},[]);
+  useEffect(()=>{if(!localStorage.getItem("ekhaya_session")){window.location.replace("/owner/login/");return;}void refresh();const timer=window.setInterval(()=>void refresh(),30000);return()=>window.clearInterval(timer);},[]);
   async function run(action:string,extra:Record<string,unknown>,success:string){
     setBusy(true);setStatus("");
     try{await call(action,extra);setStatus(success);await refresh();}
@@ -96,7 +117,7 @@ export default function OwnerPilotPage(){
       {tab==="users"&&<section style={card}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}><div><h2 style={{fontSize:18,margin:"0 0 4px"}}>Registered users & sellers</h2><p style={small}>Directory of accounts registered on Price Checker. Owner access is verified by Supabase.</p></div><b>{users.length} accounts</b></div>
         <input value={searchFilter} onChange={e=>setSearchFilter(e.target.value)} placeholder="Search name, email or account ID" style={{width:"100%",boxSizing:"border-box",height:40,margin:"12px 0",padding:"0 10px",border:"1px solid #DCE8F1",borderRadius:7}}/>
-        <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:760}}><thead><tr>{["User","Email","Account type","Pilot status","Allowance","Registered","Last sign-in"].map(x=><th key={x} style={{textAlign:"left",padding:9,borderBottom:"1px solid #DCE8F1",color:"#60758A"}}>{x}</th>)}</tr></thead><tbody>{users.filter(u=>[u.email,u.display_name,u.user_id].some(v=>String(v??"").toLowerCase().includes(searchFilter.toLowerCase()))).map(u=><tr key={u.user_id}><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.display_name??u.user_id.slice(0,8)}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.email??"—"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.role==="owner"?"Owner":"Seller / user"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.pilot?.status??"Not activated"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.pilot?u.pilot.daily_limit+"/day":"—"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.created_at?fmt(u.created_at):"—"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.last_sign_in_at?fmt(u.last_sign_in_at):"Never"}</td></tr>)}</tbody></table></div>
+        <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:760}}><thead><tr>{["User","Email","Account type","Pilot status","Allowance","Approval","Registered","Last sign-in"].map(x=><th key={x} style={{textAlign:"left",padding:9,borderBottom:"1px solid #DCE8F1",color:"#60758A"}}>{x}</th>)}</tr></thead><tbody>{users.filter(u=>[u.email,u.display_name,u.user_id].some(v=>String(v??"").toLowerCase().includes(searchFilter.toLowerCase()))).map(u=><tr key={u.user_id}><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.display_name??u.user_id.slice(0,8)}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.email??"—"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.role==="owner"?"Owner":"Seller / user"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.pilot?.status??"Not activated"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.pilot?u.pilot.daily_limit+"/day":"—"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.role==="owner"?"Owner exempt":u.pilot?.status==="active"&&new Date(u.pilot.ends_at)>new Date()?"Approved":<button disabled={busy||!u.email} style={primary} onClick={()=>u.email&&run("activate_seller_pilot",{email:u.email,daily_limit:15,pilot_label:""},"Approved "+u.email+" for 15 searches/day.")}>Approve · 15/day</button>}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.created_at?fmt(u.created_at):"—"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2F6"}}>{u.last_sign_in_at?fmt(u.last_sign_in_at):"Never"}</td></tr>)}</tbody></table></div>
         {users.length===0&&<p style={small}>No registered accounts returned.</p>}
       </section>}
       {tab==="sellers"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:14,alignItems:"start"}}>
