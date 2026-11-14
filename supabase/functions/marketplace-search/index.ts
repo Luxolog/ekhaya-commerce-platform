@@ -8,7 +8,13 @@ const cors = {
 };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: cors });
-const validMarketplaces = ["takealot", "amazon", "makro"];
+const validMarketplaces = ["takealot"];
+const testingMarketplaces: Record<string, string> = {
+  amazon: "Amazon South Africa is in testing and is not available for live searches yet.",
+  makro: "Makro is in testing and is not available for live searches yet.",
+  bobshop: "Bob Shop is in testing and is not available for live searches yet.",
+  leroy_merlin: "Leroy Merlin is in testing and is not available for live searches yet.",
+};
 
 async function sha256(value: string) {
   const bytes = new TextEncoder().encode(value);
@@ -78,14 +84,14 @@ Deno.serve(async (req: Request) => {
 
   const marketplace = body.marketplace;
   const query = typeof body.query === "string" ? body.query.trim().slice(0, 160) : "";
-  if (!validMarketplaces.includes(marketplace ?? "") || query.length < 2) {
-    return json({ error: "Choose a supported marketplace and enter at least 2 search characters." }, 400);
+  if (query.length < 2) {
+    return json({ error: "Enter at least 2 search characters." }, 400);
   }
-  if (marketplace === "amazon" && !isOwner) {
-    return json({ error: "Amazon is temporarily unavailable while we complete provider testing and commercial licensing. Takealot remains available.", code: "MARKETPLACE_UNAVAILABLE" }, 501);
+  if (testingMarketplaces[marketplace ?? ""]) {
+    return json({ error: testingMarketplaces[marketplace ?? ""], code: "MARKETPLACE_TESTING", marketplace }, 501);
   }
-  if (marketplace === "makro") {
-    return json({ error: "Makro live product search is not connected yet. We are validating an authorised South African data source before enabling it.", code: "MARKETPLACE_UNAVAILABLE" }, 501);
+  if (!validMarketplaces.includes(marketplace ?? "")) {
+    return json({ error: "Choose a supported marketplace." }, 400);
   }
   if (body.force_refresh && !isOwner) return json({ error: "Only the Ekhaya owner can force a live cache refresh." }, 403);
 
