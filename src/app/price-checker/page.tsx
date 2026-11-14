@@ -160,6 +160,11 @@ export default function PriceCheckerPage() {
       }catch(e){errors.push("Takealot: "+(e instanceof Error?e.message:"Search failed"));setError(errors.join(" · "));}
       finally{done++;if(done===marketplaces.length)setLoading(false);}
     }));
+    try {
+      const headers=await getSupabaseHeaders();
+      const statusResponse=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{method:"POST",headers,body:JSON.stringify({action:"get_pilot_status"})});
+      if(statusResponse.ok){const status=await statusResponse.json();if(status.active)setPilotStatus(status);}
+    } catch {}
   }
   async function readPhoto(file?:File) {
     if(!file)return;
