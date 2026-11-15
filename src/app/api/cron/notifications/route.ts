@@ -104,13 +104,15 @@ async function sendSmtp(to: string, subject: string, textBody: string, htmlBody:
   const password = required("SMTP_PASSWORD");
   const fromName = process.env.EMAIL_FROM_NAME || "Ekhaya Price Checker";
   const socket = createConnection({ host, port, servername: host });
+  const greeting = readReply(socket);
   await new Promise<void>((resolve, reject) => {
     socket.once("secureConnect", resolve);
     socket.once("error", reject);
     socket.setTimeout(20000, () => reject(new Error("SMTP connection timed out")));
   });
   try {
-    await readReply(socket);
+    const greetingReply = await greeting;
+    if (!greetingReply.startsWith("220")) throw new Error(`SMTP greeting failed: ${greetingReply.trim()}`);
     await smtpCommand(socket, "EHLO ekhayatech.co.za", [250]);
     await smtpCommand(socket, "AUTH LOGIN", [334]);
     await smtpCommand(socket, Buffer.from(user).toString("base64"), [334]);
