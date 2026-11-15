@@ -36,7 +36,7 @@ export default async function DashboardPage() {
         <div className="workspace-switch"><Building2 size={17}/><span>{orgNames[0] ?? "Your workspace"}</span><span className="chevron">⌄</span></div>
         <nav className="nav-list">
           <a className="nav-item active" href="#"><LayoutDashboard size={18}/> Overview</a>
-          <a className="nav-item" href="#tickets"><Inbox size={18}/> Tickets <span className="nav-count">{openTickets ?? 0}</span></a>
+          <Link className="nav-item" href="/tickets"><Inbox size={18}/> Tickets <span className="nav-count">{openTickets ?? 0}</span></Link>
           <a className="nav-item" href="#inbox"><MessageSquare size={18}/> Unified inbox</a>
           <a className="nav-item" href="#customers"><Users size={18}/> Customers</a>
           <a className="nav-item" href="#channels"><Radio size={18}/> Channels</a>
@@ -56,7 +56,7 @@ export default async function DashboardPage() {
 
         <section className="welcome-row">
           <div><p className="eyebrow">{todayLabel}</p><h1>Good day. <span>Welcome back.</span></h1><p className="muted">Here’s what’s happening across your support workspaces.</p></div>
-          <button className="primary-button compact"><Plus size={16}/> Create ticket</button>
+          <Link href="/tickets?new=1" className="primary-button compact"><Plus size={16}/> Create ticket</Link>
         </section>
 
         <section className="stat-grid">
@@ -68,7 +68,7 @@ export default async function DashboardPage() {
 
         <section className="content-grid">
           <article className="panel ticket-panel" id="tickets">
-            <div className="panel-heading"><div><h2>Recent tickets</h2><p>Latest support requests from your teams</p></div><a href="#tickets">View all <ArrowUpRight size={15}/></a></div>
+            <div className="panel-heading"><div><h2>Recent tickets</h2><p>Latest support requests from your teams</p></div><Link href="/tickets">View all <ArrowUpRight size={15}/></Link></div>
             <div className="ticket-table">
               <div className="table-head"><span>Ticket</span><span>Workspace</span><span>Priority</span><span>Status</span></div>
               {(recentTickets ?? []).length === 0 ? <div className="empty-state"><div className="empty-icon"><Inbox size={22}/></div><b>No tickets yet</b><p>New support requests will appear here.</p></div> :
