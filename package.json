@@ -15,8 +15,7 @@
     "@capacitor/core": "^7.4.3",
     "next": "^15.3.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "nodemailer": "^7.0.10"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.3",
@@ -25,7 +24,6 @@
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "^15.3.0",
-    "typescript": "^5.8.0",
-    "@types/nodemailer": "^6.4.21"
+    "typescript": "^5.8.0"
   }
 }
