@@ -78,6 +78,10 @@ export default function AccountPage() {
       <p style={{color:"#079BD3",fontSize:10,fontWeight:800,letterSpacing:2}}>EKHAYA SELLER ACCESS</p>
       <h1 style={{fontSize:30,fontWeight:700,margin:"8px 0 10px"}}>{mode==="signup"?"Create your seller account":"Welcome back"}</h1>
       <p style={{color:"#60758A",fontSize:13,lineHeight:1.6}}>Your account keeps your monthly live marketplace search allowance separate from other sellers.</p>
+      <div role="note" style={{margin:"14px 0",padding:"13px 14px",background:"#EAF7FC",border:"1px solid #B9E3F3",borderRadius:9,color:"#174B65",fontSize:12,lineHeight:1.6}}>
+        <b style={{display:"block",marginBottom:4}}>Before you start</b>
+        After registering, confirm your email address using the verification email. Ekhaya will then review your marketplace Seller ID and approve your account. Live marketplace searches become available after your account is approved.
+      </div>
       {mode==="signup"&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Your full name (no links or promotions)" style={field}/>}
       {mode==="signup"&&<><label style={{display:"block",fontSize:12,fontWeight:700,marginTop:12}}>Marketplace you sell on<select value={sellerMarketplace} onChange={e=>setSellerMarketplace(e.target.value)} style={{...field,display:"block"}}><option value="takealot">Takealot</option><option value="amazon">Amazon South Africa</option><option value="makro">Makro</option><option value="bobshop">Bob Shop</option><option value="leroy_merlin">Leroy Merlin</option></select></label><input value={sellerId} onChange={e=>setSellerId(e.target.value)} placeholder="Marketplace Seller ID" style={field}/></>}
       <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address" style={field}/>
