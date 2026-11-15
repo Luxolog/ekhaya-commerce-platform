@@ -4,7 +4,7 @@ import Link from "next/link";
 const checkerPlans = [
   {name:"Starter",price:"R99",searches:"50 product comparisons / month",description:"For sellers getting started with regular product research."},
   {name:"Growth",price:"R149",searches:"100 product comparisons / month",description:"For active sellers comparing more products as their catalogue grows.",featured:true},
-  {name:"Pro",price:"R199",searches:"150–250 product comparisons / month",description:"For high-volume sellers who need a larger monthly comparison allowance."},
+  {name:"Pro",price:"R199",searches:"250 product comparisons / month",description:"For high-volume sellers who need a larger monthly comparison allowance."},
 ];
 
 const card = {background:"#fff",border:"1px solid #DCE8F1",borderRadius:16,padding:26};
