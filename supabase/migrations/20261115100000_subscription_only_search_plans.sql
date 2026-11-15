@@ -41,6 +41,16 @@ values
 on conflict (plan_code) do update set
  monthly_search_credits=excluded.monthly_search_credits,updated_at=now();
 
+-- The lifetime welcome-search counter is private and is accessed only by service-role RPCs.
+create table if not exists public.user_free_search_usage (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  searches_used integer not null default 0 check (searches_used >= 0 and searches_used <= 5),
+  updated_at timestamptz not null default now()
+);
+alter table public.user_free_search_usage enable row level security;
+revoke all on public.user_free_search_usage from anon, authenticated;
+grant all on public.user_free_search_usage to service_role;
+
 -- Queue balance emails only after a search is confirmed successful.
 create or replace function public.reserve_monthly_search_credit(
   p_user_id uuid, p_marketplace text, p_request_id uuid
