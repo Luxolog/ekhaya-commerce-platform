@@ -184,7 +184,7 @@ foreach ($pending as $item) {
             ? (string)$item['action_url'] : '';
         $greeting = 'Hi ' . $sellerName . ',';
         if (!preg_match('/^\\s*Hi\\s+/i', $message)) {
-            $message = $greeting . "\\n\\n" . $message;
+            $message = $greeting . "\n\n" . $message;
         }
         $safeTitle = htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $safeName = htmlspecialchars($sellerName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -206,7 +206,7 @@ foreach ($pending as $item) {
             . '</div>'
             . '<div style="padding:24px 54px;border-top:1px solid #dce6ef;background:#ffffff;color:#7188a3;font-size:13px;line-height:1.7">Ekhaya Price Checker · An Ekhaya Technologies Product<br><strong style="color:#10243b">Know the numbers before you invest.</strong><br>Buy smarter. Sell smarter. Grow with confidence.</div>'
             . '</div></div>';
-        $plain = $message . ($action ? "\\n\\n" . $action : '');
+        $plain = $message . ($action ? "\n\n" . $action : '');
         sendSmtp($config, $recipient, $title, $plain, $html);
         apiRequest($baseUrl . '/rest/v1/user_notifications?id=eq.' . rawurlencode($id), $headers, 'PATCH', [
             'email_status' => 'sent',
