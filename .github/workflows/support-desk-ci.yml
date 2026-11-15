@@ -11,6 +11,10 @@ on:
       - "apps/support-desk/**"
       - ".github/workflows/support-desk-ci.yml"
 
+concurrency:
+  group: support-desk-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
