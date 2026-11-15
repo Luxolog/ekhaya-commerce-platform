@@ -11,6 +11,7 @@ type OrgMembership = {
 };
 
 export default async function DashboardPage() {
+  const todayLabel = new Intl.DateTimeFormat("en-ZA", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date()).toUpperCase();
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
   if (!claims?.claims) redirect("/login");
@@ -54,7 +55,7 @@ export default async function DashboardPage() {
         </header>
 
         <section className="welcome-row">
-          <div><p className="eyebrow">SUNDAY, 15 NOVEMBER 2026</p><h1>Good day. <span>Welcome back.</span></h1><p className="muted">Here’s what’s happening across your support workspaces.</p></div>
+          <div><p className="eyebrow">{todayLabel}</p><h1>Good day. <span>Welcome back.</span></h1><p className="muted">Here’s what’s happening across your support workspaces.</p></div>
           <button className="primary-button compact"><Plus size={16}/> Create ticket</button>
         </section>
 
