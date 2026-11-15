@@ -40,10 +40,10 @@ jobs:
             git -C ../.. config user.name "github-actions[bot]"
             git -C ../.. config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git -C ../.. commit -m "Add Support Desk npm lockfile"
-            git -C ../.. push
+            git -C ../.. push origin "HEAD:${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
           fi
       - name: Install locked dependencies
-        run: npm ci --ignore-scripts --no-audit --no-fund --fetch-retries=1 --fetch-timeout=60000
+        run: npm ci --no-audit --no-fund --fetch-retries=1 --fetch-timeout=60000
       - name: Build Support Desk
         run: npm run build
         env:
