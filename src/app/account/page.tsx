@@ -9,7 +9,7 @@ const anonKey = "sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t";
 const passwordResetUrl = "https://ekhayatech.co.za/reset-password/";
 
 export default function AccountPage() {
-  const [mode,setMode] = useState<"signin"|"signup">("signup");
+  const [mode,setMode] = useState<"signin"|"signup">("signin");
   const [email,setEmail] = useState("");
   const [password,setPassword] = useState("");
   const [name,setName] = useState("");
@@ -30,7 +30,7 @@ export default function AccountPage() {
         const session={...data,expires_at:Date.now()+Number(data.expires_in??3600)*1000};
         localStorage.setItem("ekhaya_session",JSON.stringify(session));
         setSignedIn(true);
-        setMessage("You're signed in. You can now use marketplace searches.");
+        window.location.assign("/price-checker/");
       } else {
         setMessage("Account created. Your Seller ID has been submitted for verification. Confirm your email; Ekhaya must approve your account before searches are enabled.");
         setMode("signin");
@@ -77,14 +77,14 @@ export default function AccountPage() {
     <section style={{maxWidth:480,margin:"70px auto",background:"#fff",border:"1px solid #DCE8F1",borderRadius:14,padding:28,boxShadow:"0 8px 30px #071b3108"}}>
       <p style={{color:"#079BD3",fontSize:10,fontWeight:800,letterSpacing:2}}>EKHAYA SELLER ACCESS</p>
       <h1 style={{fontSize:30,fontWeight:700,margin:"8px 0 10px"}}>{mode==="signup"?"Create your seller account":"Welcome back"}</h1>
-      <p style={{color:"#60758A",fontSize:13,lineHeight:1.6}}>Your account keeps your monthly live marketplace search allowance separate from other sellers.</p>
+      <p style={{color:"#60758A",fontSize:13,lineHeight:1.6}}>Sign in to continue to the Price Checker. New to Ekhaya? Create a seller account in a few steps.</p>
       {mode==="signup"&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Your full name (no links or promotions)" style={field}/>}
       {mode==="signup"&&<><label style={{display:"block",fontSize:12,fontWeight:700,marginTop:12}}>Marketplace you sell on<select value={sellerMarketplace} onChange={e=>setSellerMarketplace(e.target.value)} style={{...field,display:"block"}}><option value="takealot">Takealot</option><option value="amazon">Amazon South Africa</option><option value="makro">Makro</option><option value="bobshop">Bob Shop</option><option value="leroy_merlin">Leroy Merlin</option></select></label><input value={sellerId} onChange={e=>setSellerId(e.target.value)} placeholder="Marketplace Seller ID" style={field}/></>}
       <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address" style={field}/>
       <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password (at least 8 characters)" style={field}/>
       <button onClick={submit} disabled={busy||!email||password.length<8||(mode==="signup"&&(!name.trim()||!sellerId.trim()))} style={{width:"100%",padding:14,background:"#079BD3",border:0,borderRadius:8,color:"#fff",fontWeight:700,marginTop:12,cursor:"pointer"}}>{busy?"Please wait…":mode==="signup"?"Create account":"Sign in"}</button>
       <button type="button" onClick={sendResetEmail} disabled={busy} style={{display:"block",position:"relative",zIndex:2,width:"100%",minHeight:44,padding:12,marginTop:4,background:"#fff",border:"1px solid #DCE8F1",borderRadius:8,color:"#079BD3",fontWeight:700,cursor:busy?"wait":"pointer",touchAction:"manipulation"}}>{busy?"Please wait…":"Forgot password?"}</button>
-      <button onClick={()=>{setMode(mode==="signup"?"signin":"signup");setMessage("");}} style={{width:"100%",padding:12,background:"transparent",border:0,color:"#079BD3",fontWeight:700,cursor:"pointer"}}>{mode==="signup"?"Already registered? Sign in":"New to Ekhaya? Create an account"}</button>
+      <button onClick={()=>{setMode(mode==="signup"?"signin":"signup");setMessage("");}} style={{width:"100%",padding:12,background:"transparent",border:0,color:"#079BD3",fontWeight:700,cursor:"pointer"}}>{mode==="signup"?"Already have an account? Sign in":"New to Ekhaya? Create an account"}</button>
       {signedIn&&<section style={{marginTop:18,paddingTop:16,borderTop:"1px solid #DCE8F1"}}>
         <h2 style={{fontSize:16}}>Add another marketplace Seller ID</h2>
         <p style={{fontSize:12,color:"#60758A",lineHeight:1.5}}>Submit one Seller ID for every marketplace you operate on. Each identity is reviewed separately.</p>
