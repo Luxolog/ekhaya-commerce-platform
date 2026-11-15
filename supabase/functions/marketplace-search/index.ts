@@ -59,21 +59,125 @@ Deno.serve(async (req: Request) => {
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
 
   if (body.action === "owner_list_users") {
-    if (!isOwner) return json({error:"Owner permission required."},403);
-    const [usersResponse,pilotResponse] = await Promise.all([
-      fetch(new URL("/auth/v1/admin/users?page=1&per_page=1000",supabaseUrl),{headers:adminHeaders}),
-      fetch(new URL("/rest/v1/seller_pilot_access?select=user_id,started_at,ends_at,status,daily_limit,pilot_label",supabaseUrl),{headers:adminHeaders})
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const [usersResponse, pilotResponse, profilesResponse] = await Promise.all([
+      fetch(new URL("/auth/v1/admin/users?page=1&per_page=1000", supabaseUrl), { headers: adminHeaders }),
+      fetch(new URL("/rest/v1/seller_pilot_access?select=user_id,started_at,ends_at,status,daily_limit,pilot_label", supabaseUrl), { headers: adminHeaders }),
+      fetch(new URL("/rest/v1/profiles?select=id,display_name,plan_code,account_status", supabaseUrl), { headers: adminHeaders })
     ]);
-    if(!usersResponse.ok || !pilotResponse.ok) return json({error:"Could not load registered users."},502);
-    const usersPayload=await usersResponse.json();
-    const users=Array.isArray(usersPayload)?usersPayload:usersPayload.users??[];
-    const pilots=await pilotResponse.json();
-    const pilotById=new Map(pilots.map((p:Record<string,unknown>)=>[p.user_id,p]));
-    return json({ok:true,users:users.map((u:Record<string,any>)=>{
-      const meta=u.user_metadata??{};
-      const app=u.app_metadata??{};
-      return {user_id:u.id,email:u.email??null,display_name:meta.display_name??meta.full_name??meta.name??null,created_at:u.created_at??null,last_sign_in_at:u.last_sign_in_at??null,email_confirmed_at:u.email_confirmed_at??null,role:app.role??(app.is_owner===true?"owner":"seller"),pilot:pilotById.get(u.id)??null};
-    })});
+    if (!usersResponse.ok || !pilotResponse.ok || !profilesResponse.ok) {
+      return json({ error: "Could not load registered users.", details: { auth: usersResponse.status, pilots: pilotResponse.status, profiles: profilesResponse.status } }, 502);
+    }
+    const usersPayload = await usersResponse.json();
+    const authUsers = Array.isArray(usersPayload) ? usersPayload : usersPayload.users ?? [];
+    const pilots = await pilotResponse.json();
+    const profiles = await profilesResponse.json();
+    const pilotById = new Map(pilots.map((p: Record<string, unknown>) => [p.user_id, p]));
+    const profileById = new Map(profiles.map((p: Record<string, unknown>) => [p.id, p]));
+    return json({ ok: true, users: authUsers.map((u: Record<string, any>) => {
+      const meta = u.user_metadata ?? {};
+      const app = u.app_metadata ?? {};
+      const profile = profileById.get(u.id) ?? {};
+      return {
+        user_id: u.id,
+        email: u.email ?? null,
+        display_name: profile.display_name ?? meta.display_name ?? meta.full_name ?? meta.name ?? null,
+        created_at: u.created_at ?? null,
+        last_sign_in_at: u.last_sign_in_at ?? null,
+        email_confirmed_at: u.email_confirmed_at ?? null,
+        role: app.role ?? (app.is_owner === true ? "owner" : "seller"),
+        account_status: profile.account_status ?? "pending",
+        plan_code: profile.plan_code ?? "free",
+        pilot: pilotById.get(u.id) ?? null
+      };
+    }) });
+  }
+  if (body.action === "owner_security_dashboard") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const [eventsResponse, identitiesResponse, domainsResponse] = await Promise.all([
+      fetch(new URL("/rest/v1/security_fraud_events?select=id,user_id,email,event_type,severity,risk_score,details,reviewed,created_at&order=created_at.desc&limit=200", supabaseUrl), { headers: adminHeaders }),
+      fetch(new URL("/rest/v1/marketplace_seller_identities?select=id,user_id,marketplace,seller_id,status,submitted_at,reviewed_at,review_note&order=submitted_at.desc&limit=200", supabaseUrl), { headers: adminHeaders }),
+      fetch(new URL("/rest/v1/security_blocked_email_domains?select=domain,reason,added_at,active&order=added_at.desc", supabaseUrl), { headers: adminHeaders })
+    ]);
+    if (!eventsResponse.ok || !identitiesResponse.ok || !domainsResponse.ok) {
+      return json({ error: "Could not load security dashboard.", details: { events: eventsResponse.status, identities: identitiesResponse.status, domains: domainsResponse.status } }, 502);
+    }
+    const [events, identities, blocked_domains] = await Promise.all([eventsResponse.json(), identitiesResponse.json(), domainsResponse.json()]);
+    return json({ ok: true, events, identities, blocked_domains });
+  }
+  if (body.action === "owner_set_user_status") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const targetId = typeof body.target_user_id === "string" ? body.target_user_id : "";
+    const nextStatus = String(body.status ?? "");
+    const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 500) : "";
+    if (!targetId || !["active", "suspended", "inactive", "pending"].includes(nextStatus) || reason.length < 5) {
+      return json({ error: "Choose a valid account status and provide a reason of at least five characters." }, 400);
+    }
+    if (targetId === userId) return json({ error: "You cannot change your own owner account status here." }, 403);
+    const authTarget = await fetch(new URL("/auth/v1/admin/users/" + encodeURIComponent(targetId), supabaseUrl), { headers: adminHeaders });
+    if (!authTarget.ok) return json({ error: "Registered account not found." }, 404);
+    const targetUser = await authTarget.json();
+    const targetApp = targetUser.app_metadata ?? {};
+    if (targetApp.role === "owner" || targetApp.is_owner === true) return json({ error: "Owner accounts cannot be changed from seller management." }, 403);
+    const previousResponse = await fetch(new URL("/rest/v1/profiles?id=eq." + encodeURIComponent(targetId) + "&select=account_status", supabaseUrl), { headers: adminHeaders });
+    if (!previousResponse.ok) return json({ error: "Could not read current account status." }, 502);
+    const previousRows = await previousResponse.json();
+    if (!previousRows?.[0]) return json({ error: "Seller profile not found." }, 404);
+    const previousStatus = previousRows[0].account_status;
+    const updateResponse = await fetch(new URL("/rest/v1/profiles?id=eq." + encodeURIComponent(targetId), supabaseUrl), {
+      method: "PATCH",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ account_status: nextStatus, updated_at: new Date().toISOString() })
+    });
+    if (!updateResponse.ok) return json({ error: "Could not update account status.", detail: await updateResponse.text() }, 500);
+    const eventResponse = await fetch(new URL("/rest/v1/user_status_events", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ target_user_id: targetId, actor_user_id: userId, previous_status: previousStatus, new_status: nextStatus, reason })
+    });
+    if (!eventResponse.ok) return json({ error: "Account status changed, but the audit event could not be recorded.", detail: await eventResponse.text() }, 500);
+    return json({ ok: true, user: (await updateResponse.json())[0] });
+  }
+  if (body.action === "owner_review_seller_identity") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const identityId = Number(body.identity_id);
+    const reviewStatus = String(body.status ?? "");
+    const note = typeof body.note === "string" ? body.note.trim().slice(0, 500) : "";
+    if (!Number.isSafeInteger(identityId) || identityId < 1 || !["verified", "rejected"].includes(reviewStatus)) return json({ error: "Invalid seller identity review." }, 400);
+    const review = await fetch(new URL("/rest/v1/rpc/owner_review_seller_identity", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_identity_id: identityId, p_status: reviewStatus, p_note: note, p_actor: userId })
+    });
+    if (!review.ok) return json({ error: "Could not review seller identity.", detail: await review.text() }, 500);
+    return json({ ok: true, identity: await review.json() });
+  }
+  if (body.action === "owner_mark_fraud_reviewed") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const eventId = Number(body.event_id);
+    if (!Number.isSafeInteger(eventId) || eventId < 1) return json({ error: "Invalid security event." }, 400);
+    const update = await fetch(new URL("/rest/v1/security_fraud_events?id=eq." + eventId, supabaseUrl), {
+      method: "PATCH",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ reviewed: true })
+    });
+    if (!update.ok) return json({ error: "Could not mark security event reviewed.", detail: await update.text() }, 500);
+    return json({ ok: true, event: (await update.json())[0] ?? null });
+  }
+  if (body.action === "owner_block_email_domain") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const domain = String(body.domain ?? "").trim().toLowerCase().replace(/^@/, "");
+    const reason = String(body.reason ?? "").trim().slice(0, 500);
+    if (!/^(?=.{3,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(domain) || reason.length < 5) {
+      return json({ error: "Enter a valid email domain and a reason of at least five characters." }, 400);
+    }
+    const saved = await fetch(new URL("/rest/v1/security_blocked_email_domains?on_conflict=domain", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=representation" },
+      body: JSON.stringify({ domain, reason, active: true })
+    });
+    if (!saved.ok) return json({ error: "Could not add email domain to blocklist.", detail: await saved.text() }, 500);
+    return json({ ok: true, domain: (await saved.json())[0] ?? null });
   }
   if (body.action === "owner_update_pilot") {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
@@ -123,6 +227,21 @@ Deno.serve(async (req: Request) => {
     }
     return json({ok:true,totals:{searches:activity.length,failures:activity.filter((x:Record<string,unknown>)=>x.result_status!=="success").length,feedback:feedback.length,open_feedback:feedback.filter((x:Record<string,unknown>)=>x.status==="open").length},by_seller:bySeller,popular_queries:Object.entries(popular).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([query,count])=>({query,count})),feedback,activity:activity.slice(0,200)});
   }
+  if (body.action === "owner_financial_analytics") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const paths = [
+      "/rest/v1/billing_plans?select=code,name,monthly_price,currency,is_active&order=display_order",
+      "/rest/v1/profiles?select=id,plan_code,account_status,created_at",
+      "/rest/v1/payment_transactions?select=user_id,amount,currency,status,payment_kind,paid_at,created_at&order=created_at.desc&limit=5000",
+      "/rest/v1/subscriptions?select=user_id,plan_code,status,current_period_start,current_period_end&order=created_at.desc&limit=5000",
+      "/rest/v1/api_usage_ledger?select=provider,action,marketplace,credits_charged,request_status,actor_id,created_at&order=created_at.desc&limit=10000"
+    ];
+    const responses = await Promise.all(paths.map(path => fetch(new URL(path, supabaseUrl), { headers: adminHeaders })));
+    const failed = responses.findIndex(response => !response.ok);
+    if (failed >= 0) return json({ error: "Could not load financial analytics.", source: paths[failed] }, 502);
+    const [plans, profiles, payments, subscriptions, apiUsage] = await Promise.all(responses.map(response => response.json()));
+    return json({ ok: true, plans, profiles, payments, subscriptions, api_usage: apiUsage, generated_at: new Date().toISOString() });
+  }
   if (body.action === "submit_pilot_feedback") {
     if (typeof body.message !== "string" || body.message.trim().length < 5 || body.message.trim().length > 2000) return json({error:"Feedback must be between 5 and 2,000 characters."},400);
     const category = ["bug","product_feedback","data_quality","other"].includes(String(body.category)) ? body.category : "other";
@@ -152,6 +271,45 @@ Deno.serve(async (req: Request) => {
     const usageRows = await usageResponse.json();
     const used = Number(usageRows?.[0]?.searches_used ?? 0);
     return json({ active: true, ...access, usage_date: usageDate, searches_used: used, remaining: Math.max(0, Number(access.daily_limit)-used) });
+  }
+  if (body.action === "get_search_status") {
+    const profileResponse = await fetch(new URL("/rest/v1/profiles?id=eq." + encodeURIComponent(userId) + "&select=plan_code,account_status", supabaseUrl), { headers: adminHeaders });
+    if (!profileResponse.ok) return json({ error: "Could not load your search allowance." }, 502);
+    const profile = (await profileResponse.json())?.[0];
+    if (!profile || profile.account_status !== "active") return json({ error: "Your seller account is not active." }, 403);
+    const planCode = String(profile.plan_code ?? "free");
+    const periodStart = new Date().toISOString().slice(0, 7) + "-01";
+    let used = 0;
+    let limit = 5;
+    let planName = "Free";
+    let periodLabel = "welcome searches";
+    let nextPlan: Record<string, unknown> | null = null;
+    if (planCode === "free") {
+      const usageResponse = await fetch(new URL("/rest/v1/user_free_search_usage?user_id=eq." + encodeURIComponent(userId) + "&select=searches_used", supabaseUrl), { headers: adminHeaders });
+      if (!usageResponse.ok) return json({ error: "Could not load your free search balance." }, 502);
+      used = Number((await usageResponse.json())?.[0]?.searches_used ?? 0);
+      const nextResponse = await fetch(new URL("/rest/v1/billing_plans?is_active=eq.true&order=display_order.asc&limit=1&select=name,monthly_price", supabaseUrl), { headers: adminHeaders });
+      if (nextResponse.ok) nextPlan = (await nextResponse.json())?.[0] ?? null;
+    } else {
+      const [allowanceResponse, usageResponse, planResponse] = await Promise.all([
+        fetch(new URL("/rest/v1/plan_search_allowances?plan_code=eq." + encodeURIComponent(planCode) + "&select=monthly_search_credits", supabaseUrl), { headers: adminHeaders }),
+        fetch(new URL("/rest/v1/user_monthly_search_usage?user_id=eq." + encodeURIComponent(userId) + "&period_start=eq." + periodStart + "&select=searches_used", supabaseUrl), { headers: adminHeaders }),
+        fetch(new URL("/rest/v1/billing_plans?code=eq." + encodeURIComponent(planCode) + "&select=name,display_order", supabaseUrl), { headers: adminHeaders }),
+      ]);
+      if (!allowanceResponse.ok || !usageResponse.ok || !planResponse.ok) return json({ error: "Could not load your monthly search balance." }, 502);
+      limit = Number((await allowanceResponse.json())?.[0]?.monthly_search_credits ?? 0);
+      used = Number((await usageResponse.json())?.[0]?.searches_used ?? 0);
+      const plan = (await planResponse.json())?.[0] ?? null;
+      planName = String(plan?.name ?? planCode);
+      periodLabel = "this month";
+      if (plan) {
+        const nextResponse = await fetch(new URL("/rest/v1/billing_plans?is_active=eq.true&display_order=gt." + Number(plan.display_order) + "&order=display_order.asc&limit=1&select=name,monthly_price", supabaseUrl), { headers: adminHeaders });
+        if (nextResponse.ok) nextPlan = (await nextResponse.json())?.[0] ?? null;
+      }
+    }
+    return json({ ok: true, plan_code: planCode, plan_name: planName, searches_used: used, search_limit: limit,
+      remaining: Math.max(0, limit - used), period_label: periodLabel,
+      upgrade_plan: nextPlan?.name ?? null, upgrade_price: nextPlan?.monthly_price ?? null });
   }
   if (body.action === "activate_seller_pilot") {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
@@ -268,12 +426,46 @@ Deno.serve(async (req: Request) => {
     const settings = settingsRows?.[0] ?? { refresh_enabled: true, cache_ttl_minutes: 360 };
     const fresh = cache && new Date(cache.expires_at) > new Date();
     if (cache && !body.force_refresh && (fresh || settings.refresh_enabled === false)) {
-      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:(cache.source_payload?.products??[]).length,result_status:"success",source:fresh?"cache":"stale-cache"})});
+      const cachedProducts = Array.isArray(cache.source_payload?.products) ? cache.source_payload.products : [];
+      let cachedRequestId = "";
+      let cachedCredit: Record<string, any> | null = null;
+      if (!isOwner && !pilotCharged) {
+        cachedRequestId = body.request_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.request_id)
+          ? body.request_id : crypto.randomUUID();
+        const cachedReservation = await fetch(new URL("/rest/v1/rpc/reserve_monthly_search_credit", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_request_id: cachedRequestId, p_marketplace: marketplace }),
+        });
+        cachedCredit = cachedReservation.ok ? await cachedReservation.json() : null;
+        if (!cachedReservation.ok || cachedCredit?.allowed !== true) {
+          const reason = cachedCredit?.reason ?? "CREDIT_RESERVATION_FAILED";
+          const message = reason === "MONTHLY_SEARCH_LIMIT"
+            ? "You have used all your monthly searches. Upgrade your plan to continue."
+            : reason === "FREE_SEARCH_LIMIT"
+            ? "You have used all your free searches. Choose a subscription plan to continue."
+            : "Your account or plan is not enabled for searches.";
+          return json({ error: message, code: reason, usage: cachedCredit }, 402);
+        }
+        if (cachedCredit.charged === true) {
+          const rpcName = cachedProducts.length > 0 ? "complete_monthly_search_credit" : "refund_monthly_search_credit";
+          await fetch(new URL("/rest/v1/rpc/" + rpcName, supabaseUrl), {
+            method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ p_user_id: userId, p_request_id: cachedRequestId, p_marketplace: marketplace }),
+          });
+        }
+      }
+      if (!isOwner && pilotCharged && cachedProducts.length === 0) {
+        await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }),
+        });
+        pilotCharged = false;
+      }
+      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:cachedProducts.length,result_status:cachedProducts.length>0?"success":"no_results",source:fresh?"cache":"stale-cache"})});
       return json({
         source: fresh ? "cache" : "stale-cache",
-        marketplace,
-        fetched_at: cache.fetched_at,
-        products: cache.source_payload?.products ?? [],
+        marketplace, fetched_at: cache.fetched_at, products: cachedProducts,
+        no_results: cachedProducts.length === 0, credit_charged: cachedProducts.length > 0 && !isOwner,
         refresh_paused: !fresh,
       });
     }
@@ -305,7 +497,12 @@ Deno.serve(async (req: Request) => {
       const reservation = reserve.ok ? await reserve.json() : null;
       if (!reserve.ok || reservation?.allowed !== true) {
         const reason = reservation?.reason ?? "CREDIT_RESERVATION_FAILED";
-        return json({ error: reason === "MONTHLY_SEARCH_LIMIT" ? "You have used all your monthly marketplace search credits." : "Your account or plan is not enabled for live searches.", code: reason, usage: reservation }, 402);
+        const message = reason === "MONTHLY_SEARCH_LIMIT"
+          ? "You have used all your monthly marketplace search credits."
+          : reason === "FREE_SEARCH_LIMIT"
+          ? "You have used all five free searches. Choose a subscription plan to continue."
+          : "Your account or plan is not enabled for live searches.";
+        return json({ error: message, code: reason, usage: reservation }, 402);
       }
       if (reservation.duplicate) {
         return json({ error: "This search request has already been processed. Please start a new search.", code: "DUPLICATE_REQUEST" }, 409);
@@ -404,10 +601,35 @@ Deno.serve(async (req: Request) => {
       });
       if (!cacheWrite.ok) throw new Error("Marketplace data was found but could not be saved to shared cache.");
 
+      if (products.length === 0) {
+        if (charged) {
+          await fetch(new URL("/rest/v1/rpc/refund_monthly_search_credit", supabaseUrl), {
+            method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
+          });
+        }
+        if (pilotCharged) {
+          await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
+            method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }),
+          });
+          pilotCharged = false;
+        }
+        await fetch(new URL("/rest/v1/api_usage_ledger", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+          body: JSON.stringify({ provider: providerName, action: "search", marketplace, lookup_key: `search:${lookupKey}`,
+            credits_charged: Number(payload.meta?.charged_credits ?? 0), request_status: "no_results",
+            response_count: 0, request_id: payload.meta?.request_id ?? null, actor_id: null }),
+        });
+        if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {
+          method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},
+          body:JSON.stringify({user_id:userId,marketplace,query,result_count:0,result_status:"no_results",source:"live"})
+        });
+        return json({ source: "live", marketplace, fetched_at: now.toISOString(), products: [], no_results: true, credit_charged: false });
+      }
       if (charged) {
         await fetch(new URL("/rest/v1/rpc/complete_monthly_search_credit", supabaseUrl), {
-          method: "POST",
-          headers: { ...adminHeaders, "Content-Type": "application/json" },
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
           body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
         });
       }
@@ -424,7 +646,14 @@ Deno.serve(async (req: Request) => {
       return json({ source: "live", marketplace, fetched_at: now.toISOString(), products, provider_meta: payload.meta ?? null, credit_charged: charged });
     } catch (error) {
       if (marketplace === "takealot" && cache && Array.isArray(cache.source_payload?.products) && cache.source_payload.products.length > 0) {
-        return json({ source: "stale-cache", marketplace, fetched_at: cache.fetched_at, products: cache.source_payload.products, refresh_paused: false, warning: "Live Takealot refresh failed; showing the last successfully cached results instead." });
+        if (charged) {
+          await fetch(new URL("/rest/v1/rpc/complete_monthly_search_credit", supabaseUrl), {
+            method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
+          });
+        }
+        return json({ source: "stale-cache", marketplace, fetched_at: cache.fetched_at, products: cache.source_payload.products,
+          refresh_paused: false, credit_charged: !isOwner, warning: "Live Takealot refresh failed; showing the last successfully cached results instead." });
       }
       if (pilotCharged) {
         await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
