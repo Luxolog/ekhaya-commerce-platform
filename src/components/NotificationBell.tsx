@@ -68,7 +68,7 @@ export default function NotificationBell() {
     <button type="button" onClick={() => { setOpen(value => !value); if (!open) void load(); }}
       aria-label={unread ? unread + " unread notifications" : "Notifications"}
       style={{ position: "relative", border: "1px solid #DCE8F1", borderRadius: 9, background: "#fff", color: "#071B31", padding: "9px 12px", cursor: "pointer", fontWeight: 700 }}>
-      ♧ Notifications
+      🔔 Notifications
       {unread > 0 && <span style={{ marginLeft: 7, display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 19, height: 19, borderRadius: 20, background: "#D33B36", color: "#fff", fontSize: 11 }}>{unread > 99 ? "99+" : unread}</span>}
     </button>
     {open && <section style={{ position: "absolute", zIndex: 50, right: 0, top: "calc(100% + 8px)", width: "min(360px, calc(100vw - 32px))", maxHeight: 440, overflowY: "auto", background: "#fff", border: "1px solid #DCE8F1", borderRadius: 12, boxShadow: "0 12px 36px #071b3120", padding: 14, color: "#071B31" }}>
