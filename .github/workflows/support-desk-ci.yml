@@ -9,8 +9,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: support-desk-pr-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: support-desk-run-${{ github.run_id }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -38,7 +38,7 @@ jobs:
             git -C ../.. config user.name "github-actions[bot]"
             git -C ../.. config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git -C ../.. commit -m "Add Support Desk npm lockfile"
-            git -C ../.. push origin "HEAD:${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+            git -C ../.. push origin "HEAD:${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}" || echo "Lockfile generated locally; GitHub token could not push it automatically."
           fi
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund --fetch-retries=1 --fetch-timeout=60000
