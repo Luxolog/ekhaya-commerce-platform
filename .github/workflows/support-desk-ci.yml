@@ -1,0 +1,31 @@
+name: Support Desk CI
+
+on:
+  push:
+    branches: [support-desk-foundation]
+    paths:
+      - "apps/support-desk/**"
+      - ".github/workflows/support-desk-ci.yml"
+  pull_request:
+    paths:
+      - "apps/support-desk/**"
+      - ".github/workflows/support-desk-ci.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/support-desk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/support-desk/package-lock.json
+      - run: npm install
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_build_placeholder
