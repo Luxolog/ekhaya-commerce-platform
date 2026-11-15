@@ -22,6 +22,7 @@ export default function OwnerPilotPage(){
   const [email,setEmail]=useState(""); const [limit,setLimit]=useState("15"); const [label,setLabel]=useState("");
   const [status,setStatus]=useState("Sign in with the Ekhaya owner account to manage the seller pilot.");
   const [sellers,setSellers]=useState<Seller[]>([]); const [users,setUsers]=useState<PortalUser[]>([]); const [analytics,setAnalytics]=useState<Analytics|null>(null);
+  const [usersLoadError,setUsersLoadError]=useState(""); const [usersLoading,setUsersLoading]=useState(false);
   const [busy,setBusy]=useState(false); const [tab,setTab]=useState("overview");
   const [installPrompt,setInstallPrompt]=useState<any>(null); const [installed,setInstalled]=useState(false);
   const [feedbackCategory,setFeedbackCategory]=useState("product_feedback"); const [feedbackRating,setFeedbackRating]=useState("5"); const [feedbackMessage,setFeedbackMessage]=useState("");
@@ -65,10 +66,19 @@ export default function OwnerPilotPage(){
     const data=await response.json().catch(()=>({})); if(!response.ok)throw new Error(data.error??"Request failed."); return data;
   }
   async function refresh(){
+    setUsersLoading(true);
     const results=await Promise.allSettled([call("list_seller_pilots"),call("owner_pilot_analytics"),call("owner_list_users"),call("owner_security_dashboard"),call("owner_financial_analytics")]);
     if(results[0].status==="fulfilled")setSellers(results[0].value.sellers??[]);
     if(results[1].status==="fulfilled")setAnalytics(results[1].value);
-    if(results[2].status==="fulfilled")setUsers(results[2].value.users??[]);
+    if(results[2].status==="fulfilled"){
+      const rows=Array.isArray(results[2].value.users)?results[2].value.users:[];
+      setUsers(rows);
+      setUsersLoadError("");
+    } else {
+      const reason=results[2].reason;
+      setUsersLoadError(reason instanceof Error?reason.message:"The registered-user directory could not be loaded.");
+    }
+    setUsersLoading(false);
     if(results[3].status==="fulfilled")setSecurity(results[3].value);
     if(results[4].status==="fulfilled")setFinancial(results[4].value);
     const failed=results.find(x=>x.status==="rejected") as PromiseRejectedResult|undefined;
@@ -133,7 +143,7 @@ export default function OwnerPilotPage(){
       {tab==="users"&&<section style={card}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <div><h2 style={{fontSize:18,margin:"0 0 4px"}}>All registered accounts</h2><p style={small}>Every Supabase account is listed, including pending, inactive and suspended users. Only approved active accounts can search.</p></div>
-          <b>{users.length} total accounts</b>
+          <b>{usersLoading?"Loading accounts…":usersLoadError?"Directory unavailable":users.length+" total accounts"}</b>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(115px,1fr))",gap:8,marginTop:14}}>
           {(["pending","active","inactive","suspended"] as const).map(s=><button key={s} onClick={()=>setStatusFilter(statusFilter===s?"all":s)} style={{...button,textAlign:"left",borderColor:statusFilter===s?"#079BD3":"#DCE8F1",background:statusFilter===s?"#EAF7FC":"#fff"}}><div style={{fontSize:11,color:"#60758A",textTransform:"capitalize"}}>{s}</div><div style={{fontSize:22,fontWeight:800}}>{users.filter(u=>u.role!=="owner"&&u.account_status===s).length}</div></button>)}
@@ -161,7 +171,7 @@ export default function OwnerPilotPage(){
             </td>
           </tr>)}</tbody>
         </table></div>
-        {users.filter(u=>(statusFilter==="all"||u.account_status===statusFilter)&&(u.role==="owner"||[u.email,u.display_name,u.user_id].some(v=>String(v??"").toLowerCase().includes(searchFilter.toLowerCase())))).length===0&&<p style={small}>No accounts match this filter.</p>}
+        {usersLoadError?<p role="alert" style={{...small,color:"#B42318",marginTop:14}}>Could not load registered accounts: {usersLoadError}. Use Refresh dashboard to retry. The table is not showing an empty directory as if no users exist.</p>:usersLoading&&users.length===0?<p style={small}>Loading registered accounts from Supabase…</p>:users.filter(u=>(statusFilter==="all"||u.account_status===statusFilter)&&(u.role==="owner"||[u.email,u.display_name,u.user_id].some(v=>String(v??"").toLowerCase().includes(searchFilter.toLowerCase())))).length===0&&<p style={small}>No accounts match this filter.</p>}
       </section>}
       {tab==="sellers"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:14,alignItems:"start"}}>
         <section style={card}><h2 style={{fontSize:18,marginTop:0}}>Activate a seller</h2><p style={small}>The 10-day countdown starts only when you activate a registered account.</p>
