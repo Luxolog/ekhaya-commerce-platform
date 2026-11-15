@@ -5,9 +5,7 @@ import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 
 const fundingPartners = [
-  { icon: "↗", title: "Business funding", detail: "Connect with financial institutions and funding organisations offering business loans, stock finance and working capital." },
-  { icon: "＋", title: "Business finance", detail: "Explore financial support providers offering funding solutions to eligible entrepreneurs, online sellers and SMEs." },
-  { icon: "◎", title: "Growth capital", detail: "Discover organisations that may help qualifying businesses access capital to support expansion and growth." },
+  { icon: "↗", title: "Business funding providers", detail: "Financial institutions and funding companies offering business loans, stock finance, working capital and growth capital to eligible businesses." },
 ];
 
 const card = { background: "#fff", border: "1px solid #DCE8F1", borderRadius: 14, padding: 24, boxShadow: "0 8px 26px rgba(7,27,49,.035)" };
