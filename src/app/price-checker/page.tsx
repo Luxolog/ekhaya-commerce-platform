@@ -42,6 +42,8 @@ export default function PriceCheckerPage() {
   const [sellerDelivery,setSellerDelivery]=useState("0");
   const [products,setProducts]=useState<MarketplaceProduct[]>([]);
   const [pilotStatus,setPilotStatus]=useState<{active:boolean;searches_used?:number;daily_limit?:number;remaining?:number;ends_at?:string}|null>(null);
+  const [searchStatus,setSearchStatus]=useState<{plan_name:string;plan_code:string;searches_used:number;search_limit:number;remaining:number;period_label:string;upgrade_plan?:string|null;upgrade_price?:number|null}|null>(null);
+  const [limitReached,setLimitReached]=useState(false);
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
   const [source,setSource]=useState("");
@@ -125,6 +127,9 @@ export default function PriceCheckerPage() {
           method:"POST",headers:{apikey:"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t",Authorization:"Bearer "+session.access_token,"Content-Type":"application/json"},
           body:JSON.stringify({action:"get_pilot_status"})
         }).then(r=>r.ok?r.json():null).then(data=>{if(!cancelled&&data?.active)setPilotStatus(data);}).catch(()=>{});
+        getSupabaseHeaders().then(headers=>fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{
+          method:"POST",headers,body:JSON.stringify({action:"get_search_status"})
+        })).then(r=>r.ok?r.json():null).then(data=>{if(!cancelled&&data?.ok)setSearchStatus(data);}).catch(()=>{});
       }
     } catch {}
     return ()=>{cancelled=true;};
@@ -134,7 +139,7 @@ export default function PriceCheckerPage() {
     if(mode==="barcode"&&!barcodeProduct){setError("Identify the barcode first.");return;}
     if(productQuery.length<2){setError("Enter at least 2 characters to search.");return;}
     if(!marketplaces.length){setError("Choose at least one marketplace.");return;}
-    setLoading(true);setError("");setProducts([]);setSource("");
+    setLoading(true);setError("");setProducts([]);setSource("");setLimitReached(false);
     const errors:string[]=[]; let done=0;
     await Promise.all(marketplaces.map(async marketplace=>{
       try{
@@ -151,7 +156,7 @@ export default function PriceCheckerPage() {
           });
         }
         const payload=await response.json().catch(()=>({}));
-        if(!response.ok)throw new Error(payload.error??"Search failed");
+        if(!response.ok){if(payload.code==="MONTHLY_SEARCH_LIMIT"||payload.code==="FREE_SEARCH_LIMIT"){setLimitReached(true);setSearchStatus(old=>old?{...old,remaining:0}:old);}throw new Error(payload.error??"Search failed");}
         window.clearTimeout(timer);
         const incoming=(payload.products??[]).map((p:MarketplaceProduct)=>({...p,marketplace}));
         const spec=incoming.find((p:MarketplaceProduct)=>p.weight_grams||p.length_cm||p.width_cm||p.height_cm);
@@ -165,6 +170,8 @@ export default function PriceCheckerPage() {
       const headers=await getSupabaseHeaders();
       const statusResponse=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{method:"POST",headers,body:JSON.stringify({action:"get_pilot_status"})});
       if(statusResponse.ok){const status=await statusResponse.json();if(status.active)setPilotStatus(status);}
+      const planStatusResponse=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{method:"POST",headers,body:JSON.stringify({action:"get_search_status"})});
+      if(planStatusResponse.ok){const planStatus=await planStatusResponse.json();if(planStatus.ok)setSearchStatus(planStatus);}
     } catch {}
   }
   async function readPhoto(file?:File) {
@@ -199,7 +206,8 @@ export default function PriceCheckerPage() {
     <SiteHeader active="price-checker" />
     <div style={{maxWidth:1100,margin:"0 auto 14px",display:"flex",justifyContent:"flex-end"}}><NotificationBell /></div>
     <section className="hero"><p className="eyebrow">SELL SMARTER. PRICE WITH CONFIDENCE.</p><h1>Know your numbers<br/><em>before you buy.</em></h1><p>Find a product, enter your buying price and compare estimated profit after marketplace fulfilment fees.</p></section>
-    {pilotStatus?.active&&<div style={{maxWidth:1100,margin:"0 auto 18px",padding:"14px 16px",border:"1px solid #CFE7DC",borderRadius:10,background:"#F1FAF6",color:"#175C43",fontSize:13,display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}><strong>YOUR SELLER ALLOWANCE · TAKEALOT</strong><span><b>{pilotStatus.remaining} searches remaining</b> today · {pilotStatus.searches_used??0} successful searches used of {pilotStatus.daily_limit} · resets at midnight South African time · pilot ends {pilotStatus.ends_at?new Date(pilotStatus.ends_at).toLocaleDateString("en-ZA",{timeZone:"Africa/Johannesburg"}):"soon"}</span></div>}
+    {pilotStatus?.active?<div style={{maxWidth:1100,margin:"0 auto 18px",padding:"14px 16px",border:"1px solid #CFE7DC",borderRadius:10,background:"#F1FAF6",color:"#175C43",fontSize:13,display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}><strong>YOUR SELLER ALLOWANCE · TAKEALOT</strong><span><b>{pilotStatus.remaining} searches remaining</b> today · {pilotStatus.searches_used??0} successful searches used of {pilotStatus.daily_limit} · resets at midnight South African time · pilot ends {pilotStatus.ends_at?new Date(pilotStatus.ends_at).toLocaleDateString("en-ZA",{timeZone:"Africa/Johannesburg"}):"soon"}</span></div>:searchStatus&&<div style={{maxWidth:1100,margin:"0 auto 18px",padding:"14px 16px",border:"1px solid #DCE8F1",borderRadius:10,background:"#fff",color:"#071B31",fontSize:13,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}><span><strong>{searchStatus.plan_name} plan</strong> · {searchStatus.remaining} of {searchStatus.search_limit} searches remaining {searchStatus.period_label}</span>{searchStatus.remaining===0&&<Link href="/pricing/#price-checker-plans" style={{padding:"9px 14px",background:"#079BD3",color:"#fff",borderRadius:7,textDecoration:"none",fontWeight:800}}>UPGRADE PLAN →</Link>}</div>}
+    {limitReached&&<div role="alert" style={{maxWidth:1100,margin:"0 auto 18px",padding:"16px",border:"1px solid #F0D7A5",borderRadius:10,background:"#FFF9ED",color:"#684A12",fontSize:13}}><strong>You’ve used all your searches.</strong><p style={{margin:"6px 0 10px"}}>Upgrade your plan to continue using Ekhaya Price Checker.</p><Link href="/pricing/#price-checker-plans" style={{display:"inline-block",padding:"9px 14px",background:"#079BD3",color:"#fff",borderRadius:7,textDecoration:"none",fontWeight:800}}>VIEW PLANS →</Link></div>}
     <section className="panel">
       <div className="heading"><div><small>01 / FIND A PRODUCT</small><h2>How would you like to search?</h2></div><span className="connected">● MARKETPLACE DATA</span></div>
       <div className="modes">{(["barcode","photo","name"] as Mode[]).map(m=><button key={m} className={mode===m?"active":""} onClick={()=>{setMode(m);setError("");}}>{m==="barcode"?"▦ Scan barcode":m==="photo"?"▧ Take a picture":"⌕ Search by name"}</button>)}</div>
