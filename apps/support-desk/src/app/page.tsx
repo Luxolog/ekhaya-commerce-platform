@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { Inbox, Users, MessageSquare, Building2, ArrowUpRight, Clock3, CircleCheck, AlertCircle, Plus, Search, Settings, Headphones, LayoutDashboard, Radio, CreditCard } from "lucide-react";
+import { Inbox, Users, MessageSquare, Building2, ArrowUpRight, Clock3, CircleCheck, AlertCircle, Plus, Search, Settings, LayoutDashboard, Radio, CreditCard } from "lucide-react";
+
+export const dynamic = "force-dynamic";
 
 type OrgMembership = {
   role: string;
