@@ -12,20 +12,38 @@ concurrency:
   group: support-desk-pr-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: apps/support-desk
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund --fetch-retries=1 --fetch-timeout=60000
+          cache: npm
+          cache-dependency-path: apps/support-desk/package-lock.json
+      - name: Generate lockfile when missing
+        shell: bash
+        run: |
+          if [ ! -f package-lock.json ]; then
+            npm install --package-lock-only --ignore-scripts --no-audit --no-fund --fetch-retries=1 --fetch-timeout=60000
+            git add package-lock.json
+            git -C ../.. config user.name "github-actions[bot]"
+            git -C ../.. config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git -C ../.. commit -m "Add Support Desk npm lockfile"
+            git -C ../.. push
+          fi
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund --fetch-retries=1 --fetch-timeout=60000
       - name: Build Support Desk
         run: npm run build
         env:
