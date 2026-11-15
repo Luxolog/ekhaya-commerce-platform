@@ -1,45 +1,9 @@
--- Subscription-only Price Checker plans and successful-result billing.
--- Existing seller records are preserved; this migration does not modify subscriptions or payments.
-
-alter table public.billing_plans drop constraint if exists billing_plans_code_check;
-alter table public.billing_plans add constraint billing_plans_code_check
-  check (code in ('starter','growth','pro','business','beginner'));
-
-alter table public.subscriptions drop constraint if exists subscriptions_plan_code_check;
-alter table public.subscriptions add constraint subscriptions_plan_code_check
-  check (plan_code in ('beginner','starter','growth','pro','business'));
-
-alter table public.profiles drop constraint if exists profiles_plan_code_check;
-alter table public.profiles add constraint profiles_plan_code_check
-  check (plan_code in ('free','beginner','starter','growth','pro','business'));
-
-alter table public.plan_search_allowances drop constraint if exists plan_search_allowances_plan_code_check;
-alter table public.plan_search_allowances add constraint plan_search_allowances_plan_code_check
-  check (plan_code in ('free','beginner','starter','growth','pro','business'));
-
-insert into public.billing_plans(code,name,intro_price,monthly_price,currency,is_active,display_order)
-values ('beginner','Beginner',0,49,'ZAR',true,1)
-on conflict (code) do update set name=excluded.name,intro_price=excluded.intro_price,
-  monthly_price=excluded.monthly_price,currency=excluded.currency,is_active=excluded.is_active,
-  display_order=excluded.display_order,updated_at=now();
-
-update public.billing_plans set name='Starter',monthly_price=99,is_active=true,display_order=2,updated_at=now()
-where code='starter';
-update public.billing_plans set name='Growth',monthly_price=149,is_active=true,display_order=3,updated_at=now()
-where code='growth';
-update public.billing_plans set name='Pro',monthly_price=199,is_active=true,display_order=4,updated_at=now()
-where code='pro';
-update public.billing_plans set is_active=false,updated_at=now() where code='business';
-
-insert into public.plan_search_allowances(plan_code,monthly_search_credits)
-values
- ('beginner',16),
- ('starter',45),
- ('growth',75),
- ('pro',120),
- ('business',350)
-on conflict (plan_code) do update set
- monthly_search_credits=excluded.monthly_search_credits,updated_at=now();
+-- Subscription-only Price Checker search billing.
+-- Preserve the existing plan prices, subscription rows, and plan codes.
+update public.plan_search_allowances set monthly_search_credits=50,updated_at=now() where plan_code='starter';
+update public.plan_search_allowances set monthly_search_credits=100,updated_at=now() where plan_code='growth';
+update public.plan_search_allowances set monthly_search_credits=250,updated_at=now() where plan_code='pro';
+update public.plan_search_allowances set monthly_search_credits=350,updated_at=now() where plan_code='business';
 
 -- The lifetime welcome-search counter is private and is accessed only by service-role RPCs.
 create table if not exists public.user_free_search_usage (
