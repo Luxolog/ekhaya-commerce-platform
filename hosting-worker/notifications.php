@@ -133,8 +133,24 @@ if ($userStatus < 200 || $userStatus >= 300 || !is_array($userPayload)) {
 }
 $users = isset($userPayload['users']) ? $userPayload['users'] : $userPayload;
 $emailById = [];
+$nameById = [];
 foreach ($users as $user) {
-    if (!empty($user['id']) && !empty($user['email'])) $emailById[$user['id']] = $user['email'];
+    if (empty($user['id'])) continue;
+    $uid = (string)$user['id'];
+    if (!empty($user['email'])) $emailById[$uid] = $user['email'];
+    $meta = $user['user_metadata'] ?? [];
+    $nameById[$uid] = trim((string)($meta['display_name'] ?? $meta['full_name'] ?? $meta['name'] ?? ''));
+}
+[$profileStatus, $profiles, $profileRaw] = apiRequest(
+    $baseUrl . '/rest/v1/profiles?select=id,display_name',
+    $headers
+);
+if ($profileStatus >= 200 && $profileStatus < 300 && is_array($profiles)) {
+    foreach ($profiles as $profile) {
+        if (!empty($profile['id']) && !empty($profile['display_name'])) {
+            $nameById[(string)$profile['id']] = trim((string)$profile['display_name']);
+        }
+    }
 }
 
 $sent = 0;
@@ -162,28 +178,35 @@ foreach ($pending as $item) {
     try {
         $title = (string)$item['title'];
         $message = (string)$item['message'];
+        $sellerName = $nameById[(string)$item['user_id']] ?? '';
+        if ($sellerName === '') $sellerName = 'there';
         $action = isset($item['action_url']) && preg_match('#^https://#i', (string)$item['action_url'])
             ? (string)$item['action_url'] : '';
+        $greeting = 'Hi ' . $sellerName . ',';
+        if (!preg_match('/^\\s*Hi\\s+/i', $message)) {
+            $message = $greeting . "\\n\\n" . $message;
+        }
         $safeTitle = htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $safeName = htmlspecialchars($sellerName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $safeMessage = nl2br(htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'));
         $safeAction = $action ? htmlspecialchars($action, ENT_QUOTES, 'UTF-8') : '';
-        $html = '<div style="margin:0;padding:32px 12px;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:#142b45">'
-            . '<div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e5ebf2;border-radius:14px;overflow:hidden">'
-            . '<div style="padding:24px 30px;background:#102b46;color:#ffffff">'
-            . '<div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#a9dff1">EKHAYA TECHNOLOGIES</div>'
-            . '<div style="font-size:22px;font-weight:700;margin-top:8px">Ekhaya Price Checker</div>'
+        $sectionLabel = 'EKHAYA PRICE CHECKER';
+        $html = '<div style="margin:0;padding:0;background:#f3f7fb;font-family:Arial,Helvetica,sans-serif;color:#10243b">'
+            . '<div style="max-width:900px;margin:0 auto;background:#ffffff;border-left:1px solid #dce6ef;border-right:1px solid #dce6ef">'
+            . '<div style="padding:27px 54px 30px;border-bottom:1px solid #dce6ef;background:#ffffff">'
+            . '<div style="font-size:22px;line-height:1.3;letter-spacing:2px;font-weight:800;color:#10243b"><span style="color:#079bd3">EKHAYA</span> TECHNOLOGIES</div>'
+            . '<div style="margin-top:8px;font-size:14px;letter-spacing:2px;color:#7188a3">DIGITAL SOLUTIONS · BUILT AROUND YOU</div>'
             . '</div>'
-            . '<div style="padding:30px">'
-            . '<h2 style="font-size:22px;line-height:1.3;margin:0 0 18px;color:#102b46">' . $safeTitle . '</h2>'
-            . '<div style="font-size:15px;line-height:1.75;color:#34465b">' . $safeMessage . '</div>'
-            . ($safeAction ? '<p style="margin:28px 0 8px"><a href="' . $safeAction . '" style="display:inline-block;background:#079bd3;color:#ffffff;padding:13px 21px;text-decoration:none;border-radius:7px;font-weight:700">Open Ekhaya Price Checker</a></p>' : '')
+            . '<div style="padding:52px 54px 48px">'
+            . '<div style="font-size:16px;letter-spacing:3px;font-weight:700;color:#079bd3;text-transform:uppercase;margin-bottom:22px">' . $sectionLabel . '</div>'
+            . '<h1 style="font-size:42px;line-height:1.15;font-weight:700;color:#10243b;margin:0 0 22px">' . $safeTitle . '</h1>'
+            . '<div style="font-size:18px;line-height:1.8;color:#536b84">' . $safeMessage . '</div>'
+            . ($safeAction ? '<p style="margin:42px 0 38px"><a href="' . $safeAction . '" style="display:inline-block;background:#079bd3;color:#ffffff;padding:23px 38px;text-decoration:none;border-radius:12px;font-size:18px;font-weight:700">Open Ekhaya Price Checker</a></p>' : '')
+            . '<div style="margin-top:42px;font-size:15px;line-height:1.8;color:#7188a3">For your security, do not share private account links or payment information with anyone.</div>'
             . '</div>'
-            . '<div style="padding:20px 30px;background:#f8fafc;border-top:1px solid #e8eef4;color:#64748b;font-size:12px;line-height:1.6">'
-            . '<strong style="color:#102b46">Know the numbers before you invest.</strong><br>'
-            . 'Buy smarter. Sell smarter. Grow with confidence.<br>'
-            . 'An Ekhaya Technologies Product'
-            . '</div></div></div>';
-        $plain = $title . "\n\n" . $message . ($action ? "\n\n" . $action : '');
+            . '<div style="padding:24px 54px;border-top:1px solid #dce6ef;background:#ffffff;color:#7188a3;font-size:13px;line-height:1.7">Ekhaya Price Checker · An Ekhaya Technologies Product<br><strong style="color:#10243b">Know the numbers before you invest.</strong><br>Buy smarter. Sell smarter. Grow with confidence.</div>'
+            . '</div></div>';
+        $plain = $message . ($action ? "\\n\\n" . $action : '');
         sendSmtp($config, $recipient, $title, $plain, $html);
         apiRequest($baseUrl . '/rest/v1/user_notifications?id=eq.' . rawurlencode($id), $headers, 'PATCH', [
             'email_status' => 'sent',
