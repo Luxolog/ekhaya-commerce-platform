@@ -164,11 +164,25 @@ foreach ($pending as $item) {
         $message = (string)$item['message'];
         $action = isset($item['action_url']) && preg_match('#^https://#i', (string)$item['action_url'])
             ? (string)$item['action_url'] : '';
-        $html = '<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#10253b">'
-            . '<h2>' . htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</h2>'
-            . '<p style="line-height:1.6">' . nl2br(htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) . '</p>'
-            . ($action ? '<p><a href="' . htmlspecialchars($action, ENT_QUOTES, 'UTF-8') . '" style="background:#079bd3;color:#fff;padding:12px 18px;text-decoration:none;border-radius:7px">View in Ekhaya Price Checker</a></p>' : '')
-            . '<p style="font-size:12px;color:#718096">Ekhaya Tech · Ekhaya Price Checker</p></div>';
+        $safeTitle = htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $safeMessage = nl2br(htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'));
+        $safeAction = $action ? htmlspecialchars($action, ENT_QUOTES, 'UTF-8') : '';
+        $html = '<div style="margin:0;padding:32px 12px;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:#142b45">'
+            . '<div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e5ebf2;border-radius:14px;overflow:hidden">'
+            . '<div style="padding:24px 30px;background:#102b46;color:#ffffff">'
+            . '<div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#a9dff1">EKHAYA TECHNOLOGIES</div>'
+            . '<div style="font-size:22px;font-weight:700;margin-top:8px">Ekhaya Price Checker</div>'
+            . '</div>'
+            . '<div style="padding:30px">'
+            . '<h2 style="font-size:22px;line-height:1.3;margin:0 0 18px;color:#102b46">' . $safeTitle . '</h2>'
+            . '<div style="font-size:15px;line-height:1.75;color:#34465b">' . $safeMessage . '</div>'
+            . ($safeAction ? '<p style="margin:28px 0 8px"><a href="' . $safeAction . '" style="display:inline-block;background:#079bd3;color:#ffffff;padding:13px 21px;text-decoration:none;border-radius:7px;font-weight:700">Open Ekhaya Price Checker</a></p>' : '')
+            . '</div>'
+            . '<div style="padding:20px 30px;background:#f8fafc;border-top:1px solid #e8eef4;color:#64748b;font-size:12px;line-height:1.6">'
+            . '<strong style="color:#102b46">Know the numbers before you invest.</strong><br>'
+            . 'Buy smarter. Sell smarter. Grow with confidence.<br>'
+            . 'An Ekhaya Technologies Product'
+            . '</div></div></div>';
         $plain = $title . "\n\n" . $message . ($action ? "\n\n" . $action : '');
         sendSmtp($config, $recipient, $title, $plain, $html);
         apiRequest($baseUrl . '/rest/v1/user_notifications?id=eq.' . rawurlencode($id), $headers, 'PATCH', [
