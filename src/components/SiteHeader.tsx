@@ -7,6 +7,7 @@ const links = [
   { href: "/pricing/", label: "PLANS & PRICING", key: "pricing" },
   { href: "/marketplaces/", label: "MARKETPLACE CONNECTIONS", key: "marketplaces" },
   { href: "/price-checker/", label: "PRICE CHECKER", key: "price-checker" },
+  { href: "/business-growth-network/", label: "FUNDING PARTNERS · COMING SOON", key: "business-growth-network" },
   { href: "/download/", label: "DOWNLOAD APP", key: "download" },
   { href: "/account/", label: "MY ACCOUNT", key: "account" },
 ];
