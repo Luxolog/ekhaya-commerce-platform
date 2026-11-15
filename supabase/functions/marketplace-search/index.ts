@@ -59,21 +59,125 @@ Deno.serve(async (req: Request) => {
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
 
   if (body.action === "owner_list_users") {
-    if (!isOwner) return json({error:"Owner permission required."},403);
-    const [usersResponse,pilotResponse] = await Promise.all([
-      fetch(new URL("/auth/v1/admin/users?page=1&per_page=1000",supabaseUrl),{headers:adminHeaders}),
-      fetch(new URL("/rest/v1/seller_pilot_access?select=user_id,started_at,ends_at,status,daily_limit,pilot_label",supabaseUrl),{headers:adminHeaders})
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const [usersResponse, pilotResponse, profilesResponse] = await Promise.all([
+      fetch(new URL("/auth/v1/admin/users?page=1&per_page=1000", supabaseUrl), { headers: adminHeaders }),
+      fetch(new URL("/rest/v1/seller_pilot_access?select=user_id,started_at,ends_at,status,daily_limit,pilot_label", supabaseUrl), { headers: adminHeaders }),
+      fetch(new URL("/rest/v1/profiles?select=id,display_name,plan_code,account_status", supabaseUrl), { headers: adminHeaders })
     ]);
-    if(!usersResponse.ok || !pilotResponse.ok) return json({error:"Could not load registered users."},502);
-    const usersPayload=await usersResponse.json();
-    const users=Array.isArray(usersPayload)?usersPayload:usersPayload.users??[];
-    const pilots=await pilotResponse.json();
-    const pilotById=new Map(pilots.map((p:Record<string,unknown>)=>[p.user_id,p]));
-    return json({ok:true,users:users.map((u:Record<string,any>)=>{
-      const meta=u.user_metadata??{};
-      const app=u.app_metadata??{};
-      return {user_id:u.id,email:u.email??null,display_name:meta.display_name??meta.full_name??meta.name??null,created_at:u.created_at??null,last_sign_in_at:u.last_sign_in_at??null,email_confirmed_at:u.email_confirmed_at??null,role:app.role??(app.is_owner===true?"owner":"seller"),pilot:pilotById.get(u.id)??null};
-    })});
+    if (!usersResponse.ok || !pilotResponse.ok || !profilesResponse.ok) {
+      return json({ error: "Could not load registered users.", details: { auth: usersResponse.status, pilots: pilotResponse.status, profiles: profilesResponse.status } }, 502);
+    }
+    const usersPayload = await usersResponse.json();
+    const authUsers = Array.isArray(usersPayload) ? usersPayload : usersPayload.users ?? [];
+    const pilots = await pilotResponse.json();
+    const profiles = await profilesResponse.json();
+    const pilotById = new Map(pilots.map((p: Record<string, unknown>) => [p.user_id, p]));
+    const profileById = new Map(profiles.map((p: Record<string, unknown>) => [p.id, p]));
+    return json({ ok: true, users: authUsers.map((u: Record<string, any>) => {
+      const meta = u.user_metadata ?? {};
+      const app = u.app_metadata ?? {};
+      const profile = profileById.get(u.id) ?? {};
+      return {
+        user_id: u.id,
+        email: u.email ?? null,
+        display_name: profile.display_name ?? meta.display_name ?? meta.full_name ?? meta.name ?? null,
+        created_at: u.created_at ?? null,
+        last_sign_in_at: u.last_sign_in_at ?? null,
+        email_confirmed_at: u.email_confirmed_at ?? null,
+        role: app.role ?? (app.is_owner === true ? "owner" : "seller"),
+        account_status: profile.account_status ?? "pending",
+        plan_code: profile.plan_code ?? "free",
+        pilot: pilotById.get(u.id) ?? null
+      };
+    }) });
+  }
+  if (body.action === "owner_security_dashboard") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const [eventsResponse, identitiesResponse, domainsResponse] = await Promise.all([
+      fetch(new URL("/rest/v1/security_fraud_events?select=id,user_id,email,event_type,severity,risk_score,details,reviewed,created_at&order=created_at.desc&limit=200", supabaseUrl), { headers: adminHeaders }),
+      fetch(new URL("/rest/v1/marketplace_seller_identities?select=id,user_id,marketplace,seller_id,status,submitted_at,reviewed_at,review_note&order=submitted_at.desc&limit=200", supabaseUrl), { headers: adminHeaders }),
+      fetch(new URL("/rest/v1/security_blocked_email_domains?select=domain,reason,added_at,active&order=added_at.desc", supabaseUrl), { headers: adminHeaders })
+    ]);
+    if (!eventsResponse.ok || !identitiesResponse.ok || !domainsResponse.ok) {
+      return json({ error: "Could not load security dashboard.", details: { events: eventsResponse.status, identities: identitiesResponse.status, domains: domainsResponse.status } }, 502);
+    }
+    const [events, identities, blocked_domains] = await Promise.all([eventsResponse.json(), identitiesResponse.json(), domainsResponse.json()]);
+    return json({ ok: true, events, identities, blocked_domains });
+  }
+  if (body.action === "owner_set_user_status") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const targetId = typeof body.target_user_id === "string" ? body.target_user_id : "";
+    const nextStatus = String(body.status ?? "");
+    const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 500) : "";
+    if (!targetId || !["active", "suspended", "inactive", "pending"].includes(nextStatus) || reason.length < 5) {
+      return json({ error: "Choose a valid account status and provide a reason of at least five characters." }, 400);
+    }
+    if (targetId === userId) return json({ error: "You cannot change your own owner account status here." }, 403);
+    const authTarget = await fetch(new URL("/auth/v1/admin/users/" + encodeURIComponent(targetId), supabaseUrl), { headers: adminHeaders });
+    if (!authTarget.ok) return json({ error: "Registered account not found." }, 404);
+    const targetUser = await authTarget.json();
+    const targetApp = targetUser.app_metadata ?? {};
+    if (targetApp.role === "owner" || targetApp.is_owner === true) return json({ error: "Owner accounts cannot be changed from seller management." }, 403);
+    const previousResponse = await fetch(new URL("/rest/v1/profiles?id=eq." + encodeURIComponent(targetId) + "&select=account_status", supabaseUrl), { headers: adminHeaders });
+    if (!previousResponse.ok) return json({ error: "Could not read current account status." }, 502);
+    const previousRows = await previousResponse.json();
+    if (!previousRows?.[0]) return json({ error: "Seller profile not found." }, 404);
+    const previousStatus = previousRows[0].account_status;
+    const updateResponse = await fetch(new URL("/rest/v1/profiles?id=eq." + encodeURIComponent(targetId), supabaseUrl), {
+      method: "PATCH",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ account_status: nextStatus, updated_at: new Date().toISOString() })
+    });
+    if (!updateResponse.ok) return json({ error: "Could not update account status.", detail: await updateResponse.text() }, 500);
+    const eventResponse = await fetch(new URL("/rest/v1/user_status_events", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ target_user_id: targetId, actor_user_id: userId, previous_status: previousStatus, new_status: nextStatus, reason })
+    });
+    if (!eventResponse.ok) return json({ error: "Account status changed, but the audit event could not be recorded.", detail: await eventResponse.text() }, 500);
+    return json({ ok: true, user: (await updateResponse.json())[0] });
+  }
+  if (body.action === "owner_review_seller_identity") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const identityId = Number(body.identity_id);
+    const reviewStatus = String(body.status ?? "");
+    const note = typeof body.note === "string" ? body.note.trim().slice(0, 500) : "";
+    if (!Number.isSafeInteger(identityId) || identityId < 1 || !["verified", "rejected"].includes(reviewStatus)) return json({ error: "Invalid seller identity review." }, 400);
+    const review = await fetch(new URL("/rest/v1/rpc/owner_review_seller_identity", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_identity_id: identityId, p_status: reviewStatus, p_note: note, p_actor: userId })
+    });
+    if (!review.ok) return json({ error: "Could not review seller identity.", detail: await review.text() }, 500);
+    return json({ ok: true, identity: await review.json() });
+  }
+  if (body.action === "owner_mark_fraud_reviewed") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const eventId = Number(body.event_id);
+    if (!Number.isSafeInteger(eventId) || eventId < 1) return json({ error: "Invalid security event." }, 400);
+    const update = await fetch(new URL("/rest/v1/security_fraud_events?id=eq." + eventId, supabaseUrl), {
+      method: "PATCH",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ reviewed: true })
+    });
+    if (!update.ok) return json({ error: "Could not mark security event reviewed.", detail: await update.text() }, 500);
+    return json({ ok: true, event: (await update.json())[0] ?? null });
+  }
+  if (body.action === "owner_block_email_domain") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const domain = String(body.domain ?? "").trim().toLowerCase().replace(/^@/, "");
+    const reason = String(body.reason ?? "").trim().slice(0, 500);
+    if (!/^(?=.{3,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(domain) || reason.length < 5) {
+      return json({ error: "Enter a valid email domain and a reason of at least five characters." }, 400);
+    }
+    const saved = await fetch(new URL("/rest/v1/security_blocked_email_domains?on_conflict=domain", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=representation" },
+      body: JSON.stringify({ domain, reason, active: true })
+    });
+    if (!saved.ok) return json({ error: "Could not add email domain to blocklist.", detail: await saved.text() }, 500);
+    return json({ ok: true, domain: (await saved.json())[0] ?? null });
   }
   if (body.action === "owner_update_pilot") {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
