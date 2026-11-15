@@ -4,7 +4,7 @@ import Link from "next/link";
 const checkerPlans = [
   {name:"Starter",price:"R99",searches:"50 product comparisons / month",description:"For sellers getting started with regular product research."},
   {name:"Growth",price:"R149",searches:"100 product comparisons / month",description:"For active sellers comparing more products as their catalogue grows.",featured:true},
-  {name:"Pro",price:"R199",searches:"150–250 product comparisons / month",description:"For high-volume sellers who need a larger monthly comparison allowance."},
+  {name:"Pro",price:"R199",searches:"250 product comparisons / month",description:"For high-volume sellers who need a larger monthly comparison allowance."},
 ];
 
 const card = {background:"#fff",border:"1px solid #DCE8F1",borderRadius:16,padding:26};
@@ -22,7 +22,7 @@ export default function PricingPage() {
     <section id="price-checker-plans" style={{maxWidth:1120,margin:"54px auto 0",scrollMarginTop:24}}>
       <p style={{color:"#079BD3",fontSize:11,fontWeight:800,letterSpacing:2}}>EKHAYA PRICE CHECKER</p>
       <h2 style={{fontFamily:"Manrope,sans-serif",fontSize:"clamp(30px,4vw,44px)",letterSpacing:"-.04em",margin:"10px 0"}}>Price Checker plans & pricing</h2>
-      <p style={{...muted,fontSize:15,maxWidth:800}}>Choose a monthly search allowance that suits your business. Each successful product comparison uses one search from that seller’s own allowance. Failed searches do not use a search credit. Takealot is the first live marketplace; other marketplace connections will be enabled when ready.</p>
+      <p style={{...muted,fontSize:15,maxWidth:800}}>Choose a monthly search allowance that suits your business. Each successful product search uses one search from your monthly allowance, including searches served from our shared cache. Searches with no product results do not use a search. Takealot is the first live marketplace; other marketplace connections will be enabled when ready.</p>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,230px),1fr))",gap:18,marginTop:28}}>
         {checkerPlans.map(plan=><article key={plan.name} style={{...card,border:plan.featured?"2px solid #079BD3":"1px solid #DCE8F1",position:"relative"}}>
           {plan.featured&&<span style={{display:"inline-block",fontSize:10,fontWeight:800,letterSpacing:1,color:"#079BD3",marginBottom:8}}>POPULAR PLAN</span>}
@@ -38,7 +38,7 @@ export default function PricingPage() {
           <a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Price%20Checker%20Custom%20Plan" style={{display:"inline-block",marginTop:12,color:"#fff",fontWeight:800,fontSize:12}}>REQUEST A CUSTOM PLAN →</a>
         </article>
       </div>
-      <p style={{...muted,fontSize:12,marginTop:14}}>New accounts may receive 5 welcome searches once per account. Search allowances apply per seller account and are not shared between sellers.</p>
+      <p style={{...muted,fontSize:12,marginTop:14}}>New accounts receive 5 welcome searches once per account. Monthly plan allowances reset each billing month. When your searches are used, you can upgrade to continue. Search allowances apply per seller account and are not shared between sellers.</p>
       <Link href="/account/" style={{display:"inline-block",marginTop:8,padding:"13px 19px",background:"#079BD3",color:"#fff",borderRadius:8,textDecoration:"none",fontWeight:800,fontSize:12}}>CREATE SELLER ACCOUNT →</Link>
     </section>
 
