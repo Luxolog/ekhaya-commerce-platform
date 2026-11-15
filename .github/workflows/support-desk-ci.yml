@@ -1,18 +1,15 @@
 name: Support Desk CI
 
 on:
-  push:
-    branches: [support-desk-foundation]
-    paths:
-      - "apps/support-desk/**"
-      - ".github/workflows/support-desk-ci.yml"
   pull_request:
+    types: [opened, synchronize, reopened]
     paths:
       - "apps/support-desk/**"
       - ".github/workflows/support-desk-ci.yml"
+  workflow_dispatch:
 
 concurrency:
-  group: support-desk-${{ github.ref }}
+  group: support-desk-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
