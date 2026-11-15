@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 
@@ -14,13 +17,12 @@ const card = { background: "#fff", border: "1px solid #DCE8F1", borderRadius: 14
 const muted = { color: "#60758A", fontSize: 14, lineHeight: 1.75 };
 
 export default function BusinessGrowthNetworkPage() {
+  const [comingSoon, setComingSoon] = useState<string | null>(null);
+
   return (
     <main style={{ minHeight: "100vh", padding: "28px clamp(20px, 6vw, 88px) 72px", background: "#F4F8FC", color: "#071B31" }}>
       <SiteHeader active="business-growth-network" />
       <section style={{ maxWidth: 1080, margin: "0 auto", padding: "clamp(58px, 9vw, 100px) 0 42px" }}>
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 9, border: "1px solid #F0D7A5", background: "#FFF8E9", color: "#805817", borderRadius: 30, padding: "9px 14px", fontSize: 10, fontWeight: 800, letterSpacing: ".12em" }}>
-          <span aria-hidden="true">●</span> FUNDING PARTNERS PROGRAMME · COMING SOON
-        </div>
         <p style={{ color: "#079BD3", fontSize: 11, fontWeight: 800, letterSpacing: ".17em", marginTop: 28 }}>GROWING TOGETHER</p>
         <h1 style={{ fontFamily: "Manrope, sans-serif", fontSize: "clamp(38px, 6vw, 68px)", lineHeight: 1.06, letterSpacing: "-.05em", margin: "14px 0 20px", maxWidth: 900 }}>Ekhaya Business Growth Network</h1>
         <p style={{ ...muted, fontSize: "clamp(16px, 2vw, 19px)", maxWidth: 820 }}>A growing ecosystem of services and opportunities for South African businesses.</p>
@@ -33,11 +35,12 @@ export default function BusinessGrowthNetworkPage() {
           <h2 style={{ fontFamily: "Manrope, sans-serif", fontSize: "clamp(27px, 4vw, 40px)", letterSpacing: "-.035em", margin: "9px 0 0" }}>Business support, connected.</h2>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 285px), 1fr))", gap: 16 }}>
-          {services.map((service) => <article key={service.title} style={card}>
+          {services.map((service) => <button key={service.title} type="button" onClick={() => setComingSoon(service.title)} aria-label={`${service.title} - coming soon`} style={{ ...card, textAlign: "left", width: "100%", cursor: "pointer", font: "inherit", color: "inherit", transition: "transform .18s ease, box-shadow .18s ease" }}>
             <div style={{ width: 42, height: 42, display: "grid", placeItems: "center", borderRadius: 10, background: "#E4F5FB", color: "#0786B7", fontSize: 22, fontWeight: 700 }}>{service.icon}</div>
             <h3 style={{ fontFamily: "Manrope, sans-serif", fontSize: 20, margin: "18px 0 7px" }}>{service.title}</h3>
             <p style={{ ...muted, margin: 0 }}>{service.detail}</p>
-          </article>)}
+            {comingSoon === service.title && <p role="status" style={{ color: "#0786B7", fontSize: 12, fontWeight: 800, margin: "14px 0 0" }}>COMING SOON</p>}
+          </button>)}
         </div>
       </section>
 
