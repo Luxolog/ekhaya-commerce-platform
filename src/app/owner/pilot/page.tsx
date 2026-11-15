@@ -69,7 +69,8 @@ export default function OwnerPilotPage(){
     if(results[0].status==="fulfilled")setSellers(results[0].value.sellers??[]);
     if(results[1].status==="fulfilled")setAnalytics(results[1].value);
     if(results[2].status==="fulfilled")setUsers(results[2].value.users??[]);
-    if(results[3].status==="fulfilled")setSecurity(results[3].value);\n    if(results[4].status==="fulfilled")setFinancial(results[4].value);
+    if(results[3].status==="fulfilled")setSecurity(results[3].value);
+    if(results[4].status==="fulfilled")setFinancial(results[4].value);
     const failed=results.find(x=>x.status==="rejected") as PromiseRejectedResult|undefined;
     if(failed)setStatus(failed.reason instanceof Error?failed.reason.message:"Some dashboard data could not be refreshed.");
     else setStatus("Dashboard updated · "+new Date().toLocaleTimeString("en-ZA"));
