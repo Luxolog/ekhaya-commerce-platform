@@ -5,6 +5,10 @@ alter table public.billing_plans drop constraint if exists billing_plans_code_ch
 alter table public.billing_plans add constraint billing_plans_code_check
   check (code in ('starter','growth','pro','business','beginner'));
 
+alter table public.subscriptions drop constraint if exists subscriptions_plan_code_check;
+alter table public.subscriptions add constraint subscriptions_plan_code_check
+  check (plan_code in ('beginner','starter','growth','pro','business'));
+
 alter table public.profiles drop constraint if exists profiles_plan_code_check;
 alter table public.profiles add constraint profiles_plan_code_check
   check (plan_code in ('free','beginner','starter','growth','pro','business'));
