@@ -1,14 +1,32 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-const cors = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Content-Type": "application/json",
+const allowedOrigins = new Set([
+  "https://ekhayatech.co.za",
+  "https://www.ekhayatech.co.za",
+  "https://pricechecker.ekhayatech.co.za",
+  "capacitor://localhost",
+  "https://localhost",
+  "http://localhost:3000",
+]);
+const corsHeaders = (origin: string | null) => {
+  const headers = new Headers({
+    "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Content-Type": "application/json",
+    "Vary": "Origin",
+  });
+  if (origin && allowedOrigins.has(origin)) headers.set("Access-Control-Allow-Origin", origin);
+  return headers;
 };
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: cors });
-const validMarketplaces = ["takealot", "amazon", "makro"];
+const json = (body: unknown, status = 200, origin: string | null = null) =>
+  new Response(JSON.stringify(body), { status, headers: corsHeaders(origin) });
+const validMarketplaces = ["takealot"];
+const testingMarketplaces: Record<string, string> = {
+  amazon: "Amazon South Africa is in testing and is not available for live searches yet.",
+  makro: "Makro is in testing and is not available for live searches yet.",
+  bobshop: "Bob Shop is in testing and is not available for live searches yet.",
+  leroy_merlin: "Leroy Merlin is in testing and is not available for live searches yet.",
+};
 
 async function sha256(value: string) {
   const bytes = new TextEncoder().encode(value);
@@ -17,19 +35,21 @@ async function sha256(value: string) {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  const respond = (body: unknown, status = 200) => json(body, status, req.headers.get("origin"));
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req.headers.get("origin")) });
+  if (req.method !== "POST") return respond({ error: "Method not allowed" }, 405);
 
   const reefKey = Deno.env.get("REEFAPI_KEY");
+  const steadyApiKey = Deno.env.get("STEADYAPI_KEY");
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!reefKey || !supabaseUrl || !serviceKey) {
-    return json({ error: "Server configuration incomplete" }, 503);
+  if (!supabaseUrl || !serviceKey) {
+    return respond({ error: "Server configuration incomplete" }, 503);
   }
   const authorization = req.headers.get("authorization") ?? "";
   const accessToken = authorization.replace(/^Bearer\s+/i, "");
   if (!accessToken || accessToken === authorization) {
-    return json({ error: "Sign in to search marketplace listings.", code: "AUTH_REQUIRED" }, 401);
+    return respond({ error: "Sign in to search marketplace listings.", code: "AUTH_REQUIRED" }, 401);
   }
 
   const adminHeaders = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
@@ -38,30 +58,329 @@ Deno.serve(async (req: Request) => {
     const userResponse = await fetch(new URL("/auth/v1/user", supabaseUrl), {
       headers: { apikey: serviceKey, Authorization: `Bearer ${accessToken}` },
     });
-    if (!userResponse.ok) return json({ error: "Your session is invalid or expired. Please sign in again.", code: "INVALID_SESSION" }, 401);
+    if (!userResponse.ok) return respond({ error: "Your session is invalid or expired. Please sign in again.", code: "INVALID_SESSION" }, 401);
     user = await userResponse.json();
   } catch {
-    return json({ error: "Could not verify your seller session." }, 503);
+    return respond({ error: "Could not verify your seller session." }, 503);
   }
   const userId = typeof user.id === "string" ? user.id : "";
-  if (!userId) return json({ error: "Authentication required." }, 401);
+  if (!userId) return respond({ error: "Authentication required." }, 401);
   const appMetadata = (user.app_metadata ?? {}) as Record<string, unknown>;
   const isOwner = appMetadata.role === "owner" || appMetadata.is_owner === true;
 
-  let body: { page?: number; user_id?: string; password?: string; marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean };
-  try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
+  let body: { marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean; [key: string]: unknown };
+  try { body = await req.json(); } catch { return respond({ error: "Valid JSON required" }, 400); }
 
+  if (body.action === "owner_list_users") {
+    if (!isOwner) return respond({ error: "Owner permission required." }, 403);
+    const [usersResponse, pilotResponse, profilesResponse] = await Promise.all([
+      fetch(new URL("/auth/v1/admin/users?page=1&per_page=1000", supabaseUrl), { headers: adminHeaders }),
+      fetch(new URL("/rest/v1/seller_pilot_access?select=user_id,started_at,ends_at,status,daily_limit,pilot_label", supabaseUrl), { headers: adminHeaders }),
+      fetch(new URL("/rest/v1/profiles?select=id,display_name,plan_code,account_status", supabaseUrl), { headers: adminHeaders })
+    ]);
+    if (!usersResponse.ok || !pilotResponse.ok || !profilesResponse.ok) {
+      return respond({ error: "Could not load registered users.", details: { auth: usersResponse.status, pilots: pilotResponse.status, profiles: profilesResponse.status } }, 502);
+    }
+    const usersPayload = await usersResponse.json();
+    const authUsers = Array.isArray(usersPayload) ? usersPayload : usersPayload.users ?? [];
+    const pilots = await pilotResponse.json();
+    const profiles = await profilesResponse.json();
+    const pilotById = new Map(pilots.map((p: Record<string, unknown>) => [p.user_id, p]));
+    const profileById = new Map(profiles.map((p: Record<string, unknown>) => [p.id, p]));
+    return respond({ ok: true, users: authUsers.map((u: Record<string, any>) => {
+      const meta = u.user_metadata ?? {};
+      const app = u.app_metadata ?? {};
+      const profile = profileById.get(u.id) ?? {};
+      return {
+        user_id: u.id,
+        email: u.email ?? null,
+        display_name: profile.display_name ?? meta.display_name ?? meta.full_name ?? meta.name ?? null,
+        created_at: u.created_at ?? null,
+        last_sign_in_at: u.last_sign_in_at ?? null,
+        email_confirmed_at: u.email_confirmed_at ?? null,
+        role: app.role ?? (app.is_owner === true ? "owner" : "seller"),
+        account_status: profile.account_status ?? "pending",
+        plan_code: profile.plan_code ?? "free",
+        pilot: pilotById.get(u.id) ?? null
+      };
+    }) });
+  }
+  if (body.action === "owner_security_dashboard") {
+    if (!isOwner) return respond({ error: "Owner permission required." }, 403);
+    const [eventsResponse, identitiesResponse, domainsResponse] = await Promise.all([
+      fetch(new URL("/rest/v1/security_fraud_events?select=id,user_id,email,event_type,severity,risk_score,details,reviewed,created_at&order=created_at.desc&limit=200", supabaseUrl), { headers: adminHeaders }),
+      fetch(new URL("/rest/v1/marketplace_seller_identities?select=id,user_id,marketplace,seller_id,status,submitted_at,reviewed_at,review_note&order=submitted_at.desc&limit=200", supabaseUrl), { headers: adminHeaders }),
+      fetch(new URL("/rest/v1/security_blocked_email_domains?select=domain,reason,added_at,active&order=added_at.desc", supabaseUrl), { headers: adminHeaders })
+    ]);
+    if (!eventsResponse.ok || !identitiesResponse.ok || !domainsResponse.ok) {
+      return respond({ error: "Could not load security dashboard.", details: { events: eventsResponse.status, identities: identitiesResponse.status, domains: domainsResponse.status } }, 502);
+    }
+    const [events, identities, blocked_domains] = await Promise.all([eventsResponse.json(), identitiesResponse.json(), domainsResponse.json()]);
+    return respond({ ok: true, events, identities, blocked_domains });
+  }
+  if (body.action === "owner_set_user_status") {
+    if (!isOwner) return respond({ error: "Owner permission required." }, 403);
+    const targetId = typeof body.target_user_id === "string" ? body.target_user_id : "";
+    const nextStatus = String(body.status ?? "");
+    const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 500) : "";
+    if (!targetId || !["active", "suspended", "inactive", "pending"].includes(nextStatus) || reason.length < 5) {
+      return respond({ error: "Choose a valid account status and provide a reason of at least five characters." }, 400);
+    }
+    if (targetId === userId) return respond({ error: "You cannot change your own owner account status here." }, 403);
+    const authTarget = await fetch(new URL("/auth/v1/admin/users/" + encodeURIComponent(targetId), supabaseUrl), { headers: adminHeaders });
+    if (!authTarget.ok) return respond({ error: "Registered account not found." }, 404);
+    const targetUser = await authTarget.json();
+    const targetApp = targetUser.app_metadata ?? {};
+    if (targetApp.role === "owner" || targetApp.is_owner === true) return respond({ error: "Owner accounts cannot be changed from seller management." }, 403);
+    const previousResponse = await fetch(new URL("/rest/v1/profiles?id=eq." + encodeURIComponent(targetId) + "&select=account_status", supabaseUrl), { headers: adminHeaders });
+    if (!previousResponse.ok) return respond({ error: "Could not read current account status." }, 502);
+    const previousRows = await previousResponse.json();
+    if (!previousRows?.[0]) return respond({ error: "Seller profile not found." }, 404);
+    const previousStatus = previousRows[0].account_status;
+    const updateResponse = await fetch(new URL("/rest/v1/profiles?id=eq." + encodeURIComponent(targetId), supabaseUrl), {
+      method: "PATCH",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ account_status: nextStatus, updated_at: new Date().toISOString() })
+    });
+    if (!updateResponse.ok) return respond({ error: "Could not update account status.", detail: await updateResponse.text() }, 500);
+    const eventResponse = await fetch(new URL("/rest/v1/user_status_events", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ target_user_id: targetId, actor_user_id: userId, previous_status: previousStatus, new_status: nextStatus, reason })
+    });
+    if (!eventResponse.ok) return respond({ error: "Account status changed, but the audit event could not be recorded.", detail: await eventResponse.text() }, 500);
+    return respond({ ok: true, user: (await updateResponse.json())[0] });
+  }
+  if (body.action === "owner_review_seller_identity") {
+    if (!isOwner) return respond({ error: "Owner permission required." }, 403);
+    const identityId = Number(body.identity_id);
+    const reviewStatus = String(body.status ?? "");
+    const note = typeof body.note === "string" ? body.note.trim().slice(0, 500) : "";
+    if (!Number.isSafeInteger(identityId) || identityId < 1 || !["verified", "rejected"].includes(reviewStatus)) return respond({ error: "Invalid seller identity review." }, 400);
+    const review = await fetch(new URL("/rest/v1/rpc/owner_review_seller_identity", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_identity_id: identityId, p_status: reviewStatus, p_note: note, p_actor: userId })
+    });
+    if (!review.ok) return respond({ error: "Could not review seller identity.", detail: await review.text() }, 500);
+    return respond({ ok: true, identity: await review.json() });
+  }
+  if (body.action === "owner_mark_fraud_reviewed") {
+    if (!isOwner) return respond({ error: "Owner permission required." }, 403);
+    const eventId = Number(body.event_id);
+    if (!Number.isSafeInteger(eventId) || eventId < 1) return respond({ error: "Invalid security event." }, 400);
+    const update = await fetch(new URL("/rest/v1/security_fraud_events?id=eq." + eventId, supabaseUrl), {
+      method: "PATCH",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ reviewed: true })
+    });
+    if (!update.ok) return respond({ error: "Could not mark security event reviewed.", detail: await update.text() }, 500);
+    return respond({ ok: true, event: (await update.json())[0] ?? null });
+  }
+  if (body.action === "owner_block_email_domain") {
+    if (!isOwner) return respond({ error: "Owner permission required." }, 403);
+    const domain = String(body.domain ?? "").trim().toLowerCase().replace(/^@/, "");
+    const reason = String(body.reason ?? "").trim().slice(0, 500);
+    if (!/^(?=.{3,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(domain) || reason.length < 5) {
+      return respond({ error: "Enter a valid email domain and a reason of at least five characters." }, 400);
+    }
+    const saved = await fetch(new URL("/rest/v1/security_blocked_email_domains?on_conflict=domain", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=representation" },
+      body: JSON.stringify({ domain, reason, active: true })
+    });
+    if (!saved.ok) return respond({ error: "Could not add email domain to blocklist.", detail: await saved.text() }, 500);
+    return respond({ ok: true, domain: (await saved.json())[0] ?? null });
+  }
+  if (body.action === "owner_update_pilot") {
+    if (!isOwner) return respond({ error: "Owner permission required." }, 403);
+    const targetId = typeof body.target_user_id === "string" ? body.target_user_id : "";
+    const operation = body.operation;
+    if (!targetId || !["suspend","resume","extend"].includes(String(operation))) return respond({ error: "Choose a seller and a valid management action." }, 400);
+    const lookup = await fetch(new URL("/rest/v1/seller_pilot_access?user_id=eq."+encodeURIComponent(targetId)+"&select=user_id,status,ends_at,daily_limit,pilot_label",supabaseUrl), {headers:adminHeaders});
+    const rows = lookup.ok ? await lookup.json() : [];
+    if (!lookup.ok || !rows?.[0]) return respond({error:"Pilot seller record not found."},404);
+    const row = rows[0];
+    const patch: Record<string,unknown> = {};
+    if (operation === "suspend") patch.status = "suspended";
+    if (operation === "resume") {
+      if (new Date(row.ends_at) <= new Date()) return respond({error:"This pilot has expired. A new activation is required."},409);
+      patch.status = "active";
+    }
+    if (operation === "extend") {
+      const days = Number(body.days);
+      if (!Number.isInteger(days) || days < 1 || days > 30) return respond({error:"Extension must be between 1 and 30 days."},400);
+      const base = new Date(Math.max(Date.now(),new Date(row.ends_at).getTime()));
+      patch.ends_at = new Date(base.getTime()+days*86400000).toISOString();
+      patch.status = "active";
+    }
+    const saved = await fetch(new URL("/rest/v1/seller_pilot_access?user_id=eq."+encodeURIComponent(targetId),supabaseUrl), {
+      method:"PATCH",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=representation"},body:JSON.stringify(patch)
+    });
+    if (!saved.ok) return respond({error:"Could not update pilot seller.",detail:await saved.text()},500);
+    return respond({ok:true,seller:(await saved.json())[0]});
+  }
+  if (body.action === "owner_pilot_analytics") {
+    if (!isOwner) return respond({error:"Owner permission required."},403);
+    const [activityResponse,feedbackResponse] = await Promise.all([
+      fetch(new URL("/rest/v1/seller_pilot_activity?select=user_id,marketplace,query,result_count,result_status,source,created_at&order=created_at.desc&limit=10000",supabaseUrl),{headers:adminHeaders}),
+      fetch(new URL("/rest/v1/seller_pilot_feedback?select=id,user_id,category,rating,message,status,created_at&order=created_at.desc&limit=500",supabaseUrl),{headers:adminHeaders})
+    ]);
+    if(!activityResponse.ok || !feedbackResponse.ok) return respond({error:"Could not load pilot analytics."},502);
+    const activity=await activityResponse.json();
+    const feedback=await feedbackResponse.json();
+    const bySeller:Record<string,{searches:number;failures:number;last_search:string|null}>={};
+    const popular:Record<string,number>={};
+    for(const item of activity){
+      const entry=bySeller[item.user_id]??{searches:0,failures:0,last_search:null};
+      entry.searches++; if(item.result_status!=="success") entry.failures++;
+      if(!entry.last_search || item.created_at>entry.last_search) entry.last_search=item.created_at;
+      bySeller[item.user_id]=entry;
+      const key=String(item.query??"").trim(); if(key) popular[key]=(popular[key]??0)+1;
+    }
+    return respond({ok:true,totals:{searches:activity.length,failures:activity.filter((x:Record<string,unknown>)=>x.result_status!=="success").length,feedback:feedback.length,open_feedback:feedback.filter((x:Record<string,unknown>)=>x.status==="open").length},by_seller:bySeller,popular_queries:Object.entries(popular).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([query,count])=>({query,count})),feedback,activity:activity.slice(0,200)});
+  }
+  if (body.action === "owner_financial_analytics") {
+    if (!isOwner) return respond({ error: "Owner permission required." }, 403);
+    const paths = [
+      "/rest/v1/billing_plans?select=code,name,monthly_price,currency,is_active&order=display_order",
+      "/rest/v1/profiles?select=id,plan_code,account_status,created_at",
+      "/rest/v1/payment_transactions?select=user_id,amount,currency,status,payment_kind,paid_at,created_at&order=created_at.desc&limit=5000",
+      "/rest/v1/subscriptions?select=user_id,plan_code,status,current_period_start,current_period_end&order=created_at.desc&limit=5000",
+      "/rest/v1/api_usage_ledger?select=provider,action,marketplace,credits_charged,request_status,actor_id,created_at&order=created_at.desc&limit=10000"
+    ];
+    const responses = await Promise.all(paths.map(path => fetch(new URL(path, supabaseUrl), { headers: adminHeaders })));
+    const failed = responses.findIndex(response => !response.ok);
+    if (failed >= 0) return respond({ error: "Could not load financial analytics.", source: paths[failed] }, 502);
+    const [plans, profiles, payments, subscriptions, apiUsage] = await Promise.all(responses.map(response => response.json()));
+    return respond({ ok: true, plans, profiles, payments, subscriptions, api_usage: apiUsage, generated_at: new Date().toISOString() });
+  }
+  if (body.action === "submit_pilot_feedback") {
+    if (typeof body.message !== "string" || body.message.trim().length < 5 || body.message.trim().length > 2000) return respond({error:"Feedback must be between 5 and 2,000 characters."},400);
+    const category = ["bug","product_feedback","data_quality","other"].includes(String(body.category)) ? body.category : "other";
+    const rating = body.rating == null ? null : Number(body.rating);
+    if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) return respond({error:"Rating must be between 1 and 5."},400);
+    const saved=await fetch(new URL("/rest/v1/seller_pilot_feedback",supabaseUrl),{method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=representation"},body:JSON.stringify({user_id:userId,category,rating,message:body.message.trim()})});
+    if(!saved.ok) return respond({error:"Could not submit feedback."},500);
+    return respond({ok:true,feedback:(await saved.json())[0]});
+  }
+  if (body.action === "owner_update_feedback") {
+    if (!isOwner) return respond({error:"Owner permission required."},403);
+    const id=Number(body.feedback_id); const status=body.status;
+    if(!Number.isInteger(id) || !["open","reviewing","resolved"].includes(String(status))) return respond({error:"Invalid feedback update."},400);
+    const saved=await fetch(new URL("/rest/v1/seller_pilot_feedback?id=eq."+id,supabaseUrl),{method:"PATCH",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=representation"},body:JSON.stringify({status})});
+    if(!saved.ok) return respond({error:"Could not update feedback."},500);
+    return respond({ok:true,feedback:(await saved.json())[0]});
+  }
+  if (body.action === "get_pilot_status") {
+    const accessResponse = await fetch(new URL("/rest/v1/seller_pilot_access?user_id=eq." + encodeURIComponent(userId) + "&select=started_at,ends_at,status,daily_limit,pilot_label", supabaseUrl), { headers: adminHeaders });
+    if (!accessResponse.ok) return respond({ error: "Could not load your pilot allowance." }, 502);
+    const accessRows = await accessResponse.json();
+    const access = accessRows?.[0] ?? null;
+    if (!access || access.status !== "active" || new Date(access.ends_at) <= new Date()) return respond({ active: false, status: access?.status ?? "not_enrolled", ends_at: access?.ends_at ?? null });
+    const usageDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(new Date());
+    const usageResponse = await fetch(new URL("/rest/v1/seller_pilot_daily_usage?user_id=eq." + encodeURIComponent(userId) + "&usage_date=eq." + usageDate + "&select=searches_used", supabaseUrl), { headers: adminHeaders });
+    if (!usageResponse.ok) return respond({ error: "Could not load today's pilot usage." }, 502);
+    const usageRows = await usageResponse.json();
+    const used = Number(usageRows?.[0]?.searches_used ?? 0);
+    return respond({ active: true, ...access, usage_date: usageDate, searches_used: used, remaining: Math.max(0, Number(access.daily_limit)-used) });
+  }
+  if (body.action === "get_search_status") {
+    const profileResponse = await fetch(new URL("/rest/v1/profiles?id=eq." + encodeURIComponent(userId) + "&select=plan_code,account_status", supabaseUrl), { headers: adminHeaders });
+    if (!profileResponse.ok) return respond({ error: "Could not load your search allowance." }, 502);
+    const profile = (await profileResponse.json())?.[0];
+    if (!profile || profile.account_status !== "active") return respond({ error: "Your seller account is not active." }, 403);
+    const planCode = String(profile.plan_code ?? "free");
+    const periodStart = new Date().toISOString().slice(0, 7) + "-01";
+    let used = 0;
+    let limit = 5;
+    let planName = "Free";
+    let periodLabel = "welcome searches";
+    let nextPlan: Record<string, unknown> | null = null;
+    if (planCode === "free") {
+      const usageResponse = await fetch(new URL("/rest/v1/user_free_search_usage?user_id=eq." + encodeURIComponent(userId) + "&select=searches_used", supabaseUrl), { headers: adminHeaders });
+      if (!usageResponse.ok) return respond({ error: "Could not load your free search balance." }, 502);
+      used = Number((await usageResponse.json())?.[0]?.searches_used ?? 0);
+      const nextResponse = await fetch(new URL("/rest/v1/billing_plans?is_active=eq.true&order=display_order.asc&limit=1&select=name,monthly_price", supabaseUrl), { headers: adminHeaders });
+      if (nextResponse.ok) nextPlan = (await nextResponse.json())?.[0] ?? null;
+    } else {
+      const [allowanceResponse, usageResponse, planResponse] = await Promise.all([
+        fetch(new URL("/rest/v1/plan_search_allowances?plan_code=eq." + encodeURIComponent(planCode) + "&select=monthly_search_credits", supabaseUrl), { headers: adminHeaders }),
+        fetch(new URL("/rest/v1/user_monthly_search_usage?user_id=eq." + encodeURIComponent(userId) + "&period_start=eq." + periodStart + "&select=searches_used", supabaseUrl), { headers: adminHeaders }),
+        fetch(new URL("/rest/v1/billing_plans?code=eq." + encodeURIComponent(planCode) + "&select=name,display_order", supabaseUrl), { headers: adminHeaders }),
+      ]);
+      if (!allowanceResponse.ok || !usageResponse.ok || !planResponse.ok) return respond({ error: "Could not load your monthly search balance." }, 502);
+      limit = Number((await allowanceResponse.json())?.[0]?.monthly_search_credits ?? 0);
+      used = Number((await usageResponse.json())?.[0]?.searches_used ?? 0);
+      const plan = (await planResponse.json())?.[0] ?? null;
+      planName = String(plan?.name ?? planCode);
+      periodLabel = "this month";
+      if (plan) {
+        const nextResponse = await fetch(new URL("/rest/v1/billing_plans?is_active=eq.true&display_order=gt." + Number(plan.display_order) + "&order=display_order.asc&limit=1&select=name,monthly_price", supabaseUrl), { headers: adminHeaders });
+        if (nextResponse.ok) nextPlan = (await nextResponse.json())?.[0] ?? null;
+      }
+    }
+    return respond({ ok: true, plan_code: planCode, plan_name: planName, searches_used: used, search_limit: limit,
+      remaining: Math.max(0, limit - used), period_label: periodLabel,
+      upgrade_plan: nextPlan?.name ?? null, upgrade_price: nextPlan?.monthly_price ?? null });
+  }
+  if (body.action === "activate_seller_pilot") {
+    if (!isOwner) return respond({ error: "Owner permission required." }, 403);
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const dailyLimit = Number(body.daily_limit ?? 15);
+    const label = typeof body.pilot_label === "string" ? body.pilot_label.trim().slice(0,80) : "";
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return respond({ error: "Enter a valid seller email address." }, 400);
+    if (![15,20].includes(dailyLimit)) return respond({ error: "Pilot daily limit must be 15 or 20." }, 400);
+    if (dailyLimit === 20 && label.toLowerCase() !== "beyond shopping") return respond({ error: "The 20-search allocation is reserved for Beyond Shopping." }, 400);
+    if (dailyLimit === 15 && label.toLowerCase() === "beyond shopping") return respond({ error: "Beyond Shopping must use the 20-search allocation." }, 400);
+    const usersResponse = await fetch(new URL("/auth/v1/admin/users?page=1&per_page=1000", supabaseUrl), { headers: adminHeaders });
+    if (!usersResponse.ok) return respond({ error: "Could not look up registered seller accounts." }, 502);
+    const usersPayload = await usersResponse.json();
+    const users = Array.isArray(usersPayload) ? usersPayload : usersPayload.users ?? [];
+    const seller = users.find((candidate: Record<string, unknown>) => String(candidate.email ?? "").toLowerCase() === email);
+    if (!seller || typeof seller.id !== "string") return respond({ error: "No registered seller account was found for that email. Ask the seller to create their account first." }, 404);
+    const activated = await fetch(new URL("/rest/v1/rpc/activate_seller_pilot", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_user_id: seller.id, p_admin_id: userId, p_daily_limit: dailyLimit, p_label: label || null }),
+    });
+    const result = activated.ok ? await activated.json() : null;
+    if (!activated.ok) return respond({ error: "Could not activate the seller pilot.", detail: await activated.text() }, 500);
+    if (result?.ok !== true) {
+      const messages: Record<string,string> = {
+        PILOT_CAPACITY_REACHED: "All six pilot seats are occupied.",
+        STANDARD_SEATS_FULL: "All five 15-search seller seats are occupied.",
+        BEYOND_SHOPPING_SEAT_FULL: "The Beyond Shopping 20-search seat is already assigned.",
+        USER_NOT_FOUND: "No registered seller account was found.",
+      };
+      return respond({ error: messages[result?.reason] ?? "Pilot activation was not completed.", result }, 409);
+    }
+    return respond({ ok: true, email, result });
+  }
+  if (body.action === "list_seller_pilots") {
+    if (!isOwner) return respond({ error: "Owner permission required." }, 403);
+    const [accessResponse, usersResponse] = await Promise.all([
+      fetch(new URL("/rest/v1/seller_pilot_access?select=user_id,started_at,ends_at,status,daily_limit,pilot_label&order=created_at.desc", supabaseUrl), { headers: adminHeaders }),
+      fetch(new URL("/auth/v1/admin/users?page=1&per_page=1000", supabaseUrl), { headers: adminHeaders }),
+    ]);
+    if (!accessResponse.ok || !usersResponse.ok) return respond({ error: "Could not load pilot seller records." }, 502);
+    const access = await accessResponse.json();
+    const usersPayload = await usersResponse.json();
+    const users = Array.isArray(usersPayload) ? usersPayload : usersPayload.users ?? [];
+    const byId = new Map(users.map((candidate: Record<string, unknown>) => [candidate.id, candidate.email]));
+    return respond({ sellers: (access ?? []).map((row: Record<string, unknown>) => ({ ...row, email: byId.get(row.user_id) ?? null })) });
+  }
   if (body.action === "get_cache_settings") {
-    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    if (!isOwner) return respond({ error: "Owner permission required." }, 403);
     const response = await fetch(new URL("/rest/v1/marketplace_cache_settings?id=eq.true&select=refresh_enabled,cache_ttl_minutes,updated_at", supabaseUrl), { headers: adminHeaders });
-    if (!response.ok) return json({ error: "Could not load cache policy." }, 500);
-    return json({ ok: true, settings: (await response.json())[0] ?? null });
+    if (!response.ok) return respond({ error: "Could not load cache policy." }, 500);
+    return respond({ ok: true, settings: (await response.json())[0] ?? null });
   }
   if (body.action === "configure_cache") {
-    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    if (!isOwner) return respond({ error: "Owner permission required." }, 403);
     const ttl = body.cache_ttl_minutes;
     if (ttl !== undefined && (!Number.isInteger(ttl) || ttl < 5 || ttl > 10080)) {
-      return json({ error: "Cache TTL must be between 5 and 10,080 minutes." }, 400);
+      return respond({ error: "Cache TTL must be between 5 and 10,080 minutes." }, 400);
     }
     const update: Record<string, unknown> = { updated_at: new Date().toISOString(), updated_by: userId };
     if (ttl !== undefined) update.cache_ttl_minutes = ttl;
@@ -71,57 +390,37 @@ Deno.serve(async (req: Request) => {
       headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=representation" },
       body: JSON.stringify(update),
     });
-    if (!saved.ok) return json({ error: "Could not save cache policy.", detail: await saved.text() }, 500);
-    return json({ ok: true, settings: (await saved.json())[0] });
-  }
-
-
-  if (body.action === "list_users") {
-    if (!isOwner) return json({ error: "Owner permission required." }, 403);
-    const page = Number.isInteger(body.page) ? Math.max(1, Math.min(20, body.page as number)) : 1;
-    const usersResponse = await fetch(new URL(`/auth/v1/admin/users?page=${page}&per_page=100`, supabaseUrl), { headers: adminHeaders });
-    if (!usersResponse.ok) return json({ error: "Could not load users." }, 502);
-    const usersPayload = await usersResponse.json();
-    const users = Array.isArray(usersPayload.users) ? usersPayload.users.map((u: Record<string, unknown>) => ({
-      id: u.id, email: u.email, created_at: u.created_at,
-      last_sign_in_at: u.last_sign_in_at,
-      email_confirmed_at: u.email_confirmed_at,
-      role: ((u.app_metadata ?? {}) as Record<string, unknown>).role ?? "seller"
-    })) : [];
-    return json({ ok: true, users, page, total: users.length });
-  }
-
-  if (body.action === "set_user_password") {
-    if (!isOwner) return json({ error: "Owner permission required." }, 403);
-    const targetUserId = typeof body.user_id === "string" ? body.user_id : "";
-    const newPassword = typeof body.password === "string" ? body.password : "";
-    if (!targetUserId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetUserId)) {
-      return json({ error: "Select a valid user." }, 400);
-    }
-    if (newPassword.length < 12 || newPassword.length > 72) {
-      return json({ error: "Password must be between 12 and 72 characters." }, 400);
-    }
-    const updateResponse = await fetch(new URL(`/auth/v1/admin/users/${targetUserId}`, supabaseUrl), {
-      method: "PUT",
-      headers: { ...adminHeaders, "Content-Type": "application/json" },
-      body: JSON.stringify({ password: newPassword }),
-    });
-    if (!updateResponse.ok) {
-      const detail = await updateResponse.text();
-      return json({ error: "Supabase could not update this user's password.", detail }, 502);
-    }
-    return json({ ok: true, user_id: targetUserId, message: "Password updated successfully." });
+    if (!saved.ok) return respond({ error: "Could not save cache policy.", detail: await saved.text() }, 500);
+    return respond({ ok: true, settings: (await saved.json())[0] });
   }
 
   const marketplace = body.marketplace;
   const query = typeof body.query === "string" ? body.query.trim().slice(0, 160) : "";
-  if (!validMarketplaces.includes(marketplace ?? "") || query.length < 2) {
-    return json({ error: "Choose a supported marketplace and enter at least 2 search characters." }, 400);
+  if (query.length < 2) {
+    return respond({ error: "Enter at least 2 search characters." }, 400);
   }
-  if (marketplace === "makro") {
-    return json({ error: "Makro live product search is not connected yet. We are validating an authorised South African data source before enabling it.", code: "MARKETPLACE_UNAVAILABLE" }, 501);
+  if (testingMarketplaces[marketplace ?? ""]) {
+    return respond({ error: testingMarketplaces[marketplace ?? ""], code: "MARKETPLACE_TESTING", marketplace }, 501);
   }
-  if (body.force_refresh && !isOwner) return json({ error: "Only the Ekhaya owner can force a live cache refresh." }, 403);
+  if (!validMarketplaces.includes(marketplace ?? "")) {
+    return respond({ error: "Choose a supported marketplace." }, 400);
+  }
+  if (body.force_refresh && !isOwner) return respond({ error: "Only the Ekhaya owner can force a live cache refresh." }, 403);
+
+  let pilotCharged = false;
+  const pilotUsageDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(new Date());
+  if (!isOwner) {
+    const pilotReserve = await fetch(new URL("/rest/v1/rpc/reserve_seller_pilot_search", supabaseUrl), {
+      method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace }),
+    });
+    const pilot = pilotReserve.ok ? await pilotReserve.json() : null;
+    if (!pilotReserve.ok) return respond({ error: "Could not verify pilot search allowance. Please try again." }, 503);
+    if (pilot?.allowed === true) pilotCharged = true;
+    else if (pilot?.reason === "PILOT_DAILY_LIMIT") return respond({ error: "You have used all your Takealot searches for today. Your allowance resets at midnight South African time.", code: "PILOT_DAILY_LIMIT", usage: pilot }, 429);
+    else if (pilot?.reason === "PILOT_EXPIRED") return respond({ error: "Your 10-day seller pilot has ended.", code: "PILOT_EXPIRED", usage: pilot }, 402);
+    else if (pilot?.reason !== "PILOT_NOT_ACTIVE") return respond({ error: "Your seller pilot access is not available for this marketplace.", code: pilot?.reason ?? "PILOT_ACCESS_ERROR", usage: pilot }, 403);
+  }
 
   const lookupKey = query.toLowerCase().replace(/\s+/g, " ");
   const cacheUrl = new URL("/rest/v1/marketplace_price_cache", supabaseUrl);
@@ -140,11 +439,46 @@ Deno.serve(async (req: Request) => {
     const settings = settingsRows?.[0] ?? { refresh_enabled: true, cache_ttl_minutes: 360 };
     const fresh = cache && new Date(cache.expires_at) > new Date();
     if (cache && !body.force_refresh && (fresh || settings.refresh_enabled === false)) {
-      return json({
+      const cachedProducts = Array.isArray(cache.source_payload?.products) ? cache.source_payload.products : [];
+      let cachedRequestId = "";
+      let cachedCredit: Record<string, any> | null = null;
+      if (!isOwner && !pilotCharged) {
+        cachedRequestId = body.request_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.request_id)
+          ? body.request_id : crypto.randomUUID();
+        const cachedReservation = await fetch(new URL("/rest/v1/rpc/reserve_monthly_search_credit", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_request_id: cachedRequestId, p_marketplace: marketplace }),
+        });
+        cachedCredit = cachedReservation.ok ? await cachedReservation.json() : null;
+        if (!cachedReservation.ok || cachedCredit?.allowed !== true) {
+          const reason = cachedCredit?.reason ?? "CREDIT_RESERVATION_FAILED";
+          const message = reason === "MONTHLY_SEARCH_LIMIT"
+            ? "You have used all your monthly searches. Upgrade your plan to continue."
+            : reason === "FREE_SEARCH_LIMIT"
+            ? "You have used all your free searches. Choose a subscription plan to continue."
+            : "Your account or plan is not enabled for searches.";
+          return respond({ error: message, code: reason, usage: cachedCredit }, 402);
+        }
+        if (cachedCredit.charged === true) {
+          const rpcName = cachedProducts.length > 0 ? "complete_monthly_search_credit" : "refund_monthly_search_credit";
+          await fetch(new URL("/rest/v1/rpc/" + rpcName, supabaseUrl), {
+            method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ p_user_id: userId, p_request_id: cachedRequestId, p_marketplace: marketplace }),
+          });
+        }
+      }
+      if (!isOwner && pilotCharged && cachedProducts.length === 0) {
+        await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }),
+        });
+        pilotCharged = false;
+      }
+      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:cachedProducts.length,result_status:cachedProducts.length>0?"success":"no_results",source:fresh?"cache":"stale-cache"})});
+      return respond({
         source: fresh ? "cache" : "stale-cache",
-        marketplace,
-        fetched_at: cache.fetched_at,
-        products: cache.source_payload?.products ?? [],
+        marketplace, fetched_at: cache.fetched_at, products: cachedProducts,
+        no_results: cachedProducts.length === 0, credit_charged: cachedProducts.length > 0 && !isOwner,
         refresh_paused: !fresh,
       });
     }
@@ -157,12 +491,16 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({ p_ip_hash: ipHash, p_limit: 30 }),
     });
     if (!quotaResponse.ok || await quotaResponse.json() !== true) {
-      return json({ error: "Search limit reached. Please try again in an hour." }, 429);
+      if (pilotCharged) {
+        await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), { method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" }, body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }) });
+        pilotCharged = false;
+      }
+      return respond({ error: "Search limit reached. Please try again in an hour." }, 429);
     }
 
     const requestId = body.request_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.request_id)
       ? body.request_id : crypto.randomUUID();
-    const charged = !isOwner;
+    const charged = !isOwner && !pilotCharged;
     if (charged) {
       const reserve = await fetch(new URL("/rest/v1/rpc/reserve_monthly_search_credit", supabaseUrl), {
         method: "POST",
@@ -172,42 +510,95 @@ Deno.serve(async (req: Request) => {
       const reservation = reserve.ok ? await reserve.json() : null;
       if (!reserve.ok || reservation?.allowed !== true) {
         const reason = reservation?.reason ?? "CREDIT_RESERVATION_FAILED";
-        return json({ error: reason === "MONTHLY_SEARCH_LIMIT" ? "You have used all your monthly marketplace search credits." : "Your account or plan is not enabled for live searches.", code: reason, usage: reservation }, 402);
+        const message = reason === "MONTHLY_SEARCH_LIMIT"
+          ? "You have used all your monthly marketplace search credits."
+          : reason === "FREE_SEARCH_LIMIT"
+          ? "You have used all five free searches. Choose a subscription plan to continue."
+          : "Your account or plan is not enabled for live searches.";
+        return respond({ error: message, code: reason, usage: reservation }, 402);
       }
       if (reservation.duplicate) {
-        return json({ error: "This search request has already been processed. Please start a new search.", code: "DUPLICATE_REQUEST" }, 409);
+        return respond({ error: "This search request has already been processed. Please start a new search.", code: "DUPLICATE_REQUEST" }, 409);
       }
     }
 
     try {
-      const provider = marketplace;
-      const params = marketplace === "takealot"
-        ? { query, country: "za" }
-        : { query, marketplace: "co.za", max_results: 24 };
-      const upstream = await fetch(`https://api.reefapi.com/${provider}/v1/search`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
-        body: JSON.stringify(params),
-        signal: AbortSignal.timeout(12000),
-      });
-      const payload = await upstream.json();
-      if (!upstream.ok || payload?.ok === false) throw new Error(payload?.error?.message ?? upstream.statusText ?? "Provider lookup failed");
+      let payload: Record<string, any>;
+      let providerName: string;
+      let raw: Record<string, unknown>[];
+      if (marketplace === "amazon") {
+        if (!steadyApiKey) throw new Error("Amazon South Africa search is not configured yet. Add STEADYAPI_KEY to Supabase Edge Function secrets.");
+        const searchUrl = new URL("https://api.steadyapi.com/v1/amazon/products/search");
+        searchUrl.searchParams.set("search", query);
+        searchUrl.searchParams.set("country", "ZA");
+        searchUrl.searchParams.set("sort_by", "RELEVANCE");
+        searchUrl.searchParams.set("page", "1");
+        const upstream = await fetch(searchUrl, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${steadyApiKey}`, Accept: "application/json" },
+          signal: AbortSignal.timeout(20000),
+        });
+        payload = await upstream.json();
+        if (!upstream.ok || Number(payload?.meta?.status ?? upstream.status) >= 400 || !Array.isArray(payload?.body)) {
+          throw new Error(String(payload?.message ?? payload?.error ?? upstream.statusText ?? "SteadyAPI Amazon search failed"));
+        }
+        const marketplaceUrl = String(payload?.meta?.marketplace ?? "");
+        const country = String(payload?.meta?.country ?? "ZA").toUpperCase();
+        if ((marketplaceUrl && !marketplaceUrl.includes("amazon.co.za")) || country !== "ZA") {
+          throw new Error("SteadyAPI returned a marketplace other than Amazon South Africa; results were rejected.");
+        }
+        providerName = "steadyapi";
+        raw = payload.body as Record<string, unknown>[];
+      } else {
+        if (!reefKey) throw new Error("Takealot search is not configured. Add REEFAPI_KEY to Supabase Edge Function secrets.");
+        const upstream = await fetch("https://api.reefapi.com/takealot/v1/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
+          body: JSON.stringify({ query, country: "za" }),
+          signal: AbortSignal.timeout(9000),
+        });
+        payload = await upstream.json();
+        if (!upstream.ok || payload?.ok === false) throw new Error(payload?.error?.message ?? upstream.statusText ?? "Provider lookup failed");
+        providerName = "reefapi";
+        raw = payload?.data?.results ?? [];
+      }
 
-      const raw = payload?.data?.results ?? [];
-      const products = raw.map((p: Record<string, unknown>) => ({
-        id: marketplace === "takealot" ? p.plid : p.asin,
-        title: p.title ?? "Untitled product",
-        brand: p.brand ?? null,
-        price: typeof p.price === "number" ? p.price : null,
-        currency: marketplace === "takealot" ? "ZAR" : (p.currency_code ?? "ZAR"),
-        image: p.image ?? null,
-        url: p.url ?? (typeof p.asin === "string" ? `https://www.amazon.co.za/dp/${p.asin}` : null),
-        in_stock: p.in_stock ?? null,
-        rating: p.rating ?? null,
-        review_count: p.review_count ?? p.rating_count ?? null,
-        seller: p.seller_name ?? null,
-        variant_selection_required: p.variant_selection_required ?? false,
-      }));
+      const parsePrice = (value: unknown): number | null => {
+        if (typeof value === "number" && Number.isFinite(value)) return value;
+        if (typeof value !== "string") return null;
+        const cleaned = value.replace(/,/g, "").replace(/[^0-9.]/g, "");
+        if (!cleaned) return null;
+        const parsed = Number(cleaned);
+        return Number.isFinite(parsed) ? parsed : null;
+      };
+      const products = raw.map((p: Record<string, unknown>) => {
+        const isAmazon = marketplace === "amazon";
+        const asin = typeof p.asin === "string" ? p.asin : null;
+        return {
+          id: isAmazon ? asin : p.plid,
+          title: (isAmazon ? p.product_title : p.title) ?? "Untitled product",
+          brand: p.brand ?? null,
+          price: parsePrice(isAmazon ? p.product_price : p.price),
+          original_price: parsePrice(isAmazon ? p.product_original_price : p.original_price),
+          currency: "ZAR",
+          image: (isAmazon ? p.product_photo : p.image) ?? null,
+          url: (isAmazon ? p.product_url : p.url) ?? (asin ? `https://www.amazon.co.za/dp/${asin}` : null),
+          in_stock: p.in_stock ?? null,
+          rating: isAmazon ? p.product_star_rating ?? null : p.rating ?? null,
+          review_count: isAmazon ? p.product_num_ratings ?? null : p.review_count ?? p.rating_count ?? null,
+          seller: p.seller_name ?? null,
+          delivery: p.delivery ?? null,
+          sales_volume: p.sales_volume ?? null,
+          product_badge: p.product_badge ?? null,
+          is_prime: p.is_prime ?? null,
+          is_best_seller: p.is_best_seller ?? null,
+          weight_grams: typeof p.weight_grams === "number" ? p.weight_grams : typeof p.weight === "number" ? p.weight : null,
+          length_cm: typeof p.length_cm === "number" ? p.length_cm : null,
+          width_cm: typeof p.width_cm === "number" ? p.width_cm : null,
+          height_cm: typeof p.height_cm === "number" ? p.height_cm : null,
+          variant_selection_required: p.variant_selection_required ?? p.has_variations ?? false,
+        };
+      });
       const now = new Date();
       const ttl = Math.max(5, Math.min(10080, Number(settings.cache_ttl_minutes) || 360));
       const expires = new Date(now.getTime() + ttl * 60 * 1000);
@@ -223,10 +614,35 @@ Deno.serve(async (req: Request) => {
       });
       if (!cacheWrite.ok) throw new Error("Marketplace data was found but could not be saved to shared cache.");
 
+      if (products.length === 0) {
+        if (charged) {
+          await fetch(new URL("/rest/v1/rpc/refund_monthly_search_credit", supabaseUrl), {
+            method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
+          });
+        }
+        if (pilotCharged) {
+          await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
+            method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }),
+          });
+          pilotCharged = false;
+        }
+        await fetch(new URL("/rest/v1/api_usage_ledger", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+          body: JSON.stringify({ provider: providerName, action: "search", marketplace, lookup_key: `search:${lookupKey}`,
+            credits_charged: Number(payload.meta?.charged_credits ?? 0), request_status: "no_results",
+            response_count: 0, request_id: payload.meta?.request_id ?? null, actor_id: null }),
+        });
+        if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {
+          method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},
+          body:JSON.stringify({user_id:userId,marketplace,query,result_count:0,result_status:"no_results",source:"live"})
+        });
+        return respond({ source: "live", marketplace, fetched_at: now.toISOString(), products: [], no_results: true, credit_charged: false });
+      }
       if (charged) {
         await fetch(new URL("/rest/v1/rpc/complete_monthly_search_credit", supabaseUrl), {
-          method: "POST",
-          headers: { ...adminHeaders, "Content-Type": "application/json" },
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
           body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
         });
       }
@@ -234,13 +650,30 @@ Deno.serve(async (req: Request) => {
         method: "POST",
         headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
         body: JSON.stringify({
-          provider: "reefapi", action: "search", marketplace, lookup_key: `search:${lookupKey}`,
+          provider: providerName, action: "search", marketplace, lookup_key: `search:${lookupKey}`,
           credits_charged: Number(payload.meta?.charged_credits ?? 0), request_status: "success",
           response_count: products.length, request_id: payload.meta?.request_id ?? null, actor_id: charged ? userId : null,
         }),
       });
-      return json({ source: "live", marketplace, fetched_at: now.toISOString(), products, provider_meta: payload.meta ?? null, credit_charged: charged });
+      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:products.length,result_status:"success",source:"live"})});
+      return respond({ source: "live", marketplace, fetched_at: now.toISOString(), products, provider_meta: payload.meta ?? null, credit_charged: charged });
     } catch (error) {
+      if (marketplace === "takealot" && cache && Array.isArray(cache.source_payload?.products) && cache.source_payload.products.length > 0) {
+        if (charged) {
+          await fetch(new URL("/rest/v1/rpc/complete_monthly_search_credit", supabaseUrl), {
+            method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
+          });
+        }
+        return respond({ source: "stale-cache", marketplace, fetched_at: cache.fetched_at, products: cache.source_payload.products,
+          refresh_paused: false, credit_charged: !isOwner, warning: "Live Takealot refresh failed; showing the last successfully cached results instead." });
+      }
+      if (pilotCharged) {
+        await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }),
+        });
+      }
       if (charged) {
         await fetch(new URL("/rest/v1/rpc/refund_monthly_search_credit", supabaseUrl), {
           method: "POST",
@@ -252,8 +685,8 @@ Deno.serve(async (req: Request) => {
     }
   } catch (error) {
     if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
-      return json({ error: "Marketplace timed out. Your search credit has been refunded.", code: "PROVIDER_TIMEOUT" }, 504);
+      return respond({ error: "Marketplace timed out. Your search credit has been refunded.", code: "PROVIDER_TIMEOUT" }, 504);
     }
-    return json({ error: "Unable to complete marketplace lookup. Your search credit has been refunded if it was reserved.", detail: String(error) }, 502);
+    return respond({ error: "Unable to complete marketplace lookup. Your search credit has been refunded if it was reserved.", detail: String(error) }, 502);
   }
 });
