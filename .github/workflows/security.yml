@@ -39,19 +39,21 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install --ignore-scripts
-      - name: Audit production and development dependencies
+      - name: Audit dependencies
         run: npm audit --audit-level=high
+      - name: Build static application
+        run: npm run build
 
   codeql:
     name: CodeQL analysis
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Initialise CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: javascript-typescript
-      - name: Checkout
-        uses: actions/checkout@v4
       - name: Autobuild
         uses: github/codeql-action/autobuild@v3
       - name: Analyse
