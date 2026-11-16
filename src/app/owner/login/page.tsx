@@ -2,10 +2,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 const URL="https://itxxnhcjjiynrmivexcb.supabase.co";
-const KEY="sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t";
+const KEY=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
 export default function OwnerLoginPage(){
  const [email,setEmail]=useState(""),[password,setPassword]=useState(""),[message,setMessage]=useState("Sign in using an authorised Ekhaya owner account."),[busy,setBusy]=useState(false);const router=useRouter();
- async function submit(){setBusy(true);setMessage("");try{
+ async function submit(){setBusy(true);setMessage("");try{if(!KEY)throw new Error("Owner sign-in is not configured. Please contact the platform administrator.");
   const response=await fetch(URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"Content-Type":"application/json",apikey:KEY},body:JSON.stringify({email,password})});
   const session=await response.json().catch(()=>({}));if(!response.ok||!session.access_token)throw new Error(session.msg??session.message??"Sign-in failed.");
   const userResponse=await fetch(URL+"/auth/v1/user",{headers:{apikey:KEY,Authorization:"Bearer "+session.access_token}});
