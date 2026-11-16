@@ -52,7 +52,8 @@ backups/
 db-backups/
 database-backups/
 *.bak
-*.backup\n*.sql.gz
+*.backup
+*.sql.gz
 *.dump.gz
 
 # Logs and diagnostics
