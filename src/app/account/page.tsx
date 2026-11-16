@@ -12,6 +12,8 @@ export default function AccountPage() {
   const [email,setEmail] = useState("");
   const [password,setPassword] = useState("");
   const [name,setName] = useState("");
+  const [privacyAccepted,setPrivacyAccepted] = useState(false);
+  const [marketingOptIn,setMarketingOptIn] = useState(false);
   const [message,setMessage] = useState("");
   const [busy,setBusy] = useState(false);
   const [recoveryToken,setRecoveryToken] = useState("");
@@ -31,6 +33,7 @@ export default function AccountPage() {
   async function submit() {
     setBusy(true); setMessage("");
     try {
+      if(mode==="signup" && !privacyAccepted) throw new Error("Please read and acknowledge the Privacy Notice before creating an account.");
       if(mode==="reset"){
         const response=await fetch(supabaseUrl+"/auth/v1/recover?redirect_to="+encodeURIComponent(window.location.origin+"/account/"),{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:JSON.stringify({email})});
         const data=await response.json().catch(()=>({}));
@@ -50,7 +53,7 @@ export default function AccountPage() {
         return;
       }
       const endpoint = mode === "signup" ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
-      const response = await fetch(supabaseUrl+endpoint,{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:JSON.stringify(mode==="signup"?{email,password,data:{display_name:name}}:{email,password})});
+      const response = await fetch(supabaseUrl+endpoint,{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:JSON.stringify(mode==="signup"?{email,password,data:{display_name:name,privacy_notice_acknowledged_at:new Date().toISOString(),privacy_notice_version:"2026-11-16",marketing_opt_in:marketingOptIn}}:{email,password})});
       const data = await response.json();
       if(!response.ok) throw new Error(data.msg??data.message??data.error_description??"Unable to process your account request.");
       if(data.access_token) {
@@ -75,6 +78,7 @@ export default function AccountPage() {
       <h1 style={{fontSize:30,fontWeight:700,margin:"8px 0 10px"}}>{mode==="signup"?"Create your seller account":mode==="reset"?"Reset your password":mode==="new-password"?"Choose a new password":"Welcome back"}</h1>
       <p style={{color:"#60758A",fontSize:13,lineHeight:1.6}}>Your account keeps your monthly live marketplace search allowance separate from other sellers.</p>
       {mode==="signup"&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={field}/>}
+      {mode==="signup"&&<div style={{fontSize:12,lineHeight:1.6,color:"#40566B",marginTop:14}}><label style={{display:"flex",gap:9,alignItems:"flex-start"}}><input type="checkbox" checked={privacyAccepted} onChange={e=>setPrivacyAccepted(e.target.checked)} style={{marginTop:3}}/><span>I have read and acknowledge the <Link href="/privacy/" target="_blank">Ekhaya Privacy Notice</Link>. I understand how my account information will be processed. *</span></label><label style={{display:"flex",gap:9,alignItems:"flex-start",marginTop:10}}><input type="checkbox" checked={marketingOptIn} onChange={e=>setMarketingOptIn(e.target.checked)} style={{marginTop:3}}/><span>Optional: Send me product news and offers. I can opt out at any time.</span></label></div>}
       {mode!=="new-password"&&<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address" style={field}/>}
       {mode!=="reset"&&<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="new-password"?"New password (at least 8 characters)":"Password (at least 8 characters)"} style={field}/>}
       <button onClick={submit} disabled={busy||(mode!=="new-password"&&!email)||(mode!=="reset"&&password.length<8)} style={{width:"100%",padding:14,background:"#079BD3",border:0,borderRadius:8,color:"#fff",fontWeight:700,marginTop:12,cursor:"pointer"}}>{busy?"Please wait…":mode==="signup"?"Create account":mode==="reset"?"Send reset link":mode==="new-password"?"Update password":"Sign in"}</button>
