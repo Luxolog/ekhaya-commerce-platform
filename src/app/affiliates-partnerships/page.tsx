@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 
 const partners = [
   { icon: "▣", title: "Logistics & warehousing", detail: "Warehousing, order fulfilment, courier and delivery providers supporting ecommerce sellers." },
@@ -43,6 +44,6 @@ export default function AffiliatesPartnershipsPage() {
       <p style={{ color: "#D4E2EC", fontSize: 14, lineHeight: 1.8, maxWidth: 760 }}>We welcome enquiries from established service providers interested in reaching entrepreneurs, online sellers and SMEs through the Ekhaya network.</p>
       <a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Affiliate%20and%20Partnership%20Enquiry" style={{ display: "inline-flex", marginTop: 14, padding: "12px 18px", background: "#079BD3", color: "#fff", borderRadius: 8, fontSize: 12, fontWeight: 800, textDecoration: "none" }}>ENQUIRE ABOUT PARTNERING →</a>
     </section>
-    <footer style={{ maxWidth: 1080, margin: "58px auto 0", paddingTop: 20, borderTop: "1px solid #DCE8F1", color: "#8195A8", fontSize: 12 }}>Ekhaya Technologies · Affiliates & Partnerships · South Africa</footer>
+    <SiteFooter />
   </main>;
 }
