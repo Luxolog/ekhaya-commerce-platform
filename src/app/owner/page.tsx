@@ -1,0 +1,10 @@
+"use client";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+export default function OwnerDashboard(){
+ const [ready,setReady]=useState(false);
+ useEffect(()=>{let valid=false;try{const session=JSON.parse(localStorage.getItem("ekhaya_session")??"null");valid=!!session?.access_token;}catch{}if(!valid){window.location.replace("/owner/login/");return;}setReady(true)},[]);
+ if(!ready)return <main style={{padding:40,fontFamily:"Arial,sans-serif"}}>Checking owner session…</main>;
+ const links=[{href:"/owner/users/",title:"Seller accounts",description:"Review new registrations, email verification and account approvals."},{href:"/owner/cache/",title:"Marketplace cache",description:"Manage shared marketplace cache refresh and expiry settings."}];
+ return <main style={{minHeight:"100vh",background:"#F4F8FC",padding:"32px 5%",fontFamily:"Arial,sans-serif",color:"#071B31"}}><header style={{maxWidth:1000,margin:"0 auto",borderBottom:"1px solid #DCE8F1",paddingBottom:18}}><b>EKHAYA TECHNOLOGIES · OWNER</b></header><section style={{maxWidth:1000,margin:"42px auto"}}><p style={{fontSize:10,fontWeight:800,letterSpacing:2,color:"#079BD3"}}>CONTROL CENTRE</p><h1 style={{fontSize:32,margin:"8px 0"}}>Owner dashboard</h1><p style={{fontSize:14,color:"#60758A"}}>Manage seller access and platform operations.</p><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:16,marginTop:26}}>{links.map(item=><Link key={item.href} href={item.href} style={{display:"block",padding:24,background:"#fff",border:"1px solid #DCE8F1",borderRadius:12,color:"#071B31",textDecoration:"none"}}><h2 style={{fontSize:19,margin:"0 0 10px"}}>{item.title} →</h2><p style={{fontSize:13,color:"#60758A",lineHeight:1.6,margin:0}}>{item.description}</p></Link>)}</div><button onClick={()=>{localStorage.removeItem("ekhaya_session");window.location.replace("/owner/login/")}} style={{marginTop:24,padding:"11px 16px",border:"1px solid #DCE8F1",borderRadius:7,background:"#fff",color:"#071B31"}}>Sign out</button></section></main>;
+}
