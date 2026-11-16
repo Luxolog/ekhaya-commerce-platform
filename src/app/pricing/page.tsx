@@ -1,4 +1,5 @@
 import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 import Link from "next/link";
 
 const checkerPlans = [
@@ -56,5 +57,6 @@ export default function PricingPage() {
         <a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Technologies%20Enquiry" style={{display:"inline-block",marginTop:8,padding:"13px 18px",borderRadius:8,background:"#079BD3",color:"#fff",fontSize:12,fontWeight:800,textDecoration:"none"}}>CONTACT EKHAYA →</a>
       </div>
     </section>
+    <SiteFooter />
   </main>;
 }
