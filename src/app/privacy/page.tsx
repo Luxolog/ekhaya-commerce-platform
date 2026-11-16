@@ -1,3 +1,5 @@
+import SiteFooter from "@/components/SiteFooter";
+
 export default function PrivacyPage() {
   return <main style={{maxWidth:820,margin:"40px auto",padding:"0 22px",fontFamily:"Arial,sans-serif",lineHeight:1.7,color:"#14283D"}}>
     <a href="/account/">← Seller account</a>
@@ -20,5 +22,6 @@ export default function PrivacyPage() {
     <p>Subject to POPIA, you may request access to or correction of your personal information, object to certain processing, withdraw consent where consent is the basis, and request deletion where legally permitted. The verified privacy request contact must be published here before launch. You may complain to the <a href="https://inforegulator.org.za/">Information Regulator of South Africa</a>.</p>
     <h2>8. Updates</h2>
     <p>This notice will be updated when processing purposes, providers or services change. The current version must remain available from every account and data-collection form.</p>
+    <SiteFooter />
   </main>;
 }
