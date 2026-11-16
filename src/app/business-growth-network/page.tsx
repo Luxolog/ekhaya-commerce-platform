@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 
 const fundingPartners = [
   { icon: "↗", title: "Business funding providers", detail: "Financial institutions and funding companies offering business loans, stock finance, working capital and growth capital to eligible businesses." },
@@ -40,6 +41,6 @@ export default function BusinessGrowthNetworkPage() {
       <p style={{ color: "#D4E2EC", fontSize: 14, lineHeight: 1.8, maxWidth: 760 }}>We are building connections with financial institutions and funding organisations. Eligibility, funding products and application requirements will depend on each participating provider.</p>
       <Link href="/" style={{ display: "inline-flex", marginTop: 14, padding: "12px 18px", background: "#079BD3", color: "#fff", borderRadius: 8, fontSize: 12, fontWeight: 800, textDecoration: "none" }}>BACK TO EKHAYA TECHNOLOGIES →</Link>
     </section>
-    <footer style={{ maxWidth: 1080, margin: "58px auto 0", paddingTop: 20, borderTop: "1px solid #DCE8F1", color: "#8195A8", fontSize: 12 }}>Ekhaya Technologies · Funding Partners Programme · South Africa</footer>
+    <SiteFooter />
   </main>;
 }
