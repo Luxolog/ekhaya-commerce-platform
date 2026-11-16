@@ -65,36 +65,10 @@ begin
       on conflict (user_id, event_key) do nothing;
     end if;
   else
-    select monthly_search_credits into v_limit
-    from public.plan_search_allowances
-    where plan_code = v_plan;
-
-    select searches_used into v_used
-    from public.user_monthly_search_usage
-    where user_id = p_user_id and period_start = v_period;
-
-    v_remaining := greatest(0, coalesce(v_limit, 0) - coalesce(v_used, 0));
-
-    if v_remaining in (10, 5, 2, 0) then
-      v_threshold_key := 'monthly-search:remaining:' || v_remaining::text || ':' || v_period::text;
-      insert into public.user_notifications (
-        user_id, event_key, notification_type, title, message, action_url, email_status
-      )
-      values (
-        p_user_id,
-        v_threshold_key,
-        'search_balance',
-        case when v_remaining = 0 then 'Your monthly searches have been used'
-             else 'You have ' || v_remaining::text || ' searches remaining this month' end,
-        case when v_remaining = 0
-          then 'You have used all searches included in your plan. Upgrade your plan or wait for your next monthly allowance to continue using Ekhaya Price Checker.'
-          else 'You have ' || v_remaining::text || ' searches remaining in your current billing month.'
-        end,
-        'https://pricechecker.ekhayatech.co.za/pricing/',
-        'pending'
-      )
-      on conflict (user_id, event_key) do nothing;
-    end if;
+    -- Monthly balance thresholds are already handled by the
+    -- notify_monthly_search_balance trigger on user_monthly_search_usage.
+    -- Do not enqueue a second notification here.
+    null;
   end if;
 
   return true;
