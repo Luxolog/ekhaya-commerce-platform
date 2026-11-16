@@ -1,0 +1,17 @@
+"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+const URL="https://itxxnhcjjiynrmivexcb.supabase.co";
+const KEY="sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t";
+export default function OwnerLoginPage(){
+ const [email,setEmail]=useState(""),[password,setPassword]=useState(""),[message,setMessage]=useState("Sign in using an authorised Ekhaya owner account."),[busy,setBusy]=useState(false);const router=useRouter();
+ async function submit(){setBusy(true);setMessage("");try{
+  const response=await fetch(URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"Content-Type":"application/json",apikey:KEY},body:JSON.stringify({email,password})});
+  const session=await response.json().catch(()=>({}));if(!response.ok||!session.access_token)throw new Error(session.msg??session.message??"Sign-in failed.");
+  const userResponse=await fetch(URL+"/auth/v1/user",{headers:{apikey:KEY,Authorization:"Bearer "+session.access_token}});
+  const user=await userResponse.json().catch(()=>({}));const app=user.app_metadata??{};
+  if(!userResponse.ok||!(app.role==="owner"||app.is_owner===true)){await fetch(URL+"/auth/v1/logout",{method:"POST",headers:{apikey:KEY,Authorization:"Bearer "+session.access_token}}).catch(()=>{});throw new Error("This account does not have Ekhaya owner permissions.");}
+  localStorage.setItem("ekhaya_session",JSON.stringify(session));router.replace("/owner/");
+ }catch(e){setMessage(e instanceof Error?e.message:"Unable to sign in.");}finally{setBusy(false)}}
+ return <main style={{minHeight:"100vh",background:"#F4F8FC",display:"grid",placeItems:"center",padding:24,fontFamily:"Arial,sans-serif",color:"#071B31"}}><section style={{width:"100%",maxWidth:440,background:"#fff",border:"1px solid #DCE8F1",borderRadius:14,padding:30}}><p style={{color:"#079BD3",fontSize:10,fontWeight:800,letterSpacing:2}}>EKHAYA TECHNOLOGIES</p><h1 style={{fontSize:28,margin:"8px 0"}}>Owner sign in</h1><p style={{fontSize:13,color:"#60758A",lineHeight:1.6}}>This area is restricted to accounts with owner permissions assigned by Ekhaya.</p><label style={{display:"block",fontSize:12,fontWeight:700,marginTop:18}}>Email address</label><input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} style={{boxSizing:"border-box",width:"100%",height:46,padding:"0 12px",border:"1px solid #DCE8F1",borderRadius:7,marginTop:6}}/><label style={{display:"block",fontSize:12,fontWeight:700,marginTop:14}}>Password</label><input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")void submit()}} style={{boxSizing:"border-box",width:"100%",height:46,padding:"0 12px",border:"1px solid #DCE8F1",borderRadius:7,marginTop:6}}/><button disabled={busy||!email||!password} onClick={()=>void submit()} style={{width:"100%",height:46,marginTop:18,border:0,borderRadius:7,background:"#071B31",color:"#fff",fontWeight:700}}>{busy?"Signing in…":"Sign in securely"}</button><p role="status" aria-live="polite" style={{fontSize:12,lineHeight:1.6,color:"#304B63",background:"#F4F8FC",padding:12,borderRadius:8,marginTop:16}}>{message}</p><a href="/account/" style={{display:"block",fontSize:12,color:"#079BD3",marginTop:16}}>Seller account sign in</a></section></main>;
+}
