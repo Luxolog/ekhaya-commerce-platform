@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -8,6 +9,7 @@ const supabaseUrl = "https://itxxnhcjjiynrmivexcb.supabase.co";
 const anonKey = "sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t";
 
 export default function AccountPage() {
+  const router = useRouter();
   const [mode,setMode] = useState<"signin"|"signup"|"reset"|"new-password">("signup");
   const [email,setEmail] = useState("");
   const [password,setPassword] = useState("");
@@ -58,7 +60,8 @@ export default function AccountPage() {
       if(!response.ok) throw new Error(data.msg??data.message??data.error_description??"Unable to process your account request.");
       if(data.access_token) {
         localStorage.setItem("ekhaya_session",JSON.stringify(data));
-        setMessage("You're signed in. You can now use marketplace searches.");
+        router.replace("/");
+        router.refresh();
       } else {
         setMessage("Account created. Check your email to confirm your address, then sign in.");
         setMode("signin");
