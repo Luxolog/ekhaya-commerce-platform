@@ -2,13 +2,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 const API="https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search";
-const KEY="sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t";
+const KEY=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
 type Seller={user_id:string;email?:string|null;display_name?:string|null;created_at?:string|null;last_sign_in_at?:string|null;email_confirmed_at?:string|null;role?:string;account_status?:string;plan_code?:string;pilot?:{status?:string;daily_limit?:number;pilot_label?:string}|null};
 export default function OwnerUsersPage(){
  const [users,setUsers]=useState<Seller[]>([]),[filter,setFilter]=useState(""),[status,setStatus]=useState("Loading seller accounts…"),[busyId,setBusyId]=useState<string|null>(null);
  const callOwner=useCallback(async(action:string,extra:Record<string,unknown>={})=>{
   let session:{access_token?:string}|null=null;try{session=JSON.parse(localStorage.getItem("ekhaya_session")??"null")}catch{}
   if(!session?.access_token)throw new Error("Please sign in with the Ekhaya owner account first.");
+  if(!KEY)throw new Error("Owner controls are not configured. Please contact the platform administrator.");
   const response=await fetch(API,{method:"POST",headers:{apikey:KEY,Authorization:"Bearer "+session.access_token,"Content-Type":"application/json"},body:JSON.stringify({action,...extra})});
   const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error??"Owner request failed.");return data;
  },[]);
