@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 const API="https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search";
-const KEY=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
+const KEY="sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t";
 type Seller={user_id:string;email?:string|null;display_name?:string|null;created_at?:string|null;last_sign_in_at?:string|null;email_confirmed_at?:string|null;role?:string;account_status?:string;plan_code?:string;pilot?:{status?:string;daily_limit?:number;pilot_label?:string}|null};
 export default function OwnerUsersPage(){
  const [users,setUsers]=useState<Seller[]>([]),[filter,setFilter]=useState(""),[status,setStatus]=useState("Loading seller accounts…"),[busyId,setBusyId]=useState<string|null>(null);
