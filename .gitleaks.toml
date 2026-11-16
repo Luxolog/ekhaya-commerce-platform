@@ -1,0 +1,4 @@
+[allowlist]
+description = "Supabase publishable client keys are public identifiers, not service-role secrets"
+regexTarget = "match"
+regexes = ['''sb_publishable_[A-Za-z0-9_-]{20,}''']
