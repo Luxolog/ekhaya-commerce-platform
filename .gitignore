@@ -1,21 +1,16 @@
-node_modules
-.next
-out
-build
-dist
-.env
-.env.*
-!.env.example
-.DS_Store
+# Ekhaya Technologies security baseline
+# Never commit secrets, credentials, private keys, personal data or generated files.
 
-# Ekhaya Technologies — security baseline
-# Keep secrets, private data, local state and generated files out of Git.
-
-# Environment files
+# Environment and local configuration
 .env
 .env.*
 !.env.example
 !.env.*.example
+*.local
+*.local.*
+config.local.*
+wp-config.php
+wp-config-local.php
 
 # Credentials, tokens and private keys
 secrets/
@@ -25,6 +20,8 @@ credentials/
 *.key
 *.p12
 *.pfx
+*.crt
+*.cer
 id_rsa
 id_ed25519
 *service-account*.json
@@ -32,21 +29,17 @@ credentials.json
 secrets.json
 token.json
 auth.json
+*.jks
+*.keystore
 
-# Local and server-only configuration
-*.local
-*.local.*
-config.local.*
-wp-config.php
-wp-config-local.php
-
-# Private/customer data (use synthetic test fixtures only)
+# Customer, personal and confidential data
 private-data/
 personal-data/
 customer-data/
 customer-exports/
 customer-export*
 *-customer-export*
+*.pii
 *.dump
 *.sqlite
 *.sqlite3
@@ -54,27 +47,29 @@ customer-export*
 *.db-wal
 *.db-shm
 
-# Backups and generated archives
+# Database backups and archives
 backups/
 db-backups/
 database-backups/
 *.bak
 *.backup
+*.sql
 *.sql.gz
 *.dump.gz
 
-# Logs and debug output
+# Logs and diagnostics
 logs/
 *.log
 debug.log
 error.log
 
-# Build output and dependencies
+# Dependencies and build output
 node_modules/
 vendor/
 .next/
 .nuxt/
 .output/
+out/
 dist/
 build/
 coverage/
@@ -92,7 +87,7 @@ Thumbs.db
 *.tfstate
 *.tfstate.*
 
-# Temporary files
+# Temporary files and caches
 tmp/
 temp/
 .cache/
