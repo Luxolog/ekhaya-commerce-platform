@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 const URL="https://itxxnhcjjiynrmivexcb.supabase.co";
-const KEY=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
+const KEY="sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t";
 export default function OwnerLoginPage(){
  const [email,setEmail]=useState(""),[password,setPassword]=useState(""),[message,setMessage]=useState("Sign in using an authorised Ekhaya owner account."),[busy,setBusy]=useState(false);const router=useRouter();
  async function submit(){setBusy(true);setMessage("");try{if(!KEY)throw new Error("Owner sign-in is not configured. Please contact the platform administrator.");
