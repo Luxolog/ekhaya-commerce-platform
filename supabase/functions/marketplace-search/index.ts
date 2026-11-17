@@ -129,6 +129,9 @@ Deno.serve(async (req: Request) => {
     if (targetMetadata.role === "owner" || targetMetadata.is_owner === true) {
       return json({ error: "Owner accounts cannot be changed from seller management." }, 403);
     }
+    if (newStatus === "active" && !targetAuth.email_confirmed_at) {
+      return json({ error: "The seller must verify their email address before account activation." }, 403);
+    }
 
     const profileUrl = new URL("/rest/v1/profiles", supabaseUrl);
     profileUrl.searchParams.set("id", `eq.${targetUserId}`);
