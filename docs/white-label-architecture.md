@@ -190,7 +190,7 @@ All changes below are confined to `feat/price-checker-white-label-foundation`. T
 - npm dependency audit passed with **0 vulnerabilities** after the PostCSS override to the patched 8.5 line.
 - Secret scanning passed after moving the publishable key to environment configuration and adding a narrowly scoped allowlist for the public `sb_publishable_` key format only.
 - Deno type-check passed for `marketplace-search` and `product-identify` source after correcting a syntax error in the new authentication guard.
-- Latest feature-branch CI (commit `54b49d1`): dependency audit passed with 0 vulnerabilities; Next.js build passed; ESLint passed; Deno type-check passed; secret scanning passed. CodeQL analysis was still running at the time of this update.
+- Latest completed feature-branch CI (commit `54b49d1`): dependency audit passed with 0 vulnerabilities; Next.js build passed; ESLint passed; Deno type-check passed; secret scanning passed; CodeQL passed.
 - CodeQL passed on the latest completed scan.
 - Preview builds are validation-only and are not production deployments.
 
