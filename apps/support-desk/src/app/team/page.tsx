@@ -17,6 +17,7 @@ export default async function TeamPage({searchParams}:{searchParams:Promise<{wor
   const eligible=(memberships ?? []).filter((m:any)=>["owner","admin"].includes(m.role));
   const workspace=eligible.find((m:any)=>m.organisation_id===params.workspace) ?? eligible[0];
   if(!workspace) return <main className="page-shell"><header className="page-topbar"><Link href="/">← Dashboard</Link><b>EKHAYA SUPPORT DESK</b></header><section className="page-heading"><div><h1>Team</h1><p className="muted">Only workspace owners and admins can manage team accounts.</p></div></section></main>;
+  const organisationName = Array.isArray(workspace.organisation) ? workspace.organisation[0]?.name : workspace.organisation?.name;
   const orgId=workspace.organisation_id;
   const [{data:subscription},{data:staff},{count:used}] = await Promise.all([
     supabase.from("sd_subscriptions").select("status,included_seats,paid_additional_seats,trial_ends_at")
@@ -33,7 +34,7 @@ export default async function TeamPage({searchParams}:{searchParams:Promise<{wor
   const emailByUserId=new Map(authUsers.map(user=>[user.id,user.email ?? ""]));
   return <main className="page-shell">
     <header className="page-topbar"><Link href="/" className="back-link"><ArrowLeft size={16}/> Dashboard</Link><span className="page-brand">EKHAYA <b>SUPPORT DESK</b></span></header>
-    <section className="page-heading"><div><p className="eyebrow">WORKSPACE ADMINISTRATION · {workspace.organisation?.name}</p><h1>Team members</h1><p className="muted">Invite staff, manage roles and monitor your user-seat allowance.</p></div></section>
+    <section className="page-heading"><div><p className="eyebrow">WORKSPACE ADMINISTRATION · {organisationName}</p><h1>Team members</h1><p className="muted">Invite staff, manage roles and monitor your user-seat allowance.</p></div></section>
     {params.invited==="1" && <div className="success-banner">Invitation sent. The new member will appear as invited until they accept and complete account setup.</div>}
     <section className="team-summary-grid">
       <article className="panel"><span>Seats in use</span><strong>{used ?? 0} / {total}</strong><small>{remaining} available · invited accounts count as seats</small></article>
