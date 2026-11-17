@@ -28,7 +28,9 @@ export default async function SubscriptionPage({searchParams}:{searchParams:Prom
   const used=seatCount ?? 0;
   const amount=base===null ? null : (base/100)+(paid*extra/100);
   const trialEnd=subscription?.trial_ends_at ? new Date(subscription.trial_ends_at) : null;
-  // This is a server-rendered page; the timestamp is evaluated once per request.\n  // eslint-disable-next-line react-hooks/purity\n  const daysLeft=trialEnd ? Math.max(0,Math.ceil((trialEnd.getTime()-Date.now())/86400000)) : null;
+  // This is a server-rendered page; the timestamp is evaluated once per request.
+  // eslint-disable-next-line react-hooks/purity
+  const daysLeft=trialEnd ? Math.max(0,Math.ceil((trialEnd.getTime()-Date.now())/86400000)) : null;
   return <main className="page-shell">
     <header className="page-topbar"><Link href="/" className="back-link"><ArrowLeft size={16}/> Dashboard</Link><span className="page-brand">EKHAYA <b>SUPPORT DESK</b></span></header>
     <section className="page-heading"><div><p className="eyebrow">BILLING · {chosen.organisation?.name}</p><h1>Subscription</h1><p className="muted">Your plan, trial and user-seat allowance.</p></div></section>
