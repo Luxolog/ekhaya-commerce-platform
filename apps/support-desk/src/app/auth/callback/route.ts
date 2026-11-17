@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     if (!exchangeError) {
       const { data: userData } = await supabase.auth.getUser();
       const metadataOrganisation = userData.user?.user_metadata?.invited_to_organisation;
-      const organisationId = metadataOrganisation || invitedOrganisation;
+      // Prefer the organisation bound to this email link. Auth user_metadata is mutable and may be stale from an earlier invitation.\n      const organisationId = invitedOrganisation || metadataOrganisation;
       if (organisationId) {
         const { error: acceptError } = await supabase.rpc("sd_accept_organisation_invitation", {
           p_organisation_id: organisationId,
