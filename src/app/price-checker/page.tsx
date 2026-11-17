@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { BrowserMultiFormatReader } from "@zxing/browser";
@@ -46,13 +46,14 @@ export default function PriceCheckerPage() {
   const [barcodeProduct,setBarcodeProduct]=useState("");
   const [barcodeBusy,setBarcodeBusy]=useState(false);
 
+  type SellerSession = { access_token?: string; refresh_token?: string; expires_at?: number; expires_in?: number; [key: string]: unknown };
   const getSupabaseHeaders=async(forceRefresh=false)=>{
     if(typeof window==="undefined")throw new Error("Sign in to your Ekhaya seller account before searching.");
     const storageKey="ekhaya_session";
-    let session:Record<string,any>|null=null;
+    let session:SellerSession|null=null;
     try{
       const raw=localStorage.getItem(storageKey);
-      session=raw?JSON.parse(raw):null;
+      session=raw?JSON.parse(raw) as SellerSession:null;
     }catch{
       localStorage.removeItem(storageKey);
       throw new Error("Your seller session could not be read. Please sign in again.");
@@ -70,12 +71,12 @@ export default function PriceCheckerPage() {
       headers:{"Content-Type":"application/json","apikey":process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY??""},
       body:JSON.stringify({refresh_token:session.refresh_token})
     });
-    const payload=await refreshed.json().catch(()=>({}));
+    const payload=await refreshed.json().catch(()=>({})) as Record<string, unknown>;
     if(!refreshed.ok||typeof payload.access_token!=="string"||typeof payload.refresh_token!=="string"){
       localStorage.removeItem(storageKey);
       throw new Error("Your seller sign-in has expired. Please sign in again.");
     }
-    const refreshedSession={...(session??{}),...payload,expires_at:Math.floor(Date.now()/1000)+Number(payload.expires_in??3600)};
+    const refreshedSession:SellerSession={...(session??{}),...payload,expires_at:Math.floor(Date.now()/1000)+Number(payload.expires_in??3600)};
     localStorage.setItem(storageKey,JSON.stringify(refreshedSession));
     return {"Content-Type":"application/json","apikey":process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY??"","Authorization":`Bearer ${payload.access_token}`};
   };
