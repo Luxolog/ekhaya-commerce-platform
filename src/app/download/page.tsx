@@ -37,7 +37,7 @@ export default function DownloadPage() {
           </p>
         </div>
         <p style={{ color: "#60758A", fontSize: 13, marginTop: 26 }}>
-          Need help? <a href="mailto:support@ekhayatech.co.za" style={{ color: "#0786B7" }}>Contact Ekhaya Technologies</a>.
+          Need help? Contact Ekhaya Technologies through its official published contact details.
         </p>
       </section>
       <SiteFooter />
