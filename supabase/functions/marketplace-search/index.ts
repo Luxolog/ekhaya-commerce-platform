@@ -82,12 +82,18 @@ Deno.serve(async (req: Request) => {
     const usersResponse = await fetch(new URL(`/auth/v1/admin/users?page=${page}&per_page=100`, supabaseUrl), { headers: adminHeaders });
     if (!usersResponse.ok) return json({ error: "Could not load users." }, 502);
     const usersPayload = await usersResponse.json();
-    const authUsers = Array.isArray(usersPayload.users) ? usersPayload.users.map((u: Record<string, unknown>) => ({
-      id: u.id, email: u.email, created_at: u.created_at,
-      last_sign_in_at: u.last_sign_in_at,
-      email_confirmed_at: u.email_confirmed_at,
-      role: ((u.app_metadata ?? {}) as Record<string, unknown>).role ?? "seller"
-    })) : [];
+    const authUsers: Array<{ id: string; email?: string; created_at?: string; last_sign_in_at?: string; email_confirmed_at?: string; role: string }> =
+      Array.isArray(usersPayload.users) ? usersPayload.users.map((u: Record<string, unknown>) => {
+        const metadata = (u.app_metadata ?? {}) as Record<string, unknown>;
+        return {
+          id: String(u.id ?? ""),
+          email: typeof u.email === "string" ? u.email : undefined,
+          created_at: typeof u.created_at === "string" ? u.created_at : undefined,
+          last_sign_in_at: typeof u.last_sign_in_at === "string" ? u.last_sign_in_at : undefined,
+          email_confirmed_at: typeof u.email_confirmed_at === "string" ? u.email_confirmed_at : undefined,
+          role: typeof metadata.role === "string" ? metadata.role : "seller",
+        };
+      }) : [];
     let profileById = new Map<string, { account_status: string; plan_code: string }>();
     if (authUsers.length) {
       const profileUrl = new URL("/rest/v1/profiles", supabaseUrl);
