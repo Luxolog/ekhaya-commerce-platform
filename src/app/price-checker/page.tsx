@@ -75,9 +75,9 @@ export default function PriceCheckerPage() {
       localStorage.removeItem(storageKey);
       throw new Error("Your seller sign-in has expired. Please sign in again.");
     }
-    session={...(session??{}),...payload,expires_at:Math.floor(Date.now()/1000)+Number(payload.expires_in??3600)};
-    localStorage.setItem(storageKey,JSON.stringify(session));
-    return {"Content-Type":"application/json","apikey":process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY??"","Authorization":`Bearer ${session.access_token}`};
+    const refreshedSession={...(session??{}),...payload,expires_at:Math.floor(Date.now()/1000)+Number(payload.expires_in??3600)};
+    localStorage.setItem(storageKey,JSON.stringify(refreshedSession));
+    return {"Content-Type":"application/json","apikey":process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY??"","Authorization":`Bearer ${payload.access_token}`};
   };
   const buying=Number(cost);
   const validCost=cost.trim()!=="" && Number.isFinite(buying) && buying>0;
