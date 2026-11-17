@@ -21,7 +21,8 @@ export async function GET(request: NextRequest) {
         }
         return NextResponse.redirect(new URL("/?workspace=" + encodeURIComponent(organisationId), request.url));
       }
-      return NextResponse.redirect(new URL(next && next.startsWith("/") ? next : "/set-password", request.url));
+      const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : "/set-password";
+      return NextResponse.redirect(new URL(safeNext, request.url));
     }
   }
   return NextResponse.redirect(new URL("/login?error=invite_link_invalid", request.url));
