@@ -22,3 +22,32 @@
 .assignment-form select{width:100%;border:1px solid #dceaf3;border-radius:8px;background:#fff;padding:10px;color:#183c55;font:400 11px 'DM Sans',sans-serif}
 .assignment-form .secondary-button{justify-self:start;cursor:pointer}
 @media(max-width:700px){.workspace-options{display:none}}
+
+
+.management-grid{display:grid;grid-template-columns:minmax(260px,.8fr) minmax(0,1.4fr);gap:16px;align-items:start}
+.management-grid h2{font:700 15px Manrope,sans-serif;margin:0 0 6px}
+.compact-form{padding:18px 0 0;border:0;max-width:none}
+.department-card{border:1px solid #e8f0f6;border-radius:10px;padding:14px;margin-top:13px}
+.department-heading{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.department-heading b{display:block;font-size:12px}
+.department-heading small{display:block;color:#8ca0af;font-size:10px;margin-top:5px}
+.department-heading>span{font-size:9px;color:#087db7;background:#e7f7ff;padding:5px 8px;border-radius:20px;white-space:nowrap}
+.inline-assignment{display:flex;gap:8px;margin-top:13px}
+.inline-assignment select{min-width:0;flex:1;border:1px solid #dceaf3;border-radius:8px;background:#fff;padding:10px;color:#183c55;font:400 11px 'DM Sans',sans-serif}
+.inline-assignment button,.quiet-button{cursor:pointer}
+.assignment-list{display:grid;gap:7px;margin-top:11px}
+.assignment-person{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid #f0f4f7;font-size:10px;color:#49677f}
+.assignment-person>span{display:flex;align-items:center;gap:7px}
+.quiet-button{border:0;background:none;color:#b45151;font-size:10px}
+.subscription-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.plan-card{padding:24px}
+.plan-price{font:800 34px Manrope,sans-serif;margin:15px 0 5px;color:#031b33}
+.plan-price small{font:500 11px 'DM Sans',sans-serif;color:#8194a3}
+.plan-line{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #edf3f7;font-size:11px;color:#718696}
+.plan-line b{color:#183c55;text-align:right}
+.seat-number{font:800 32px Manrope,sans-serif;margin:22px 0 10px}
+.seat-number small{font:500 11px 'DM Sans',sans-serif;color:#8194a3}
+.seat-bar{height:9px;background:#eaf2f7;border-radius:20px;overflow:hidden;margin:12px 0}
+.seat-bar span{display:block;height:100%;background:#00a6ef;border-radius:20px}
+.members-panel{margin-top:16px}
+@media(max-width:760px){.management-grid,.subscription-grid{grid-template-columns:1fr}.inline-assignment{flex-wrap:wrap}.inline-assignment select{flex-basis:100%}}
