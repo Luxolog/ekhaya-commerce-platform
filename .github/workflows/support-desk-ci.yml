@@ -18,7 +18,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: apps/support-desk
@@ -27,38 +27,21 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/support-desk/package.json
 
-      - name: Generate deterministic dependency lockfile
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund --fetch-retries=2 --fetch-timeout=120000
-
-      - name: Upload generated dependency lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: support-desk-package-lock
-          path: apps/support-desk/package-lock.json
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Cache npm downloads
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-support-desk-npm-${{ hashFiles('apps/support-desk/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-support-desk-npm-
-
-      - name: Check npm registry connectivity
-        run: npm ping --fetch-retries=0 --fetch-timeout=30000
-
-      - name: Install locked dependencies
-        run: npm ci --no-audit --no-fund --fetch-retries=2 --fetch-timeout=120000
+      # There is intentionally no generated lockfile step here. The previous
+      # package-lock-only resolution stalled before any useful checks ran.
+      # Install from the app's exact package.json pins, then validate the app.
+      - name: Install Support Desk dependencies
+        run: npm install --no-audit --no-fund --legacy-peer-deps --fetch-retries=2 --fetch-timeout=120000
 
       - name: Lint Support Desk
         run: npm run lint
 
       - name: Type-check Support Desk
-        run: npx tsc --noEmit
+        run: npx --no-install tsc --noEmit
 
       - name: Build Support Desk
         run: npm run build
