@@ -181,6 +181,11 @@ Deno.serve(async (req: Request) => {
           body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
         });
         if (!settled.ok || await settled.json() !== true) {
+          await fetch(new URL("/rest/v1/rpc/refund_monthly_search_credit", supabaseUrl), {
+            method: "POST",
+            headers: { ...adminHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
+          });
           return json({ error: "Could not safely settle the search credit. Please contact support before retrying.", code: "CREDIT_SETTLEMENT_FAILED" }, 503);
         }
       }
