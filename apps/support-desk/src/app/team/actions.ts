@@ -87,10 +87,16 @@ export async function updateStaffRole(fd: FormData) {
   if (!organisationId || !membershipId || !allowedRoles.includes(role as typeof allowedRoles[number])) {
     throw new Error("Choose a valid staff role.");
   }
-  const { supabase } = await requireWorkspaceAdmin(organisationId);
+  const { supabase, userId } = await requireWorkspaceAdmin(organisationId);
   const { data: target } = await supabase.from("sd_organisation_members")
-    .select("id,role,user_id").eq("id",membershipId).eq("organisation_id",organisationId).maybeSingle();
-  if (!target) throw new Error("Staff membership not found.");
+    .select("id,role,user_id,status").eq("id",membershipId).eq("organisation_id",organisationId).maybeSingle();
+  if (!target || target.role === "owner") throw new Error("The workspace owner role cannot be changed here.");
+  if (target.user_id === userId) throw new Error("You cannot change your own role. Ask another workspace admin or the owner.");
+  if (target.role === "admin" && role !== "admin" && target.status === "active") {
+    const { count } = await supabase.from("sd_organisation_members").select("id",{count:"exact",head:true})
+      .eq("organisation_id",organisationId).eq("role","admin").eq("status","active");
+    if ((count ?? 0) <= 1) throw new Error("This is the last active admin. Promote another member to admin before changing this role.");
+  }
   const { error } = await supabase.from("sd_organisation_members").update({ role }).eq("id",membershipId).eq("organisation_id",organisationId);
   if (error) throw new Error(error.message);
   revalidatePath("/team");
@@ -100,10 +106,16 @@ export async function removeStaffMember(fd: FormData) {
   const organisationId = String(fd.get("organisation_id") || "");
   const membershipId = String(fd.get("membership_id") || "");
   if (!organisationId || !membershipId) throw new Error("Staff membership is required.");
-  const { supabase } = await requireWorkspaceAdmin(organisationId);
+  const { supabase, userId } = await requireWorkspaceAdmin(organisationId);
   const { data: target } = await supabase.from("sd_organisation_members")
-    .select("id,role").eq("id",membershipId).eq("organisation_id",organisationId).maybeSingle();
+    .select("id,role,user_id,status").eq("id",membershipId).eq("organisation_id",organisationId).maybeSingle();
   if (!target || target.role === "owner") throw new Error("The workspace owner cannot be removed here.");
+  if (target.user_id === userId) throw new Error("You cannot remove your own workspace membership.");
+  if (target.role === "admin" && target.status === "active") {
+    const { count } = await supabase.from("sd_organisation_members").select("id",{count:"exact",head:true})
+      .eq("organisation_id",organisationId).eq("role","admin").eq("status","active");
+    if ((count ?? 0) <= 1) throw new Error("This is the last active admin. Promote another member to admin before removing this account.");
+  }
   const { error } = await supabase.from("sd_organisation_members").delete().eq("id",membershipId).eq("organisation_id",organisationId);
   if (error) throw new Error(error.message);
   revalidatePath("/team");
