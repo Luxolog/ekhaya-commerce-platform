@@ -11,3 +11,15 @@ export function createAdminClient() {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }
+
+export async function listAllAuthUsers() {
+  const client = createAdminClient();
+  const users = [];
+  for (let page = 1; page <= 100; page += 1) {
+    const { data, error } = await client.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw new Error("Unable to load the staff directory: " + error.message);
+    users.push(...data.users);
+    if (data.users.length < 1000) break;
+  }
+  return users;
+}
