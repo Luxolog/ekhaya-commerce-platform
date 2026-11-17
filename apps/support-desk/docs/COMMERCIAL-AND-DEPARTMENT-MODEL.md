@@ -65,7 +65,7 @@ Existing organisations created before this commercial migration are marked `setu
 
 This change adds the subscription entitlement schema, trial creation for new organisations, seat-limit enforcement for invited/active memberships, owner/admin read access to subscription records, a subscription overview screen, and the department membership schema and management screen. It does not connect a payment gateway, collect card/payment details, send trial reminders, run billing webhooks, or complete a production billing portal. Those require selection of a payment provider and a verified server-side integration.
 
-The current department table supports organisation-owned departments and ticket routing. The commercial branch now adds a separate department-membership table with same-organisation validation and a department management screen for creating departments and assigning/removing active agents and supervisors. The migration is committed but has not been applied to Supabase. Staff invitation flow, named staff directory, department queues and departmental reporting remain follow-up implementation work.
+The current department table supports organisation-owned departments and ticket routing. The commercial branch adds a separate department-membership table with same-organisation validation and a department management screen for creating departments and assigning/removing active agents and supervisors. It also adds a team roster, staff invitation actions, role changes/removal, a Supabase Auth invitation callback and password setup screen. A verified invite callback activates only the authenticated user's pending organisation membership through a narrowly scoped RPC. The migrations are committed but have not been applied to Supabase. Existing Auth users cannot yet be invited into a second organisation; this requires a separate account-linking flow. Department queues and departmental reporting remain follow-up implementation work.
 
 ## Safety and deployment
 
@@ -73,3 +73,17 @@ The current department table supports organisation-owned departments and ticket 
 - Do not replay migrations already applied to the shared Supabase project.
 - This migration is committed to GitHub for review; it has not been applied to Supabase.
 - Do not deploy to Vercel until explicitly authorised.
+
+
+## Staff invitation environment requirements
+
+The team invitation workflow uses the Supabase Auth Admin API only from server-side code. Configure these environment variables in the Support Desk server environment before enabling invitations:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` — server-side only; never expose it to client bundles.
+- `SUPPORT_DESK_APP_URL` — canonical Support Desk origin used for invite redirects.
+
+Add the canonical `/auth/callback` URL to the Supabase Auth redirect URL allowlist. Invitees authenticate through the emailed link, accept their pending membership, and set a password. Invited memberships reserve seats. Invitation creation checks available seats and the database seat trigger enforces the final limit. If the membership insert fails after the Auth invite is sent, the temporary Auth user is deleted; test the email delivery and cleanup behavior in a non-production project before launch.
+
+The current invitation flow rejects email addresses that already have an Auth account; cross-organisation account linking is not implemented. Paid additional-seat purchasing is also not implemented, so invitations stop when all included/purchased seats are allocated.
