@@ -56,7 +56,7 @@ export default function PriceCheckerPage() {
         localStorage.removeItem("ekhaya_session");
       }
     }
-    return {"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":token?`Bearer ${token}`:"Bearer"};
+    return {"Content-Type":"application/json","apikey":process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY??"","Authorization":token?`Bearer ${token}`:"Bearer"};
   };
   const buying=Number(cost);
   const validCost=cost.trim()!=="" && Number.isFinite(buying) && buying>0;
