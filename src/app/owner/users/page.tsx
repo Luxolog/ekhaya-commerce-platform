@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 const API = "https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search";
@@ -17,7 +17,7 @@ export default function OwnerUsersPage() {
   const [status, setStatus] = useState("Loading user accounts…");
   const [busy, setBusy] = useState(false);
 
-  async function callOwner(action: string, extra: Record<string, unknown> = {}) {
+  const callOwner = useCallback(async (action: string, extra: Record<string, unknown> = {}) => {
     const session = JSON.parse(localStorage.getItem("ekhaya_session") ?? "null");
     if (!session?.access_token) throw new Error("Please sign in with the Ekhaya owner account first.");
     const response = await fetch(API, {
@@ -28,9 +28,9 @@ export default function OwnerUsersPage() {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error ?? "Owner request failed.");
     return data;
-  }
+  }, []);
 
-  async function loadUsers() {
+  const loadUsers = useCallback(async () => {
     setBusy(true);
     try {
       const data = await callOwner("list_users");
@@ -39,9 +39,9 @@ export default function OwnerUsersPage() {
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not load accounts.");
     } finally { setBusy(false); }
-  }
+  }, [callOwner]);
 
-  useEffect(() => { void loadUsers(); }, []);
+  useEffect(() => { void loadUsers(); }, [loadUsers]);
 
   async function savePassword() {
     if (!selected) return;
