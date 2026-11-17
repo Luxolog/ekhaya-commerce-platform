@@ -22,3 +22,54 @@
 .assignment-form select{width:100%;border:1px solid #dceaf3;border-radius:8px;background:#fff;padding:10px;color:#183c55;font:400 11px 'DM Sans',sans-serif}
 .assignment-form .secondary-button{justify-self:start;cursor:pointer}
 @media(max-width:700px){.workspace-options{display:none}}
+
+
+.management-grid{display:grid;grid-template-columns:minmax(260px,.8fr) minmax(0,1.4fr);gap:16px;align-items:start}
+.management-grid h2{font:700 15px Manrope,sans-serif;margin:0 0 6px}
+.compact-form{padding:18px 0 0;border:0;max-width:none}
+.department-card{border:1px solid #e8f0f6;border-radius:10px;padding:14px;margin-top:13px}
+.department-heading{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.department-heading b{display:block;font-size:12px}
+.department-heading small{display:block;color:#8ca0af;font-size:10px;margin-top:5px}
+.department-heading>span{font-size:9px;color:#087db7;background:#e7f7ff;padding:5px 8px;border-radius:20px;white-space:nowrap}
+.inline-assignment{display:flex;gap:8px;margin-top:13px}
+.inline-assignment select{min-width:0;flex:1;border:1px solid #dceaf3;border-radius:8px;background:#fff;padding:10px;color:#183c55;font:400 11px 'DM Sans',sans-serif}
+.inline-assignment button,.quiet-button{cursor:pointer}
+.assignment-list{display:grid;gap:7px;margin-top:11px}
+.assignment-person{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid #f0f4f7;font-size:10px;color:#49677f}
+.assignment-person>span{display:flex;align-items:center;gap:7px}
+.quiet-button{border:0;background:none;color:#b45151;font-size:10px}
+.subscription-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.plan-card{padding:24px}
+.plan-price{font:800 34px Manrope,sans-serif;margin:15px 0 5px;color:#031b33}
+.plan-price small{font:500 11px 'DM Sans',sans-serif;color:#8194a3}
+.plan-line{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #edf3f7;font-size:11px;color:#718696}
+.plan-line b{color:#183c55;text-align:right}
+.seat-number{font:800 32px Manrope,sans-serif;margin:22px 0 10px}
+.seat-number small{font:500 11px 'DM Sans',sans-serif;color:#8194a3}
+.seat-bar{height:9px;background:#eaf2f7;border-radius:20px;overflow:hidden;margin:12px 0}
+.seat-bar span{display:block;height:100%;background:#00a6ef;border-radius:20px}
+.members-panel{margin-top:16px}
+@media(max-width:760px){.management-grid,.subscription-grid{grid-template-columns:1fr}.inline-assignment{flex-wrap:wrap}.inline-assignment select{flex-basis:100%}}
+
+
+.team-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:16px}
+.team-summary-grid .panel{display:grid;gap:8px}
+.team-summary-grid span{font-size:10px;color:#8194a3}
+.team-summary-grid strong{font:800 24px Manrope,sans-serif;text-transform:capitalize}
+.team-summary-grid small{font-size:9px;color:#91a1ae}
+.team-layout{display:grid;grid-template-columns:minmax(260px,.8fr) minmax(0,1.4fr);gap:16px;align-items:start}
+.invite-panel .panel-title{margin-bottom:5px}
+.staff-list{display:grid;margin-top:14px}
+.staff-row{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid #edf3f7}
+.staff-avatar{width:32px;height:32px;flex-shrink:0;border-radius:9px;background:#e7f7ff;color:#087db7;display:grid;place-items:center;font-weight:700;font-size:11px}
+.staff-identity{min-width:120px;flex:1}
+.staff-identity b{display:block;font-size:10px;text-transform:capitalize}
+.staff-identity small{display:block;font-size:9px;color:#91a1ae;margin-top:4px;overflow-wrap:anywhere}
+.role-form{display:flex;gap:5px;align-items:center}
+.role-form select{max-width:105px;border:1px solid #dceaf3;border-radius:7px;padding:7px;background:white;font-size:9px;color:#34536b}
+.role-form .secondary-button{padding:7px 9px;font-size:9px}
+.success-banner{padding:12px 15px;background:#eaf7f0;color:#247a58;border:1px solid #cdebd9;border-radius:9px;font-size:11px;margin-bottom:14px}
+.form-warning{color:#a66b1c;background:#fff7e8;border-radius:7px;padding:10px;font-size:10px;line-height:1.5}
+@media(max-width:900px){.team-layout{grid-template-columns:1fr}}
+@media(max-width:700px){.team-summary-grid{grid-template-columns:1fr}.staff-row{flex-wrap:wrap}.staff-identity{min-width:calc(100% - 50px)}.role-form{margin-left:42px}.team-layout{grid-template-columns:1fr}}

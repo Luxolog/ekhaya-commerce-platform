@@ -143,6 +143,9 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           <Link className="nav-item active" href={workspaceId ? workspaceHref(workspaceId) : "/"}><LayoutDashboard size={18} /> Overview</Link>
           <Link className="nav-item" href="/tickets"><Inbox size={18} /> Tickets <span className="nav-count">{openTickets ?? 0}</span></Link>
           <a className="nav-item" href="#inbox"><MessageSquare size={18} /> Unified inbox</a>
+          <Link className="nav-item" href="/team"><Users size={18} /> Team members</Link>
+          <Link className="nav-item" href="/departments"><Building2 size={18} /> Departments</Link>
+          <Link className="nav-item" href="/subscription"><CreditCard size={18} /> Subscription</Link>
           <a className="nav-item" href="#customers"><Users size={18} /> Customers</a>
           <a className="nav-item" href="#channels"><Radio size={18} /> Channels</a>
           <a className="nav-item" href="#usage"><CreditCard size={18} /> WhatsApp usage</a>

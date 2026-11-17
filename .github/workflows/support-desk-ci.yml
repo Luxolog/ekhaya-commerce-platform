@@ -27,21 +27,21 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/support-desk/package.json
 
-      - name: Cache npm downloads
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-support-desk-npm-${{ hashFiles('apps/support-desk/package.json') }}
-          restore-keys: |
-            ${{ runner.os }}-support-desk-npm-
+      # There is intentionally no generated lockfile step here. The previous
+      # package-lock-only resolution stalled before any useful checks ran.
+      # Install from the app's exact package.json pins, then validate the app.
+      - name: Install Support Desk dependencies
+        run: npm install --no-audit --no-fund --legacy-peer-deps --fetch-retries=2 --fetch-timeout=120000
 
-      - name: Check npm registry connectivity
-        run: npm ping --fetch-retries=0 --fetch-timeout=30000
+      - name: Lint Support Desk
+        run: npm run lint
 
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund --fetch-retries=2 --fetch-timeout=120000 --verbose
+      - name: Type-check Support Desk
+        run: npx --no-install tsc --noEmit
 
       - name: Build Support Desk
         run: npm run build
