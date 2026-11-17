@@ -42,7 +42,7 @@ export default function PricingPage() {
       <p role="note" style={{...muted,fontSize:13,marginTop:18,padding:16,background:"#FFF7E6",border:"1px solid #F2D9A6",borderRadius:10}}>
         Paid-plan online checkout is not enabled yet. Contact Ekhaya Technologies to request paid-plan activation. Do not send payment details by email or use unofficial payment links.
       </p>
-      <a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Price%20Checker%20Plan%20Activation" style={{display:"inline-block",marginTop:8,padding:"13px 19px",background:"#071B31",color:"#fff",borderRadius:8,textDecoration:"none",fontWeight:800,fontSize:12}}>REQUEST PLAN ACTIVATION →</a>
+      <p style={{...muted,fontSize:12,marginTop:8}}>For plan enquiries, use Ekhaya Technologies&apos; official published contact details.</p>
       <Link href="/account/" style={{display:"inline-block",marginTop:8,padding:"13px 19px",background:"#079BD3",color:"#fff",borderRadius:8,textDecoration:"none",fontWeight:800,fontSize:12}}>CREATE SELLER ACCOUNT →</Link>
     </section>
     <section style={{maxWidth:1120,margin:"68px auto 0"}}>
