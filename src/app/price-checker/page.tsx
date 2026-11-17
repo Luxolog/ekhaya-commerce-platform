@@ -46,17 +46,38 @@ export default function PriceCheckerPage() {
   const [barcodeProduct,setBarcodeProduct]=useState("");
   const [barcodeBusy,setBarcodeBusy]=useState(false);
 
-  const getSupabaseHeaders=()=>{
-    let token:string|null=null;
-    if(typeof window!=="undefined"){
-      try{
-        const session=localStorage.getItem("ekhaya_session");
-        token=session?JSON.parse(session)?.access_token??null:null;
-      }catch{
-        localStorage.removeItem("ekhaya_session");
-      }
+  const getSupabaseHeaders=async(forceRefresh=false)=>{
+    if(typeof window==="undefined")throw new Error("Sign in to your Ekhaya seller account before searching.");
+    const storageKey="ekhaya_session";
+    let session:Record<string,any>|null=null;
+    try{
+      const raw=localStorage.getItem(storageKey);
+      session=raw?JSON.parse(raw):null;
+    }catch{
+      localStorage.removeItem(storageKey);
+      throw new Error("Your seller session could not be read. Please sign in again.");
     }
-    return {"Content-Type":"application/json","apikey":process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY??"","Authorization":token?`Bearer ${token}`:"Bearer"};
+    if(!session?.access_token||!session?.refresh_token){
+      localStorage.removeItem(storageKey);
+      throw new Error("Please sign in to your Ekhaya seller account before searching.");
+    }
+    const expiresAt=Number(session.expires_at)||0;
+    if(!forceRefresh&&expiresAt>Date.now()/1000+60){
+      return {"Content-Type":"application/json","apikey":process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY??"","Authorization":`Bearer ${session.access_token}`};
+    }
+    const refreshed=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/auth/v1/token?grant_type=refresh_token",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","apikey":process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY??""},
+      body:JSON.stringify({refresh_token:session.refresh_token})
+    });
+    const payload=await refreshed.json().catch(()=>({}));
+    if(!refreshed.ok||typeof payload.access_token!=="string"||typeof payload.refresh_token!=="string"){
+      localStorage.removeItem(storageKey);
+      throw new Error("Your seller sign-in has expired. Please sign in again.");
+    }
+    session={...session,...payload,expires_at:Math.floor(Date.now()/1000)+Number(payload.expires_in??3600)};
+    localStorage.setItem(storageKey,JSON.stringify(session));
+    return {"Content-Type":"application/json","apikey":process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY??"","Authorization":`Bearer ${session.access_token}`};
   };
   const buying=Number(cost);
   const validCost=cost.trim()!=="" && Number.isFinite(buying) && buying>0;
@@ -68,7 +89,7 @@ export default function PriceCheckerPage() {
     if(!/^\d{8,14}$/.test(value.trim())){setError("Enter a valid 8–14 digit barcode.");return;}
     setBarcodeBusy(true);setError("");setBarcodeProduct("");
     try {
-      const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/product-identify",{method:"POST",headers:getSupabaseHeaders(),body:JSON.stringify({mode:"barcode",barcode:value.trim()})});
+      const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/product-identify",{method:"POST",headers:await getSupabaseHeaders(),body:JSON.stringify({mode:"barcode",barcode:value.trim()})});
       const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Barcode lookup failed");
       setBarcodeProduct(payload.product.brand?payload.product.brand+" "+payload.product.title:payload.product.title);
       if(payload.product.weight_grams)setWeight(String(payload.product.weight_grams/1000));
@@ -81,12 +102,15 @@ export default function PriceCheckerPage() {
     if(productQuery.length<2){setError("Enter at least 2 characters to search.");return;}
     if(!marketplaces.length){setError("Choose at least one marketplace.");return;}
     setLoading(true);setError("");setProducts([]);setSource("");
+    let authHeaders:Record<string,string>;
+    try{authHeaders=await getSupabaseHeaders();}
+    catch(e){setError(e instanceof Error?e.message:"Please sign in to your Ekhaya seller account.");setLoading(false);return;}
     const errors:string[]=[]; let done=0;
     await Promise.all(marketplaces.map(async marketplace=>{
       try{
         const controller=new AbortController();const timer=window.setTimeout(()=>controller.abort(),10000);
         const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search",{
-          method:"POST",headers:getSupabaseHeaders(),
+          method:"POST",headers:authHeaders,
           body:JSON.stringify({marketplace,query:productQuery,request_id:crypto.randomUUID()}),signal:controller.signal
         }).finally(()=>window.clearTimeout(timer));
         const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Search failed");
@@ -116,7 +140,7 @@ export default function PriceCheckerPage() {
       } catch { /* No readable barcode: continue with text recognition. */ }
       finally { URL.revokeObjectURL(objectUrl); }
       const base64=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]??"");reader.onerror=()=>reject(new Error("Could not read image"));reader.readAsDataURL(file);});
-      const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/product-identify",{method:"POST",headers:getSupabaseHeaders(),body:JSON.stringify({mode:"photo",file_b64:base64,filename:file.name})});
+      const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/product-identify",{method:"POST",headers:await getSupabaseHeaders(),body:JSON.stringify({mode:"photo",file_b64:base64,filename:file.name})});
       const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Photo recognition failed");
       setPhotoText(payload.text??"");
       if(!payload.text)setError("No readable barcode or product text found. Enter the barcode or product name manually.");
