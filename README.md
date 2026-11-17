@@ -2,16 +2,14 @@
 
 A price intelligence and profitability tool for South African resellers, built by Ekhaya Technologies.
 
-## Current test build
+## Current application
 
-- Responsive manual price calculator at /price-checker
-- Optional marketplace connection guidance at /marketplaces
-- Sellers without Takealot or Amazon accounts can use the calculator without connecting anything
-- Capacitor Android wrapper and GitHub Actions debug APK build
-- Shared marketplace cache schema, demand-based TTL policy, refresh queue, price history and API usage ledger
-- Server-side integration architecture documented; ReefAPI and Supabase credentials are not stored in the repository or APK
-
-Marketplace connections shown in this test build are guidance only. Takealot API-key submission, Amazon seller authorisation, customer registration, password recovery and live marketplace data are not yet connected. Do not ask users to send API keys to Ekhaya through chat, email or screenshots.
+- Responsive Price Checker at /price-checker with product-name search, barcode identification and photo-based identification flows.
+- The web application contains client-side calls to the deployed Supabase Edge Functions for marketplace search and product identification. These flows still require authorised end-to-end acceptance testing before they can be described as production-verified.
+- Takealot is the only marketplace currently selectable in the Price Checker. Amazon South Africa is marked as testing; Makro, Bobshop and Leroy Merlin are not available integrations.
+- Profitability figures are estimates. Confirm current marketplace fee schedules and all category, size, weight, fulfilment and VAT assumptions before relying on them for purchasing decisions.
+- Seller account, pricing, marketplace guidance and privacy pages are present.
+- Capacitor Android wrapper and GitHub Actions debug APK build. The debug APK is for internal testing only and is not a public app release.
 
 ## Cache refresh policy
 
@@ -29,20 +27,19 @@ Requirements: Node.js 20+.
     npm install
     npm run dev
 
-## Android debug APK
+## Android internal debug build
 
     npm install
     npm run build
-    npx cap add android
     npx cap sync android
     cd android && ./gradlew assembleDebug
 
-See docs/android-build-and-test.md.
+See docs/android-build-and-test.md. A successful debug build does not constitute a signed, tested public Android release.
 
-## Environment
+## Environment and security
 
-Copy .env.example to .env.local for server-side integration work. Never commit real keys. The current Android debug build contains the static calculator/app shell only; live marketplace research requires a deployed server-side API and database.
+Copy .env.example to .env.local for local server-side integration work. Never commit real keys. Keep service-role credentials server-side and out of browser bundles and Android packages. Do not ask users to send API keys through chat, email or screenshots.
 
-## Safety
+## Release status
 
-Never commit API keys, payment secrets, database credentials, customer data, or .env files.
+The production website's availability does not by itself verify authentication, live search, barcode/photo identification, search-credit accounting, payment callbacks, notifications or backup restoration. Complete the documented production-readiness acceptance tests before wider seller onboarding.

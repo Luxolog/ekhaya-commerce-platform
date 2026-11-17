@@ -6,7 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 
 const supabaseUrl = "https://itxxnhcjjiynrmivexcb.supabase.co";
-const anonKey = "sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t";
+const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 export default function AccountPage() {
   const router = useRouter();
@@ -35,6 +35,7 @@ export default function AccountPage() {
   async function submit() {
     setBusy(true); setMessage("");
     try {
+      if(!anonKey) throw new Error("Account services are not configured. Please contact Ekhaya support.");
       if(mode==="signup" && !privacyAccepted) throw new Error("Please read and acknowledge the Privacy Notice before creating an account.");
       if(mode==="reset"){
         const response=await fetch(supabaseUrl+"/auth/v1/recover?redirect_to="+encodeURIComponent(window.location.origin+"/account/"),{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:JSON.stringify({email})});
@@ -59,7 +60,8 @@ export default function AccountPage() {
       const data = await response.json();
       if(!response.ok) throw new Error(data.msg??data.message??data.error_description??"Unable to process your account request.");
       if(data.access_token) {
-        localStorage.setItem("ekhaya_session",JSON.stringify(data));
+        const session={...data,expires_at:Math.floor(Date.now()/1000)+Number(data.expires_in??3600)};
+        localStorage.setItem("ekhaya_session",JSON.stringify(session));
         router.replace("/");
         router.refresh();
       } else {

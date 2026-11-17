@@ -40,9 +40,24 @@ jobs:
       - name: Install dependencies
         run: npm install --ignore-scripts
       - name: Audit dependencies
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=moderate
       - name: Build static application
         run: npm run build
+      - name: Lint application
+        run: npm run lint
+
+  edge-functions:
+    name: Supabase Edge Function type-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check marketplace and product identification functions
+        run: deno check --no-lock --node-modules-dir=auto supabase/functions/marketplace-search/index.ts supabase/functions/product-identify/index.ts
 
   codeql:
     name: CodeQL analysis

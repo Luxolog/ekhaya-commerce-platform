@@ -8,9 +8,60 @@ const cors = {
 };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors });
 
+async function sha256(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  // Product identification uses a paid upstream provider. Require a verified
+  // Supabase session and apply the same server-side IP rate limit as searches.
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceKey) return json({ error: "Server configuration incomplete" }, 503);
+
+  const authorization = req.headers.get("authorization") ?? "";
+  const accessToken = authorization.replace(/^Bearer\s+/i, "");
+  if (!accessToken || accessToken === authorization) {
+    return json({ error: "Sign in to identify products.", code: "AUTH_REQUIRED" }, 401);
+  }
+
+  try {
+    const userResponse = await fetch(new URL("/auth/v1/user", supabaseUrl), {
+      headers: { apikey: serviceKey, Authorization: `Bearer ${accessToken}` },
+    });
+    if (!userResponse.ok) {
+      return json({ error: "Your session is invalid or expired. Please sign in again.", code: "INVALID_SESSION" }, 401);
+    }
+    const user = await userResponse.json();
+    const userId = typeof user.id === "string" ? user.id : "";
+    if (!userId) return json({ error: "Authentication required.", code: "AUTH_REQUIRED" }, 401);
+
+    const adminHeaders = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
+    const profileResponse = await fetch(new URL(`/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=account_status`, supabaseUrl), { headers: adminHeaders });
+    if (!profileResponse.ok) return json({ error: "Could not verify your seller account status." }, 503);
+    const profiles = await profileResponse.json();
+    if (!Array.isArray(profiles) || profiles[0]?.account_status !== "active") {
+      return json({ error: "Your seller account is not active. Please contact support.", code: "ACCOUNT_INACTIVE" }, 403);
+    }
+
+    const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const ipHash = await sha256(`${userId}:${forwarded}`);
+    const quotaResponse = await fetch(new URL("/rest/v1/rpc/consume_price_search_quota", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_ip_hash: ipHash, p_limit: 30 }),
+    });
+  if (!quotaResponse.ok || await quotaResponse.json() !== true) {
+    return json({ error: "Product identification limit reached. Please try again in an hour.", code: "RATE_LIMITED" }, 429);
+  }
+  } catch {
+    return json({ error: "Could not verify your seller account or rate limit." }, 503);
+  }
   const key = Deno.env.get("REEFAPI_KEY");
   if (!key) return json({ error: "Server configuration incomplete", missing: ["REEFAPI_KEY"] }, 503);
   let body: { mode?: string; barcode?: string; file_b64?: string; filename?: string };

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 const URL = "https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search";
-const KEY = "sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t";
+const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 export default function OwnerCachePage() {
   const [ttl,setTtl]=useState("360");

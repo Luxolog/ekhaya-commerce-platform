@@ -48,7 +48,7 @@ Deno.serve(async (req: Request) => {
   const appMetadata = (user.app_metadata ?? {}) as Record<string, unknown>;
   const isOwner = appMetadata.role === "owner" || appMetadata.is_owner === true;
 
-  let body: { page?: number; user_id?: string; password?: string; marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean };
+  let body: { page?: number; user_id?: string; password?: string; status?: string; reason?: string; marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean };
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
 
   if (body.action === "get_cache_settings") {
@@ -82,13 +82,96 @@ Deno.serve(async (req: Request) => {
     const usersResponse = await fetch(new URL(`/auth/v1/admin/users?page=${page}&per_page=100`, supabaseUrl), { headers: adminHeaders });
     if (!usersResponse.ok) return json({ error: "Could not load users." }, 502);
     const usersPayload = await usersResponse.json();
-    const users = Array.isArray(usersPayload.users) ? usersPayload.users.map((u: Record<string, unknown>) => ({
-      id: u.id, email: u.email, created_at: u.created_at,
-      last_sign_in_at: u.last_sign_in_at,
-      email_confirmed_at: u.email_confirmed_at,
-      role: ((u.app_metadata ?? {}) as Record<string, unknown>).role ?? "seller"
-    })) : [];
+    const authUsers: Array<{ id: string; email?: string; created_at?: string; last_sign_in_at?: string; email_confirmed_at?: string; role: string }> =
+      Array.isArray(usersPayload.users) ? usersPayload.users.map((u: Record<string, unknown>) => {
+        const metadata = (u.app_metadata ?? {}) as Record<string, unknown>;
+        return {
+          id: String(u.id ?? ""),
+          email: typeof u.email === "string" ? u.email : undefined,
+          created_at: typeof u.created_at === "string" ? u.created_at : undefined,
+          last_sign_in_at: typeof u.last_sign_in_at === "string" ? u.last_sign_in_at : undefined,
+          email_confirmed_at: typeof u.email_confirmed_at === "string" ? u.email_confirmed_at : undefined,
+          role: typeof metadata.role === "string" ? metadata.role : "seller",
+        };
+      }) : [];
+    let profileById = new Map<string, { account_status: string; plan_code: string }>();
+    if (authUsers.length) {
+      const profileUrl = new URL("/rest/v1/profiles", supabaseUrl);
+      profileUrl.searchParams.set("id", `in.(${authUsers.map((u: { id: string }) => u.id).join(",")})`);
+      profileUrl.searchParams.set("select", "id,account_status,plan_code");
+      const profileResponse = await fetch(profileUrl, { headers: adminHeaders });
+      if (!profileResponse.ok) return json({ error: "Could not load seller account status." }, 502);
+      const profileRows = await profileResponse.json();
+      profileById = new Map(profileRows.map((p: { id: string; account_status: string; plan_code: string }) => [p.id, { account_status: p.account_status, plan_code: p.plan_code }]));
+    }
+    const users = authUsers.map((u: { id: string }) => ({
+      ...u,
+      account_status: profileById.get(u.id)?.account_status ?? "pending",
+      plan_code: profileById.get(u.id)?.plan_code ?? "free",
+    }));
     return json({ ok: true, users, page, total: users.length });
+  }
+
+  if (body.action === "set_user_status") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const targetUserId = typeof body.user_id === "string" ? body.user_id : "";
+    const newStatus = typeof body.status === "string" ? body.status : "";
+    const allowedStatuses = ["pending", "active", "inactive", "suspended"];
+    if (!targetUserId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetUserId) || !allowedStatuses.includes(newStatus)) {
+      return json({ error: "Select a valid seller and account status." }, 400);
+    }
+    if (targetUserId === userId) return json({ error: "You cannot change your own owner account status." }, 403);
+
+    const targetAuthResponse = await fetch(new URL(`/auth/v1/admin/users/${targetUserId}`, supabaseUrl), { headers: adminHeaders });
+    if (!targetAuthResponse.ok) return json({ error: "Could not find the selected user." }, 404);
+    const targetAuth = await targetAuthResponse.json();
+    const targetMetadata = (targetAuth.app_metadata ?? {}) as Record<string, unknown>;
+    if (targetMetadata.role === "owner" || targetMetadata.is_owner === true) {
+      return json({ error: "Owner accounts cannot be changed from seller management." }, 403);
+    }
+    if (newStatus === "active" && !targetAuth.email_confirmed_at) {
+      return json({ error: "The seller must verify their email address before account activation." }, 403);
+    }
+
+    const profileUrl = new URL("/rest/v1/profiles", supabaseUrl);
+    profileUrl.searchParams.set("id", `eq.${targetUserId}`);
+    profileUrl.searchParams.set("select", "id,account_status");
+    const profileResponse = await fetch(profileUrl, { headers: adminHeaders });
+    if (!profileResponse.ok) return json({ error: "Could not load the selected seller profile." }, 502);
+    const profileRows = await profileResponse.json();
+    const profile = profileRows?.[0];
+    if (!profile) return json({ error: "The seller profile has not been created yet." }, 404);
+    if (profile.account_status === newStatus) return json({ ok: true, user_id: targetUserId, account_status: newStatus, unchanged: true });
+
+    const updateUrl = new URL("/rest/v1/profiles", supabaseUrl);
+    updateUrl.searchParams.set("id", `eq.${targetUserId}`);
+    const updateResponse = await fetch(updateUrl, {
+      method: "PATCH",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ account_status: newStatus, updated_at: new Date().toISOString() }),
+    });
+    if (!updateResponse.ok) return json({ error: "Could not update seller account status." }, 502);
+
+    const auditResponse = await fetch(new URL("/rest/v1/user_status_events", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({
+        target_user_id: targetUserId,
+        actor_user_id: userId,
+        previous_status: profile.account_status,
+        new_status: newStatus,
+        reason: String(body.reason ?? "Owner account review").slice(0, 240),
+      }),
+    });
+    if (!auditResponse.ok) {
+      await fetch(updateUrl, {
+        method: "PATCH",
+        headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ account_status: profile.account_status, updated_at: new Date().toISOString() }),
+      });
+      return json({ error: "The status change could not be audited; the previous account status was restored." }, 502);
+    }
+    return json({ ok: true, user_id: targetUserId, account_status: newStatus });
   }
 
   if (body.action === "set_user_password") {
@@ -123,6 +206,38 @@ Deno.serve(async (req: Request) => {
   }
   if (body.force_refresh && !isOwner) return json({ error: "Only the Ekhaya owner can force a live cache refresh." }, 403);
 
+  const requestId = body.request_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.request_id)
+    ? body.request_id : crypto.randomUUID();
+  const charged = !isOwner;
+
+  // Rate-limit and reserve a seller credit before serving cached or live results.
+  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ipHash = await sha256(forwarded);
+  const quotaResponse = await fetch(new URL("/rest/v1/rpc/consume_price_search_quota", supabaseUrl), {
+    method: "POST",
+    headers: { ...adminHeaders, "Content-Type": "application/json" },
+    body: JSON.stringify({ p_ip_hash: ipHash, p_limit: 30 }),
+  });
+  if (!quotaResponse.ok || await quotaResponse.json() !== true) {
+    return json({ error: "Search limit reached. Please try again in an hour." }, 429);
+  }
+
+  if (charged) {
+    const reserve = await fetch(new URL("/rest/v1/rpc/reserve_monthly_search_credit", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace, p_request_id: requestId }),
+    });
+    const reservation = reserve.ok ? await reserve.json() : null;
+    if (!reserve.ok || reservation?.allowed !== true) {
+      const reason = reservation?.reason ?? "CREDIT_RESERVATION_FAILED";
+      return json({ error: reason === "MONTHLY_SEARCH_LIMIT" || reason === "FREE_SEARCH_LIMIT" ? "You have used all your available marketplace search credits." : "Your account or plan is not enabled for live searches.", code: reason, usage: reservation }, 402);
+    }
+    if (reservation.duplicate) {
+      return json({ error: "This search request has already been processed. Please start a new search.", code: "DUPLICATE_REQUEST" }, 409);
+    }
+  }
+
   const lookupKey = query.toLowerCase().replace(/\s+/g, " ");
   const cacheUrl = new URL("/rest/v1/marketplace_price_cache", supabaseUrl);
   cacheUrl.searchParams.set("marketplace", `eq.${marketplace}`);
@@ -140,43 +255,31 @@ Deno.serve(async (req: Request) => {
     const settings = settingsRows?.[0] ?? { refresh_enabled: true, cache_ttl_minutes: 360 };
     const fresh = cache && new Date(cache.expires_at) > new Date();
     if (cache && !body.force_refresh && (fresh || settings.refresh_enabled === false)) {
+      const cachedProducts = cache.source_payload?.products ?? [];
+      if (charged) {
+        const rpc = cachedProducts.length > 0 ? "complete_monthly_search_credit" : "refund_monthly_search_credit";
+        const settled = await fetch(new URL(`/rest/v1/rpc/${rpc}`, supabaseUrl), {
+          method: "POST",
+          headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
+        });
+        if (!settled.ok || await settled.json() !== true) {
+          await fetch(new URL("/rest/v1/rpc/refund_monthly_search_credit", supabaseUrl), {
+            method: "POST",
+            headers: { ...adminHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
+          });
+          return json({ error: "Could not safely settle the search credit. Please contact support before retrying.", code: "CREDIT_SETTLEMENT_FAILED" }, 503);
+        }
+      }
       return json({
         source: fresh ? "cache" : "stale-cache",
         marketplace,
         fetched_at: cache.fetched_at,
-        products: cache.source_payload?.products ?? [],
+        products: cachedProducts,
+        credit_charged: charged && cachedProducts.length > 0,
         refresh_paused: !fresh,
       });
-    }
-
-    const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-    const ipHash = await sha256(forwarded);
-    const quotaResponse = await fetch(new URL("/rest/v1/rpc/consume_price_search_quota", supabaseUrl), {
-      method: "POST",
-      headers: { ...adminHeaders, "Content-Type": "application/json" },
-      body: JSON.stringify({ p_ip_hash: ipHash, p_limit: 30 }),
-    });
-    if (!quotaResponse.ok || await quotaResponse.json() !== true) {
-      return json({ error: "Search limit reached. Please try again in an hour." }, 429);
-    }
-
-    const requestId = body.request_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.request_id)
-      ? body.request_id : crypto.randomUUID();
-    const charged = !isOwner;
-    if (charged) {
-      const reserve = await fetch(new URL("/rest/v1/rpc/reserve_monthly_search_credit", supabaseUrl), {
-        method: "POST",
-        headers: { ...adminHeaders, "Content-Type": "application/json" },
-        body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace, p_request_id: requestId }),
-      });
-      const reservation = reserve.ok ? await reserve.json() : null;
-      if (!reserve.ok || reservation?.allowed !== true) {
-        const reason = reservation?.reason ?? "CREDIT_RESERVATION_FAILED";
-        return json({ error: reason === "MONTHLY_SEARCH_LIMIT" ? "You have used all your monthly marketplace search credits." : "Your account or plan is not enabled for live searches.", code: reason, usage: reservation }, 402);
-      }
-      if (reservation.duplicate) {
-        return json({ error: "This search request has already been processed. Please start a new search.", code: "DUPLICATE_REQUEST" }, 409);
-      }
     }
 
     try {
@@ -224,11 +327,15 @@ Deno.serve(async (req: Request) => {
       if (!cacheWrite.ok) throw new Error("Marketplace data was found but could not be saved to shared cache.");
 
       if (charged) {
-        await fetch(new URL("/rest/v1/rpc/complete_monthly_search_credit", supabaseUrl), {
+        const rpc = products.length > 0 ? "complete_monthly_search_credit" : "refund_monthly_search_credit";
+        const settled = await fetch(new URL(`/rest/v1/rpc/${rpc}`, supabaseUrl), {
           method: "POST",
           headers: { ...adminHeaders, "Content-Type": "application/json" },
           body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
         });
+        if (!settled.ok || await settled.json() !== true) {
+          throw new Error("Could not safely settle the search credit.");
+        }
       }
       await fetch(new URL("/rest/v1/api_usage_ledger", supabaseUrl), {
         method: "POST",
@@ -239,7 +346,7 @@ Deno.serve(async (req: Request) => {
           response_count: products.length, request_id: payload.meta?.request_id ?? null, actor_id: charged ? userId : null,
         }),
       });
-      return json({ source: "live", marketplace, fetched_at: now.toISOString(), products, provider_meta: payload.meta ?? null, credit_charged: charged });
+      return json({ source: "live", marketplace, fetched_at: now.toISOString(), products, provider_meta: payload.meta ?? null, credit_charged: charged && products.length > 0 });
     } catch (error) {
       if (charged) {
         await fetch(new URL("/rest/v1/rpc/refund_monthly_search_credit", supabaseUrl), {
