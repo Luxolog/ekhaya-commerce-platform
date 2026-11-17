@@ -37,17 +37,25 @@ Deno.serve(async (req: Request) => {
     if (!userResponse.ok) {
       return json({ error: "Your session is invalid or expired. Please sign in again.", code: "INVALID_SESSION" }, 401);
     }
-  } catch {
-    return json({ error: "Could not verify your seller session." }, 503);
-  }
+    const user = await userResponse.json();
+    const userId = typeof user.id === "string" ? user.id : "";
+    if (!userId) return json({ error: "Authentication required.", code: "AUTH_REQUIRED" }, 401);
 
-  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const ipHash = await sha256(forwarded);
-  const quotaResponse = await fetch(new URL("/rest/v1/rpc/consume_price_search_quota", supabaseUrl), {
-    method: "POST",
-    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ p_ip_hash: ipHash, p_limit: 30 }),
-  });
+    const adminHeaders = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
+    const profileResponse = await fetch(new URL(`/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=account_status`, supabaseUrl), { headers: adminHeaders });
+    if (!profileResponse.ok) return json({ error: "Could not verify your seller account status." }, 503);
+    const profiles = await profileResponse.json();
+    if (!Array.isArray(profiles) || profiles[0]?.account_status !== "active") {
+      return json({ error: "Your seller account is not active. Please contact support.", code: "ACCOUNT_INACTIVE" }, 403);
+    }
+
+    const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const ipHash = await sha256(`${userId}:${forwarded}`);
+    const quotaResponse = await fetch(new URL("/rest/v1/rpc/consume_price_search_quota", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_ip_hash: ipHash, p_limit: 30 }),
+    });
   if (!quotaResponse.ok || await quotaResponse.json() !== true) {
     return json({ error: "Product identification limit reached. Please try again in an hour.", code: "RATE_LIMITED" }, 429);
   }
