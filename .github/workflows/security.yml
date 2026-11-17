@@ -57,7 +57,7 @@ jobs:
         with:
           deno-version: v2.x
       - name: Type-check marketplace and product identification functions
-        run: deno check --no-lock supabase/functions/marketplace-search/index.ts supabase/functions/product-identify/index.ts
+        run: deno check --no-lock --node-modules-dir=auto supabase/functions/marketplace-search/index.ts supabase/functions/product-identify/index.ts
 
   codeql:
     name: CodeQL analysis
