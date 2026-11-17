@@ -29,19 +29,30 @@ jobs:
         with:
           node-version: 20
 
+      - name: Generate deterministic dependency lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund --fetch-retries=2 --fetch-timeout=120000
+
+      - name: Upload generated dependency lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: support-desk-package-lock
+          path: apps/support-desk/package-lock.json
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Cache npm downloads
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-support-desk-npm-${{ hashFiles('apps/support-desk/package.json') }}
+          key: ${{ runner.os }}-support-desk-npm-${{ hashFiles('apps/support-desk/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-support-desk-npm-
 
       - name: Check npm registry connectivity
         run: npm ping --fetch-retries=0 --fetch-timeout=30000
 
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund --fetch-retries=2 --fetch-timeout=120000
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund --fetch-retries=2 --fetch-timeout=120000
 
       - name: Lint Support Desk
         run: npm run lint
