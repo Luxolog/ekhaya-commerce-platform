@@ -4,18 +4,17 @@
 
 - Trial: 30 calendar days from organisation creation.
 - Included seats: 2 user accounts per organisation.
+- Base subscription: ZAR 150 per month for the two included seats.
 - Additional seats: ZAR 75 per additional user per month.
 - Departments: unlimited; department count does not affect subscription price.
 - Billing interval: monthly only.
 - Currency: ZAR.
 
-## Pricing decision still required
+## Pricing formula
 
-The monthly base subscription amount covering the first two seats has not yet been approved. The database stores this as `base_monthly_price_cents = NULL` until confirmed. Do not publish a final subscription total, charge customers, or activate recurring billing until this amount is set.
+`R150 base monthly fee + (paid additional seats × R75)`
 
-Monthly total once approved:
-
-`base monthly fee + (paid additional seats × R75)`
+The first two seats are included in the R150 base fee. Each additional user account costs R75 per month.
 
 During the 30-day trial, two seats are included. Paid add-on seats and post-trial access require an active paid subscription.
 
@@ -64,7 +63,7 @@ Existing organisations created before this commercial migration are marked `setu
 
 ## Current implementation boundary
 
-This change adds the subscription entitlement schema, trial creation for new organisations, seat-limit enforcement for invited/active memberships, and owner/admin read access to subscription records. It does not connect a payment gateway, collect card/payment details, send trial reminders, run billing webhooks, or complete a production billing portal. Those require a selected payment provider and verified server-side integration.
+This change adds the subscription entitlement schema, trial creation for new organisations, seat-limit enforcement for invited/active memberships, and owner/admin read access to subscription records. It does not connect a payment gateway, collect card/payment details, send trial reminders, run billing webhooks, or complete a production billing portal. Those require selection of a payment provider and a verified server-side integration.
 
 The current department table already supports organisation-owned departments and ticket routing. A full agent-to-department membership model, department management UI, invitation flow, and departmental reporting remain follow-up implementation work.
 
