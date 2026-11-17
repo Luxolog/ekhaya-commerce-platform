@@ -23,7 +23,7 @@ export default function ServicesPage() {
       </article>)}
     </section>
     <section style={{maxWidth:1200,margin:"56px auto 0",background:"#071B31",color:"#fff",borderRadius:18,padding:"clamp(26px,5vw,48px)"}}>
-      <p style={{color:"#00A9E8",fontSize:11,letterSpacing:".16em",fontWeight:800}}>LET'S BUILD SOMETHING USEFUL</p><h2 style={{fontFamily:"Manrope,sans-serif",fontSize:"clamp(28px,4vw,42px)",margin:"10px 0"}}>Tell us what your business needs.</h2><p style={{color:"#C5D7E5",fontSize:15,lineHeight:1.75,maxWidth:720}}>Share the challenge you want to solve and we can discuss a practical solution and scope.</p><a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Technologies%20Enquiry" style={{display:"inline-block",marginTop:10,padding:"13px 19px",background:"#079BD3",color:"#fff",borderRadius:8,fontWeight:800,fontSize:12}}>MAKE AN ENQUIRY →</a>
+      <p style={{color:"#00A9E8",fontSize:11,letterSpacing:".16em",fontWeight:800}}>LET&apos;S BUILD SOMETHING USEFUL</p><h2 style={{fontFamily:"Manrope,sans-serif",fontSize:"clamp(28px,4vw,42px)",margin:"10px 0"}}>Tell us what your business needs.</h2><p style={{color:"#C5D7E5",fontSize:15,lineHeight:1.75,maxWidth:720}}>Share the challenge you want to solve and we can discuss a practical solution and scope.</p><a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Technologies%20Enquiry" style={{display:"inline-block",marginTop:10,padding:"13px 19px",background:"#079BD3",color:"#fff",borderRadius:8,fontWeight:800,fontSize:12}}>MAKE AN ENQUIRY →</a>
     </section>
     <SiteFooter />
   </main>;
