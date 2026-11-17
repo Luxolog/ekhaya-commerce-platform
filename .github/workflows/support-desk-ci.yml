@@ -18,7 +18,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: apps/support-desk
@@ -41,7 +41,13 @@ jobs:
         run: npm ping --fetch-retries=0 --fetch-timeout=30000
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund --fetch-retries=2 --fetch-timeout=120000 --verbose
+        run: npm install --no-audit --no-fund --fetch-retries=2 --fetch-timeout=120000
+
+      - name: Lint Support Desk
+        run: npm run lint
+
+      - name: Type-check Support Desk
+        run: npx tsc --noEmit
 
       - name: Build Support Desk
         run: npm run build
