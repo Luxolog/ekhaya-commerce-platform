@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { inviteStaffMember, updateStaffRole, removeStaffMember } from "./actions";
 import { listAllAuthUsers } from "@/lib/supabase/admin";
-import { ArrowLeft, UserPlus, Users, ShieldCheck } from "lucide-react";
+import { ArrowLeft, UserPlus, Users } from "lucide-react";
 
 export default async function TeamPage({searchParams}:{searchParams:Promise<{workspace?:string;invited?:string}>}) {
   const params=await searchParams;
@@ -37,7 +37,7 @@ export default async function TeamPage({searchParams}:{searchParams:Promise<{wor
     {params.invited==="1" && <div className="success-banner">Invitation sent. The new member will appear as invited until they accept and complete account setup.</div>}
     <section className="team-summary-grid">
       <article className="panel"><span>Seats in use</span><strong>{used ?? 0} / {total}</strong><small>{remaining} available · invited accounts count as seats</small></article>
-      <article className="panel"><span>Subscription</span><strong>{subscription?.status ?? "Not configured"}</strong><small>R150 for 2 users · R75 per additional user</small></article>
+      <article className="panel"><span>Subscription</span><strong>{subscription?.status ?? "Not configured"}</strong><small>Base monthly fee awaiting confirmation · R75 per additional user</small></article>
       <article className="panel"><span>Departments</span><strong>Unlimited</strong><small>Department assignments do not consume seats</small></article>
     </section>
     <section className="team-layout">
