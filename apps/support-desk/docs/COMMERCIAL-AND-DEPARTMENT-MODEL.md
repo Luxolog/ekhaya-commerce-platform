@@ -63,9 +63,9 @@ Existing organisations created before this commercial migration are marked `setu
 
 ## Current implementation boundary
 
-This change adds the subscription entitlement schema, trial creation for new organisations, seat-limit enforcement for invited/active memberships, and owner/admin read access to subscription records. It does not connect a payment gateway, collect card/payment details, send trial reminders, run billing webhooks, or complete a production billing portal. Those require selection of a payment provider and a verified server-side integration.
+This change adds the subscription entitlement schema, trial creation for new organisations, seat-limit enforcement for invited/active memberships, owner/admin read access to subscription records, a subscription overview screen, and the department membership schema and management screen. It does not connect a payment gateway, collect card/payment details, send trial reminders, run billing webhooks, or complete a production billing portal. Those require selection of a payment provider and a verified server-side integration.
 
-The current department table already supports organisation-owned departments and ticket routing. A full agent-to-department membership model, department management UI, invitation flow, and departmental reporting remain follow-up implementation work.
+The current department table supports organisation-owned departments and ticket routing. The commercial branch now adds a separate department-membership table with same-organisation validation and a department management screen for creating departments and assigning/removing active agents and supervisors. The migration is committed but has not been applied to Supabase. Staff invitation flow, named staff directory, department queues and departmental reporting remain follow-up implementation work.
 
 ## Safety and deployment
 
