@@ -17,7 +17,7 @@ export default async function TeamPage({searchParams}:{searchParams:Promise<{wor
   const eligible=(memberships ?? []).filter((m:any)=>["owner","admin"].includes(m.role));
   const workspace=eligible.find((m:any)=>m.organisation_id===params.workspace) ?? eligible[0];
   if(!workspace) return <main className="page-shell"><header className="page-topbar"><Link href="/">← Dashboard</Link><b>EKHAYA SUPPORT DESK</b></header><section className="page-heading"><div><h1>Team</h1><p className="muted">Only workspace owners and admins can manage team accounts.</p></div></section></main>;
-  const organisationName = Array.isArray(workspace.organisation) ? workspace.organisation[0]?.name : workspace.organisation?.name;
+  const organisationName = workspace.organisation?.[0]?.name;
   const orgId=workspace.organisation_id;
   const [{data:subscription},{data:staff},{count:used}] = await Promise.all([
     supabase.from("sd_subscriptions").select("status,included_seats,paid_additional_seats,trial_ends_at")
