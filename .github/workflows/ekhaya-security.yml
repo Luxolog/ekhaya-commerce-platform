@@ -20,7 +20,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Check out full Git history
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Detect credentials, tokens and private keys
@@ -37,7 +37,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Flag vulnerable dependency changes
         uses: actions/dependency-review-action@v5
         with:
