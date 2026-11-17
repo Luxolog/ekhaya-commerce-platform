@@ -46,7 +46,18 @@ export default function PriceCheckerPage() {
   const [barcodeProduct,setBarcodeProduct]=useState("");
   const [barcodeBusy,setBarcodeBusy]=useState(false);
 
-  const getSupabaseHeaders=()=>{const session=typeof window!=="undefined"?localStorage.getItem("ekhaya_session"):null;const token=session?JSON.parse(session).access_token:null;return {"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":token?`Bearer ${token}`:"Bearer"};};
+  const getSupabaseHeaders=()=>{
+    let token:string|null=null;
+    if(typeof window!=="undefined"){
+      try{
+        const session=localStorage.getItem("ekhaya_session");
+        token=session?JSON.parse(session)?.access_token??null:null;
+      }catch{
+        localStorage.removeItem("ekhaya_session");
+      }
+    }
+    return {"Content-Type":"application/json","apikey":"sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t","Authorization":token?`Bearer ${token}`:"Bearer"};
+  };
   const buying=Number(cost);
   const validCost=cost.trim()!=="" && Number.isFinite(buying) && buying>0;
   const productQuery=mode==="barcode"?barcodeProduct.trim():mode==="photo"?photoText.trim():query.trim();
@@ -81,7 +92,8 @@ export default function PriceCheckerPage() {
         const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Search failed");
         const incoming=(payload.products??[]).map((p:MarketplaceProduct)=>({...p,marketplace}));
         setProducts(old=>[...old.filter(p=>p.marketplace!==marketplace),...incoming]);
-        setSource(old=>old==="Shared cache"&&payload.source!=="cache"?"Live marketplace data":payload.source==="cache"?"Shared cache":"Live marketplace data");
+        setSource(payload.source==="cache"?"Shared cache":payload.source==="stale-cache"?"Stale shared cache — prices may be outdated":"Live marketplace data");
+        if(incoming.length===0)setError("No matching products found. Your search credit was not used.");
       }catch(e){errors.push((marketplace==="amazon"?"Amazon SA":"Takealot")+": "+(e instanceof Error?e.message:"Search failed"));setError(errors.join(" · "));}
       finally{done++;if(done===marketplaces.length)setLoading(false);}
     }));
