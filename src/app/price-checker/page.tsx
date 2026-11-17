@@ -75,7 +75,7 @@ export default function PriceCheckerPage() {
       localStorage.removeItem(storageKey);
       throw new Error("Your seller sign-in has expired. Please sign in again.");
     }
-    session={...session,...payload,expires_at:Math.floor(Date.now()/1000)+Number(payload.expires_in??3600)};
+    session={...(session??{}),...payload,expires_at:Math.floor(Date.now()/1000)+Number(payload.expires_in??3600)};
     localStorage.setItem(storageKey,JSON.stringify(session));
     return {"Content-Type":"application/json","apikey":process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY??"","Authorization":`Bearer ${session.access_token}`};
   };
