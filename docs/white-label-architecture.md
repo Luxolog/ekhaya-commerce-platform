@@ -181,7 +181,7 @@ All changes below are confined to `feat/price-checker-white-label-foundation`. T
 - Changed marketplace search accounting to reserve a credit before returning either cached or live results. Empty-result searches are refunded; cached results now count against the advertised allowance.
 - Added an explicit stale-cache label so old cached prices are not presented as live marketplace data.
 - Included seller-paid delivery/handling in Takealot seller-fulfilled profit estimates.
-- Added verified-session, active-account and rate-limit checks to the product-identification Edge Function source.
+- The deployed `product-identify` v15 already has Supabase gateway `verify_jwt=true`; the feature branch adds explicit user/profile validation, active-account checks and per-account/IP rate limiting in the function source.
 - Added owner-only seller activation/suspension controls with an audit event in `user_status_events`. New profiles default to `pending`; owner approval is required before search/identification access.
 - Added CI checks for dependency audit, app build, lint, secret scanning, CodeQL, and Deno type-checking of the two Price Checker Edge Functions.
 
@@ -190,7 +190,7 @@ All changes below are confined to `feat/price-checker-white-label-foundation`. T
 - npm dependency audit passed with **0 vulnerabilities** after the PostCSS override to the patched 8.5 line.
 - Secret scanning passed after moving the publishable key to environment configuration and adding a narrowly scoped allowlist for the public `sb_publishable_` key format only.
 - Deno type-check passed for `marketplace-search` and `product-identify` source after correcting a syntax error in the new authentication guard.
-- The Next.js production build previously caught a nullable-session TypeScript error. That error has been corrected in a later feature-branch commit; the corrected build and lint results are still pending.
+- Latest feature-branch CI (commit `54b49d1`): dependency audit passed with 0 vulnerabilities; Next.js build passed; ESLint passed; Deno type-check passed; secret scanning passed. CodeQL analysis was still running at the time of this update.
 - CodeQL passed on the latest completed scan.
 - Preview builds are validation-only and are not production deployments.
 
@@ -204,7 +204,7 @@ All changes below are confined to `feat/price-checker-white-label-foundation`. T
 
 ### Remaining production blockers
 
-1. Complete the corrected Next.js build and lint checks, and keep the Deno Edge Function type-check green.
+1. Keep the Next.js build, ESLint, dependency audit, secret scan, CodeQL and Deno Edge Function checks green; commit a generated npm lockfile before the production release for reproducible installs.
 2. Test registration, email verification, login, refresh, password reset and owner approval with a dedicated authorised test seller. Do not use a real seller's password for testing.
 3. Test Takealot live search with a known product; verify result accuracy, cache freshness, duplicate-request handling, successful credit deduction and failed/empty-search refunds.
 4. Test barcode and image identification against the deployed provider, including rate limits and invalid/expired sessions.
@@ -214,3 +214,7 @@ All changes below are confined to `feat/price-checker-white-label-foundation`. T
 8. Deploy backend function changes and the frontend only after review, a backup/rollback plan, successful end-to-end tests and explicit production approval.
 
 No paid Supabase branch, new subscription, production migration or production deployment was created during this sprint.
+
+### Production/live distinction
+
+The feature-branch preview build is ready, but the live production deployment still points to the unchanged `main` commit. Therefore the live `/download/` route remains unresolved until the reviewed branch is merged and deployed. No production Edge Function has been updated by this repair sprint.
