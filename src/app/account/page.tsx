@@ -6,7 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 
 const supabaseUrl = "https://itxxnhcjjiynrmivexcb.supabase.co";
-const anonKey = "sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t";
+const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 export default function AccountPage() {
   const router = useRouter();
