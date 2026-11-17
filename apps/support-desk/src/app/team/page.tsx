@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { inviteStaffMember, updateStaffRole, removeStaffMember } from "./actions";
+import { listAllAuthUsers } from "@/lib/supabase/admin";
 import { ArrowLeft, UserPlus, Users, ShieldCheck } from "lucide-react";
 
 export default async function TeamPage({searchParams}:{searchParams:Promise<{workspace?:string;invited?:string}>}) {
@@ -28,8 +29,8 @@ export default async function TeamPage({searchParams}:{searchParams:Promise<{wor
   const total=(subscription?.included_seats ?? 2)+(subscription?.paid_additional_seats ?? 0);
   const remaining=Math.max(0,total-(used ?? 0));
   const canInvite=["trialing","active"].includes(subscription?.status ?? "") && remaining>0;
-  const {data:authUsers}=await supabase.auth.getUser();
-  const ownEmail=authUsers.user?.email ?? "";
+  const authUsers=await listAllAuthUsers();
+  const emailByUserId=new Map(authUsers.map(user=>[user.id,user.email ?? ""]));
   return <main className="page-shell">
     <header className="page-topbar"><Link href="/" className="back-link"><ArrowLeft size={16}/> Dashboard</Link><span className="page-brand">EKHAYA <b>SUPPORT DESK</b></span></header>
     <section className="page-heading"><div><p className="eyebrow">WORKSPACE ADMINISTRATION · {workspace.organisation?.name}</p><h1>Team members</h1><p className="muted">Invite staff, manage roles and monitor your user-seat allowance.</p></div></section>
@@ -54,7 +55,7 @@ export default async function TeamPage({searchParams}:{searchParams:Promise<{wor
       <article className="panel"><div className="panel-title"><Users size={18}/><div><b>Workspace roster</b><small>{staff?.length ?? 0} memberships</small></div></div>
         <div className="staff-list">{(staff ?? []).map((person:any)=><div className="staff-row" key={person.id}>
           <div className="staff-avatar">{person.role.slice(0,1).toUpperCase()}</div>
-          <div className="staff-identity"><b>{person.role==="owner" ? "Workspace owner" : "Team member"}</b><small>{person.user_id.slice(0,8)} · {person.status}</small></div>
+          <div className="staff-identity"><b>{person.role==="owner" ? "Workspace owner" : "Team member"}</b><small>{emailByUserId.get(person.user_id) || person.user_id.slice(0,8)} · {person.status}</small></div>
           {person.role!=="owner" && <><form action={updateStaffRole} className="role-form"><input type="hidden" name="organisation_id" value={orgId}/><input type="hidden" name="membership_id" value={person.id}/><select name="role" defaultValue={person.role}><option value="admin">Admin</option><option value="supervisor">Supervisor</option><option value="agent">Agent</option><option value="viewer">Viewer</option></select><button className="secondary-button">Save</button></form><form action={removeStaffMember}><input type="hidden" name="organisation_id" value={orgId}/><input type="hidden" name="membership_id" value={person.id}/><button className="quiet-button">Remove</button></form></>}
         </div>)}</div>
       </article>
