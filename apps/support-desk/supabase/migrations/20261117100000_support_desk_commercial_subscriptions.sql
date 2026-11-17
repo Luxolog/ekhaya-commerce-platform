@@ -2,7 +2,7 @@
 -- Additive only: existing Price Checker tables and data are untouched.
 -- Existing workspaces are marked setup_required; they are not silently enrolled in a paid or expired trial.
 -- New organisations receive a 30-day trial with two included seats.
--- Base monthly price for the two included seats is confirmed at ZAR 150/month.
+-- Base monthly price for the two included seats remains unconfirmed and nullable.
 
 create table if not exists public.sd_subscriptions (
   id uuid primary key default gen_random_uuid(),
@@ -18,7 +18,7 @@ create table if not exists public.sd_subscriptions (
   included_seats integer not null default 2 check (included_seats = 2),
   paid_additional_seats integer not null default 0 check (paid_additional_seats >= 0),
   additional_seat_price_cents integer not null default 7500 check (additional_seat_price_cents = 7500),
-  base_monthly_price_cents integer not null default 15000 check (base_monthly_price_cents = 15000),
+  base_monthly_price_cents integer check (base_monthly_price_cents is null or base_monthly_price_cents >= 0),
   billing_provider text,
   provider_customer_id text,
   provider_subscription_id text,
@@ -155,7 +155,7 @@ create trigger sd_members_enforce_seat_limit
 comment on table public.sd_subscriptions is
   'Per-organisation monthly subscription entitlement. Trial is 30 days; two included seats; each extra seat costs ZAR 75/month. Base fee awaits commercial approval.';
 comment on column public.sd_subscriptions.base_monthly_price_cents is
-  'Confirmed base subscription price for the two included seats: ZAR 150 per month.';
+  'Base subscription price for the two included seats; NULL until the commercial fee is approved.';
 comment on column public.sd_subscriptions.additional_seat_price_cents is
   'Fixed additional active/invited user price: ZAR 75 per seat per month.';
 comment on table public.sd_departments is
