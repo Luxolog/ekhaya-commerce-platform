@@ -1,0 +1,5 @@
+title = "Ekhaya Technologies secret scanning"
+
+[allowlist]
+description = "Supabase publishable keys are designed for browser use and are not privileged service-role secrets. Keep service-role and secret keys out of source code."
+regexes = ['''sb_publishable_[A-Za-z0-9_-]+''']
