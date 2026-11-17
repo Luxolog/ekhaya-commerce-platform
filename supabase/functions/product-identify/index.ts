@@ -59,6 +59,9 @@ Deno.serve(async (req: Request) => {
   if (!quotaResponse.ok || await quotaResponse.json() !== true) {
     return json({ error: "Product identification limit reached. Please try again in an hour.", code: "RATE_LIMITED" }, 429);
   }
+  } catch {
+    return json({ error: "Could not verify your seller account or rate limit." }, 503);
+  }
   const key = Deno.env.get("REEFAPI_KEY");
   if (!key) return json({ error: "Server configuration incomplete", missing: ["REEFAPI_KEY"] }, 503);
   let body: { mode?: string; barcode?: string; file_b64?: string; filename?: string };
