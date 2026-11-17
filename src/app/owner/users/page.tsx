@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 const API = "https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/marketplace-search";
-const KEY = "sb_publishable_FnosMonQeHC4jso8Jv5tcA_AU_59M7t";
+const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 type UserRow = { id: string; email?: string; created_at?: string; last_sign_in_at?: string; email_confirmed_at?: string; role?: string; account_status?: string; plan_code?: string };
 
