@@ -4,7 +4,7 @@
 
 - Trial: 30 calendar days from organisation creation.
 - Included seats: 2 user accounts per organisation.
-- Base subscription: ZAR 150 per month for the two included seats.
+- Base monthly subscription fee: awaiting confirmation; do not quote or calculate a total until approved.
 - Additional seats: ZAR 75 per additional user per month.
 - Departments: unlimited; department count does not affect subscription price.
 - Billing interval: monthly only.
@@ -12,9 +12,11 @@
 
 ## Pricing formula
 
-`R150 base monthly fee + (paid additional seats × R75)`
+Once the base monthly fee is approved:
 
-The first two seats are included in the R150 base fee. Each additional user account costs R75 per month.
+`approved base monthly fee + (paid additional seats × ZAR 75)`
+
+The first two seats are included in the base monthly fee. Each additional user account costs ZAR 75 per month. The base fee is intentionally nullable in the database until approved; the interface must not substitute an assumed amount.
 
 During the 30-day trial, two seats are included. Paid add-on seats and post-trial access require an active paid subscription.
 
@@ -73,7 +75,6 @@ The current department table supports organisation-owned departments and ticket 
 - Do not replay migrations already applied to the shared Supabase project.
 - This migration is committed to GitHub for review; it has not been applied to Supabase.
 - Do not deploy to Vercel until explicitly authorised.
-
 
 ## Staff invitation environment requirements
 
