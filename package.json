@@ -29,6 +29,7 @@
     "@eslint/eslintrc": "^3.3.1"
   },
   "overrides": {
-    "postcss": "^8.5.23"
+    "postcss": "^8.5.23",
+    "csstype": "3.2.3"
   }
 }
