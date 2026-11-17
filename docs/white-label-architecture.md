@@ -115,7 +115,7 @@ Do not add tenant scope to the shared marketplace price cache unless a future pr
 
 - Keep `main` and the existing Ekhaya Price Checker production experience unchanged during development.
 - Develop only on `feat/price-checker-white-label-foundation` until reviewed.
-- Do not deploy to Vercel or change production domains as part of this foundation work.
+- Do not deploy to the production Vercel target or change production domains as part of this foundation work. Vercel preview builds may be used only to validate the feature branch; they must never be promoted to production without explicit approval.
 - Do not apply migrations to the live Supabase project until migration drift is reconciled, the SQL is reviewed, backups/rollback are understood, and tenant-isolation tests pass.
 - Never commit secrets, API credentials, seller credentials, or customer data.
 - Do not announce the white-label service as available until the partner environment, billing, support, and data isolation are verified.
@@ -167,3 +167,50 @@ This check used existing GitHub, Vercel, and Supabase resources only. No Supabas
 5. Reconcile migration history and review database grants/RLS; do not change production until reviewed.
 6. Protect `main` with required passing checks.
 7. Only then resume white-label tenant implementation on the existing GitHub feature branch.
+
+
+## 8. Production-readiness repair sprint — 2026-11-17
+
+All changes below are confined to `feat/price-checker-white-label-foundation`. The production database, deployed Edge Functions, production Vercel target, DNS, and `main` have not been changed.
+
+### Repairs in the feature branch
+
+- Added `/download/` so the navigation target exists. The page accurately states that the Android debug build is internal-only and is not available for public download.
+- Moved the public Supabase publishable key out of application source and into `NEXT_PUBLIC_SUPABASE_ANON_KEY`. The Vercel variable is configured for future builds; the existing production deployment has not been rebuilt.
+- Added refresh-token handling to the seller search and identification flows so expired sessions are refreshed before backend calls.
+- Changed marketplace search accounting to reserve a credit before returning either cached or live results. Empty-result searches are refunded; cached results now count against the advertised allowance.
+- Added an explicit stale-cache label so old cached prices are not presented as live marketplace data.
+- Included seller-paid delivery/handling in Takealot seller-fulfilled profit estimates.
+- Added verified-session, active-account and rate-limit checks to the product-identification Edge Function source.
+- Added owner-only seller activation/suspension controls with an audit event in `user_status_events`. New profiles default to `pending`; owner approval is required before search/identification access.
+- Added CI checks for dependency audit, app build, lint, secret scanning, CodeQL, and Deno type-checking of the two Price Checker Edge Functions.
+
+### Latest verified checks
+
+- npm dependency audit passed with **0 vulnerabilities** after the PostCSS override to the patched 8.5 line.
+- Secret scanning passed after moving the publishable key to environment configuration and adding a narrowly scoped allowlist for the public `sb_publishable_` key format only.
+- Deno type-check passed for `marketplace-search` and `product-identify` source after correcting a syntax error in the new authentication guard.
+- The Next.js production build previously caught a nullable-session TypeScript error. That error has been corrected in a later feature-branch commit; the corrected build and lint results are still pending.
+- CodeQL passed on the latest completed scan.
+- Preview builds are validation-only and are not production deployments.
+
+### Database access review
+
+- The 19 RLS-enabled public tables without policies have **no direct `anon` or `authenticated` table grants**. Their access is restricted to privileged server-side roles; do not add broad policies merely to clear advisor warnings.
+- Core seller-facing tables have user-scoped policies: profiles, subscriptions, payment transactions, marketplace connections, daily usage and notifications.
+- Support-desk tables have organisation/role-scoped policies.
+- Security-definer RPCs for search credits, rate limits, owner actions and notifications are not executable by `anon` or `authenticated`; service-role calls are used by the Edge Functions.
+- The existing security advisor warnings therefore require continued review, but the read-only grant/policy check did not show direct public access to those 19 tables.
+
+### Remaining production blockers
+
+1. Complete the corrected Next.js build and lint checks, and keep the Deno Edge Function type-check green.
+2. Test registration, email verification, login, refresh, password reset and owner approval with a dedicated authorised test seller. Do not use a real seller's password for testing.
+3. Test Takealot live search with a known product; verify result accuracy, cache freshness, duplicate-request handling, successful credit deduction and failed/empty-search refunds.
+4. Test barcode and image identification against the deployed provider, including rate limits and invalid/expired sessions.
+5. PayFast checkout/ITN code currently exists on the separate `feat/payfast-subscriptions` branch and is not merged into this production-readiness branch. The live database has no payment transactions or active subscriptions in the observed dataset. Integrate only after reviewing its migrations and completing PayFast Sandbox tests for success, failure, duplicate ITNs, amount mismatch and recurring renewals.
+6. Confirm password-reset delivery, notification delivery, backup restoration and account suspension behaviour.
+7. Enable main-branch protection and require the full passing CI suite.
+8. Deploy backend function changes and the frontend only after review, a backup/rollback plan, successful end-to-end tests and explicit production approval.
+
+No paid Supabase branch, new subscription, production migration or production deployment was created during this sprint.
