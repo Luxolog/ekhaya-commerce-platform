@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient, listAllAuthUsers } from "@/lib/supabase/admin";
 
 const allowedRoles = ["admin","supervisor","agent","viewer"] as const;
@@ -55,7 +56,36 @@ export async function inviteStaffMember(fd: FormData) {
     const { data: existingMembership } = await supabase.from("sd_organisation_members")
       .select("id,status").eq("organisation_id",organisationId).eq("user_id",existingUser.id).maybeSingle();
     if (existingMembership) throw new Error("This person already has a membership in this workspace.");
-    throw new Error("This email already has a Support Desk account. Account linking for existing users must be completed before inviting them to another workspace.");
+
+    const appUrl = process.env.SUPPORT_DESK_APP_URL;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (!appUrl || !supabaseUrl || !publishableKey) {
+      throw new Error("Set SUPPORT_DESK_APP_URL and the public Supabase URL/key before sending invitations.");
+    }
+    const callbackUrl = new URL("/auth/callback", appUrl);
+    callbackUrl.searchParams.set("organisation", organisationId);
+    const { error: membershipError } = await supabase.from("sd_organisation_members").insert({
+      organisation_id: organisationId, user_id: existingUser.id, role, status: "invited",
+    });
+    if (membershipError) throw new Error("The existing account could not be added to the workspace: " + membershipError.message);
+
+    const emailClient = createSupabaseClient(supabaseUrl, publishableKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { error: emailError } = await emailClient.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: callbackUrl.toString(), shouldCreateUser: false },
+    });
+    if (emailError) {
+      await supabase.from("sd_organisation_members").delete()
+        .eq("organisation_id",organisationId).eq("user_id",existingUser.id).eq("status","invited");
+      throw new Error("The sign-in invitation email could not be sent; the pending membership was rolled back. " + emailError.message);
+    }
+    revalidatePath("/team");
+    revalidatePath("/subscription");
+    revalidatePath("/");
+    redirect("/team?workspace=" + encodeURIComponent(organisationId) + "&invited=1");
   }
 
   const appUrl = process.env.SUPPORT_DESK_APP_URL;
