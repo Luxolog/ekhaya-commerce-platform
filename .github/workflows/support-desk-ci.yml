@@ -1,0 +1,50 @@
+name: Support Desk CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "apps/support-desk/**"
+      - ".github/workflows/support-desk-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: support-desk-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/support-desk
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-support-desk-npm-${{ hashFiles('apps/support-desk/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-support-desk-npm-
+
+      - name: Check npm registry connectivity
+        run: npm ping --fetch-retries=0 --fetch-timeout=30000
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --fetch-retries=2 --fetch-timeout=120000 --verbose
+
+      - name: Build Support Desk
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_build_placeholder
