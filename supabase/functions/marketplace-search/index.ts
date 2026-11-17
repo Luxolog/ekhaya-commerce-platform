@@ -48,7 +48,7 @@ Deno.serve(async (req: Request) => {
   const appMetadata = (user.app_metadata ?? {}) as Record<string, unknown>;
   const isOwner = appMetadata.role === "owner" || appMetadata.is_owner === true;
 
-  let body: { page?: number; user_id?: string; password?: string; marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean };
+  let body: { page?: number; user_id?: string; password?: string; status?: string; reason?: string; marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean };
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
 
   if (body.action === "get_cache_settings") {
@@ -82,13 +82,87 @@ Deno.serve(async (req: Request) => {
     const usersResponse = await fetch(new URL(`/auth/v1/admin/users?page=${page}&per_page=100`, supabaseUrl), { headers: adminHeaders });
     if (!usersResponse.ok) return json({ error: "Could not load users." }, 502);
     const usersPayload = await usersResponse.json();
-    const users = Array.isArray(usersPayload.users) ? usersPayload.users.map((u: Record<string, unknown>) => ({
+    const authUsers = Array.isArray(usersPayload.users) ? usersPayload.users.map((u: Record<string, unknown>) => ({
       id: u.id, email: u.email, created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at,
       email_confirmed_at: u.email_confirmed_at,
       role: ((u.app_metadata ?? {}) as Record<string, unknown>).role ?? "seller"
     })) : [];
+    let profileById = new Map<string, { account_status: string; plan_code: string }>();
+    if (authUsers.length) {
+      const profileUrl = new URL("/rest/v1/profiles", supabaseUrl);
+      profileUrl.searchParams.set("id", `in.(${authUsers.map((u: { id: string }) => u.id).join(",")})`);
+      profileUrl.searchParams.set("select", "id,account_status,plan_code");
+      const profileResponse = await fetch(profileUrl, { headers: adminHeaders });
+      if (!profileResponse.ok) return json({ error: "Could not load seller account status." }, 502);
+      const profileRows = await profileResponse.json();
+      profileById = new Map(profileRows.map((p: { id: string; account_status: string; plan_code: string }) => [p.id, { account_status: p.account_status, plan_code: p.plan_code }]));
+    }
+    const users = authUsers.map((u: { id: string }) => ({
+      ...u,
+      account_status: profileById.get(u.id)?.account_status ?? "pending",
+      plan_code: profileById.get(u.id)?.plan_code ?? "free",
+    }));
     return json({ ok: true, users, page, total: users.length });
+  }
+
+  if (body.action === "set_user_status") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const targetUserId = typeof body.user_id === "string" ? body.user_id : "";
+    const newStatus = typeof body.status === "string" ? body.status : "";
+    const allowedStatuses = ["pending", "active", "inactive", "suspended"];
+    if (!targetUserId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetUserId) || !allowedStatuses.includes(newStatus)) {
+      return json({ error: "Select a valid seller and account status." }, 400);
+    }
+    if (targetUserId === userId) return json({ error: "You cannot change your own owner account status." }, 403);
+
+    const targetAuthResponse = await fetch(new URL(`/auth/v1/admin/users/${targetUserId}`, supabaseUrl), { headers: adminHeaders });
+    if (!targetAuthResponse.ok) return json({ error: "Could not find the selected user." }, 404);
+    const targetAuth = await targetAuthResponse.json();
+    const targetMetadata = (targetAuth.app_metadata ?? {}) as Record<string, unknown>;
+    if (targetMetadata.role === "owner" || targetMetadata.is_owner === true) {
+      return json({ error: "Owner accounts cannot be changed from seller management." }, 403);
+    }
+
+    const profileUrl = new URL("/rest/v1/profiles", supabaseUrl);
+    profileUrl.searchParams.set("id", `eq.${targetUserId}`);
+    profileUrl.searchParams.set("select", "id,account_status");
+    const profileResponse = await fetch(profileUrl, { headers: adminHeaders });
+    if (!profileResponse.ok) return json({ error: "Could not load the selected seller profile." }, 502);
+    const profileRows = await profileResponse.json();
+    const profile = profileRows?.[0];
+    if (!profile) return json({ error: "The seller profile has not been created yet." }, 404);
+    if (profile.account_status === newStatus) return json({ ok: true, user_id: targetUserId, account_status: newStatus, unchanged: true });
+
+    const updateUrl = new URL("/rest/v1/profiles", supabaseUrl);
+    updateUrl.searchParams.set("id", `eq.${targetUserId}`);
+    const updateResponse = await fetch(updateUrl, {
+      method: "PATCH",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ account_status: newStatus, updated_at: new Date().toISOString() }),
+    });
+    if (!updateResponse.ok) return json({ error: "Could not update seller account status." }, 502);
+
+    const auditResponse = await fetch(new URL("/rest/v1/user_status_events", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({
+        target_user_id: targetUserId,
+        actor_user_id: userId,
+        previous_status: profile.account_status,
+        new_status: newStatus,
+        reason: String(body.reason ?? "Owner account review").slice(0, 240),
+      }),
+    });
+    if (!auditResponse.ok) {
+      await fetch(updateUrl, {
+        method: "PATCH",
+        headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ account_status: profile.account_status, updated_at: new Date().toISOString() }),
+      });
+      return json({ error: "The status change could not be audited; the previous account status was restored." }, 502);
+    }
+    return json({ ok: true, user_id: targetUserId, account_status: newStatus });
   }
 
   if (body.action === "set_user_password") {
