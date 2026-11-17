@@ -54,7 +54,7 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ekhaya-price-checker-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
