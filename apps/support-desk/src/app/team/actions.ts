@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, listAllAuthUsers } from "@/lib/supabase/admin";
 
 const allowedRoles = ["admin","supervisor","agent","viewer"] as const;
 
@@ -31,13 +31,11 @@ export async function inviteStaffMember(fd: FormData) {
   if (!allowedRoles.includes(role as typeof allowedRoles[number])) throw new Error("Choose a permitted staff role.");
 
   const { supabase } = await requireWorkspaceAdmin(organisationId);
-  const [{ data: subscription }, { count: usedSeats }, { data: existingAuth }] = await Promise.all([
+  const [{ data: subscription }, { count: usedSeats }] = await Promise.all([
     supabase.from("sd_subscriptions").select("status,included_seats,paid_additional_seats,trial_ends_at")
       .eq("organisation_id",organisationId).maybeSingle(),
     supabase.from("sd_organisation_members").select("id",{count:"exact",head:true})
       .eq("organisation_id",organisationId).in("status",["active","invited"]),
-    supabase.from("sd_organisation_members").select("id,status")
-      .eq("organisation_id",organisationId)
   ]);
   if (!subscription || !["trialing","active"].includes(subscription.status)) {
     throw new Error("This workspace does not have an active trial or subscription.");
@@ -51,9 +49,8 @@ export async function inviteStaffMember(fd: FormData) {
   }
 
   const admin = createAdminClient();
-  const { data: foundUsers, error: listError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  if (listError) throw new Error("Unable to verify whether this email already has an account: " + listError.message);
-  const existingUser = foundUsers.users.find(user => user.email?.toLowerCase() === email);
+  const allUsers = await listAllAuthUsers();
+  const existingUser = allUsers.find(user => user.email?.toLowerCase() === email);
   if (existingUser) {
     const { data: existingMembership } = await supabase.from("sd_organisation_members")
       .select("id,status").eq("organisation_id",organisationId).eq("user_id",existingUser.id).maybeSingle();
