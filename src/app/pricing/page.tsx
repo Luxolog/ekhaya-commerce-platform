@@ -33,7 +33,7 @@ export default function PricingPage() {
         </article>)}
         <article style={{...card,background:"#071B31",color:"#fff",borderColor:"#071B31"}}>
           <h3 style={{fontFamily:"Manrope,sans-serif",fontSize:23,margin:"0 0 8px"}}>Custom</h3>
-          <p style={{fontFamily:"Manrope,sans-serif",fontSize:29,fontWeight:800,margin:"10px 0"}}>Let's talk</p>
+          <p style={{fontFamily:"Manrope,sans-serif",fontSize:29,fontWeight:800,margin:"10px 0"}}>Let&apos;s talk</p>
           <p style={{color:"#C5D7E5",fontSize:14,lineHeight:1.75}}>Need a tailored allowance or business arrangement? Contact Ekhaya Technologies to discuss a custom plan.</p>
           <a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Price%20Checker%20Custom%20Plan" style={{display:"inline-block",marginTop:12,color:"#fff",fontWeight:800,fontSize:12}}>REQUEST A CUSTOM PLAN →</a>
         </article>
