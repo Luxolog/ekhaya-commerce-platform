@@ -40,7 +40,7 @@ jobs:
       - name: Install dependencies
         run: npm install --ignore-scripts
       - name: Audit dependencies
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=moderate
       - name: Build static application
         run: npm run build
 
