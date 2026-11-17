@@ -34,7 +34,7 @@ Commercial percentages, minimum licence payments, seller targets, payment collec
 - Project status observed: `ACTIVE_HEALTHY`.
 - Region: `eu-west-1`; PostgreSQL 17.
 - Deployed Edge Functions observed: `marketplace-search` v44, `product-identify` v15, `marketplace-search-test` v15, and `notification-worker` v7.
-- The live database has 28 recorded migrations through 2026-11-15.
+- The live database query confirms 31 recorded migrations through 2026-11-15 (latest version `20261115173542`). The migration listing API returned a shorter list, so use the database migration table as the authoritative count.
 - The repository's tracked migration history does not currently represent the full live migration history. Reconcile this drift before applying any new production migration.
 - Current Price Checker records are primarily user-scoped: profiles, subscriptions, marketplace connections, usage, and payments do not yet carry a partner/tenant identifier.
 - No dedicated partner/tenant/white-label tables were found in the live public schema.
@@ -119,3 +119,51 @@ Do not add tenant scope to the shared marketplace price cache unless a future pr
 - Do not apply migrations to the live Supabase project until migration drift is reconciled, the SQL is reviewed, backups/rollback are understood, and tenant-isolation tests pass.
 - Never commit secrets, API credentials, seller credentials, or customer data.
 - Do not announce the white-label service as available until the partner environment, billing, support, and data isolation are verified.
+
+
+## 7. No-cost operational health check — 2026-11-17
+
+This check used existing GitHub, Vercel, and Supabase resources only. No Supabase branch, migration, deployment, or paid service was created.
+
+### Production availability
+
+- Latest production Vercel deployment is `READY`, based on `main` commit `1193c659cfaa05331700d76beceac17e4c8075fb`.
+- Production aliases include `ekhayatech.co.za`, `pricechecker.ekhayatech.co.za`, and the project Vercel domains.
+- The live homepage and `/price-checker/` returned HTTP 200.
+- `/account/`, `/pricing/`, `/privacy/`, and `/services/` returned HTTP 200.
+- `/download/` returned HTTP 404. The repository app-route inventory has no `src/app/download/page.tsx`; the homepage currently links to this missing route. Fix or remove that navigation link before broader promotion.
+
+### Build and CI
+
+- Android debug APK workflow completed successfully on 2026-11-16.
+- CodeQL analysis completed successfully.
+- Secret scanning completed successfully.
+- Dependency vulnerability audit failed: npm reported 8 vulnerabilities (7 moderate, 1 high). The high finding is in the PostCSS dependency chain. The suggested automatic fix requires a major Next.js upgrade; do not apply `npm audit fix --force` without compatibility review and a successful build.
+- The most recent push-triggered security scan on the white-label documentation branch passed its secret scan. Its dependency-review job was skipped because it only runs on pull requests; this is not a dependency-audit pass.
+- Main branch protection is disabled. Enable branch protection and require passing checks before accepting code changes.
+
+### Supabase and Edge Functions
+
+- Supabase project status was `ACTIVE_HEALTHY`; PostgreSQL connectivity and read-only queries succeeded.
+- Active functions observed: `marketplace-search` v44, `product-identify` v15, `marketplace-search-test` v15, and `notification-worker` v7.
+- The previous 24-hour function log window showed 24 marketplace-search executions (logged as version 42) and no product-identify executions. Because those marketplace logs predate the currently deployed v44, they do not prove a fresh request against v44.
+- Vercel reported no runtime error clusters in the previous seven days; no matching production error-level runtime logs appeared in the latest 30-minute window.
+- Non-sensitive row counts observed: 3 profiles, 0 subscriptions, 0 marketplace connections, 0 payment transactions, 4 notifications, and 1 monthly usage row with 6 searches. This indicates a small live dataset; it does not establish that all customer billing and onboarding flows have been exercised.
+- Database migration table query confirms 31 applied migrations, latest `20261115173542`.
+
+### Security and performance observations
+
+- Supabase security advisor reports 19 RLS-enabled tables without policies. The sampled sensitive operational tables had no direct `anon` or `authenticated` SELECT/INSERT grants, which is consistent with service-role-only access; review all grants and function paths before changing policies.
+- Leaked-password protection is disabled in Supabase Auth; enable after confirming the authentication impact.
+- Performance advisor reports 7 unindexed foreign keys and 36 unused-index notices. Review query patterns before adding or removing indexes.
+- No direct live seller search, barcode identification, image OCR, PayFast checkout, or password-reset journey was performed in this read-only check. These remain explicit acceptance tests.
+
+### Next actions — no additional infrastructure cost
+
+1. Add or correct the missing download page/link.
+2. Resolve the PostCSS/Next dependency vulnerabilities with a reviewed compatible upgrade; run dependency audit and production build in CI.
+3. Verify the current v44 marketplace-search and v15 product-identify functions with an authorised test seller account and a known product.
+4. Test signup, login, password reset, search allowance, pilot restrictions, PayFast payment callbacks, notifications, and account suspension end-to-end.
+5. Reconcile migration history and review database grants/RLS; do not change production until reviewed.
+6. Protect `main` with required passing checks.
+7. Only then resume white-label tenant implementation on the existing GitHub feature branch.
