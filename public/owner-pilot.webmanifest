@@ -1,0 +1,12 @@
+{
+  "id": "/owner/pilot/",
+  "name": "Ekhaya Owner Pilot Manager",
+  "short_name": "Pilot Manager",
+  "description": "Manage Ekhaya Price Checker seller pilot access.",
+  "start_url": "/owner/pilot/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F4F8FC",
+  "theme_color": "#071B31",
+  "icons": [{ "src": "/app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
