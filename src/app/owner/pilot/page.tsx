@@ -45,7 +45,7 @@ export default function OwnerPilotPage(){
     setStatus("In Chrome or Edge, use the install icon in the address bar or browser menu → Install page as app.");
   }
   async function getOwnerSession(){
-    let session=JSON.parse(localStorage.getItem("ekhaya_session")??"null");
+    const session=JSON.parse(localStorage.getItem("ekhaya_session")??"null");
     if(!session?.access_token)throw new Error("Please sign in with the Ekhaya owner account first.");
     if(Number(session.expires_at??0)>Date.now()+60000)return session;
     if(!session.refresh_token){localStorage.removeItem("ekhaya_session");throw new Error("Your owner session expired. Please sign in again.");}
