@@ -42,15 +42,19 @@ Deno.serve(async (req: Request) => {
     marketplace: string; lookupKey: string; credits: number; status: "success" | "failed";
     responseCount?: number; providerRequestId?: string | null; actorId?: string | null;
   }) => {
-    await fetch(new URL("/rest/v1/api_usage_ledger", supabaseUrl), {
-      method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
-      body: JSON.stringify({
-        provider: "reefapi", action: "search", marketplace: entry.marketplace, lookup_key: entry.lookupKey,
-        credits_charged: Math.max(0, Number(entry.credits) || 0), request_status: entry.status,
-        response_count: entry.responseCount ?? 0, request_id: entry.providerRequestId ?? null,
-        actor_id: entry.actorId ?? null,
-      }),
-    });
+    try {
+      await fetch(new URL("/rest/v1/api_usage_ledger", supabaseUrl), {
+        method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({
+          provider: "reefapi", action: "search", marketplace: entry.marketplace, lookup_key: entry.lookupKey,
+          credits_charged: Math.max(0, Number(entry.credits) || 0), request_status: entry.status,
+          response_count: entry.responseCount ?? 0, request_id: entry.providerRequestId ?? null,
+          actor_id: entry.actorId ?? null,
+        }),
+      });
+    } catch (error) {
+      console.error("Could not write ReefAPI usage ledger:", error);
+    }
   };
   let user: Record<string, unknown>;
   try {
@@ -399,12 +403,20 @@ Deno.serve(async (req: Request) => {
     const settings = settingsRows?.[0] ?? { refresh_enabled: true, cache_ttl_minutes: 360 };
     const fresh = cache && new Date(cache.expires_at) > new Date();
     if (cache && !body.force_refresh && (fresh || settings.refresh_enabled === false)) {
-      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:(cache.source_payload?.products??[]).length,result_status:"success",source:fresh?"cache":"stale-cache"})});
+      const cachedProducts = cache.source_payload?.products ?? [];
+      if (cachedProducts.length === 0 && pilotCharged) {
+        await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }),
+        });
+        pilotCharged = false;
+      }
+      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:cachedProducts.length,result_status:"success",source:fresh?"cache":"stale-cache"})});
       return json({
         source: fresh ? "cache" : "stale-cache",
         marketplace,
         fetched_at: cache.fetched_at,
-        products: cache.source_payload?.products ?? [],
+        products: cachedProducts,
         refresh_paused: !fresh,
       });
     }
