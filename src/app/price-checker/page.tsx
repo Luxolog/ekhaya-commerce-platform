@@ -161,7 +161,7 @@ export default function PriceCheckerPage() {
       const amazonFba=category==="clothing"? (kg<=.25?27:kg<=.5?28:kg<=1?29:kg<=2?31:kg<=5?34:kg<=10?41:kg<=20?46:87):0;
       const amzFulfilment=amazonMode==="fba"?amazonFba:amazonMode==="easy"?Number(sellerDelivery)||0:Number(sellerDelivery)||0;
       const amzFees=(amazonReferral+amzFulfilment)*1.15;
-      if(p.marketplace==="makro") return {id:p.id,fee:null,profit:null,margin:null,fulfilment:null,success:null,size:null};
+      if(p.marketplace==="makro") return null;
       const fee=p.marketplace==="takealot"?talFees:amzFees;
       const profit=price-buying-fee;
       return {id:p.id,fee,profit,margin:price?profit/price*100:0,fulfilment:p.marketplace==="takealot"?talFulfilment:amzFulfilment,success:p.marketplace==="takealot"?success:amazonReferral,size:tal.size};
