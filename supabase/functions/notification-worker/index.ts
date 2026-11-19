@@ -30,6 +30,14 @@ Deno.serve(async (req) => {
   queueUrl.searchParams.set("select", "id,user_id,title,message,action_url,created_at");
   queueUrl.searchParams.set("order", "created_at.asc");
   queueUrl.searchParams.set("limit", "10");
+  let requestedNotificationId: string | null = null;
+  try {
+    const requestBody = await req.clone().json();
+    if (typeof requestBody?.notification_id === "string" && /^[0-9a-f-]{36}$/i.test(requestBody.notification_id)) {
+      requestedNotificationId = requestBody.notification_id;
+      queueUrl.searchParams.set("id", `eq.${requestedNotificationId}`);
+    }
+  } catch { /* process the normal queue when no JSON body is supplied */ }
 
   const queueResponse = await fetch(queueUrl, { headers });
   if (!queueResponse.ok) return json({ error: "Read failed", detail: await queueResponse.text() }, 502);
