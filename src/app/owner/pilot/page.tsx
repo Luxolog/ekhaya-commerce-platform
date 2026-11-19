@@ -123,6 +123,17 @@ export default function OwnerPilotPage(){
       </div>}
       {tab==="profitability"&&<div style={{display:"grid",gap:14}}>
         {(()=>{const f=financial??{};const plans=f.plans??[];const profiles=f.profiles??[];const payments=f.payments??[];const subs=f.subscriptions??[];const api=f.api_usage??[];const paid=payments.filter((p:any)=>p.status==="complete");const collected=paid.reduce((n:number,p:any)=>n+Number(p.amount??0),0);const activeSubs=subs.filter((s:any)=>s.status==="active");const mrr=activeSubs.reduce((n:number,s:any)=>n+Number(plans.find((p:any)=>p.code===s.plan_code)?.monthly_price??0),0);const apiCalls=api.filter((a:any)=>a.request_status==="success");const credits=apiCalls.reduce((n:number,a:any)=>n+Number(a.credits_charged??0),0);const reefCredits=apiCalls.filter((a:any)=>a.provider==="reefapi").reduce((n:number,a:any)=>n+Number(a.credits_charged??0),0);const estimatedApiCost=reefCredits*0.02535;const gross=collected-estimatedApiCost;const byUser=new Map<string,any>();for(const p of paid){const row=byUser.get(p.user_id)??{user_id:p.user_id,revenue:0};row.revenue+=Number(p.amount??0);byUser.set(p.user_id,row);}for(const a of apiCalls){if(a.actor_id){const row=byUser.get(a.actor_id)??{user_id:a.actor_id,revenue:0};row.apiCost=(row.apiCost??0)+(a.provider==="reefapi"?Number(a.credits_charged??0)*0.02535:0);row.calls=(row.calls??0)+1;byUser.set(a.actor_id,row);}}return <><div style={{...card,background:"#FFF8E8",borderColor:"#E9D9B3"}}><b style={{fontSize:14}}>Important: estimates, not audited accounts</b><p style={{...small,marginBottom:0}}>ReefAPI is estimated at R0.02535 per credit using the Pro-tier reference rate. Replace this with your actual provider invoice/rate. Unattributed API usage is shown separately; payment records only count when marked complete.</p></div>
+        <section style={{...card,borderColor:"#B8D8E8"}}>
+          <h2 style={{fontSize:17,margin:"0 0 8px"}}>ReefAPI provider-credit policy</h2>
+          <p style={{...small,margin:"0 0 12px"}}>These terms apply to Ekhaya Technologies' ReefAPI account, not to seller subscription allowances.</p>
+          <ul style={{...small,paddingLeft:20,margin:"0 0 12px",lineHeight:1.9}}>
+            <li>Paid-plan ReefAPI credits do not expire.</li>
+            <li>Unused provider credits carry over; they are not forfeited at month-end.</li>
+            <li>Credits already received remain usable after subscription cancellation.</li>
+            <li>Failed or blocked provider requests should not be charged; verify the provider-reported credit amount in the usage ledger.</li>
+          </ul>
+          <p style={{...small,margin:0}}>Ekhaya records provider-reported credit usage and failed attempts. ReefAPI controls its account balance, billing and credit validity; this dashboard does not change or override ReefAPI's terms.</p>
+        </section>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:12}}>
           {[[ "Cash recorded", "R"+collected.toFixed(2) ],["Active subscription MRR","R"+mrr.toFixed(2)],["Estimated ReefAPI cost","R"+estimatedApiCost.toFixed(2)],["Recorded gross after API","R"+gross.toFixed(2)],["Successful provider calls",apiCalls.length],["Credits consumed",credits]].map(([label,value])=><div key={label} style={card}><div style={small}>{label}</div><div style={{fontSize:25,fontWeight:800,marginTop:7}}>{value}</div></div>)}
         </div>
