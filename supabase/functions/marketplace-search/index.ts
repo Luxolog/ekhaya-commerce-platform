@@ -8,9 +8,8 @@ const cors = {
 };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: cors });
-const validMarketplaces = ["takealot", "amazon"];
+const validMarketplaces = ["takealot", "amazon", "makro"]
 const testingMarketplaces: Record<string, string> = {
-  makro: "Makro is in testing and is not available for live searches yet.",
   bobshop: "Bob Shop is in testing and is not available for live searches yet.",
   leroy_merlin: "Leroy Merlin is in testing and is not available for live searches yet.",
 };
@@ -464,7 +463,9 @@ Deno.serve(async (req: Request) => {
     else if (pilot?.reason !== "PILOT_NOT_ACTIVE") return json({ error: "Your seller pilot access is not available for this marketplace.", code: pilot?.reason ?? "PILOT_ACCESS_ERROR", usage: pilot }, 403);
   }
 
-  const lookupKey = query.toLowerCase().replace(/\s+/g, " ");
+  const postalCode = typeof body.postal_code === "string" ? body.postal_code.trim() : "";
+  if (marketplace === "makro" && postalCode && !/^\d{4}$/.test(postalCode)) return json({ error: "Enter a valid four-digit South African postal code.", code: "INVALID_POSTAL_CODE" }, 400);
+  const lookupKey = query.toLowerCase().replace(/\s+/g, " ") + (marketplace === "makro" && postalCode ? `:postal:${postalCode}` : "");
   const cacheUrl = new URL("/rest/v1/marketplace_price_cache", supabaseUrl);
   cacheUrl.searchParams.set("marketplace", `eq.${marketplace}`);
   cacheUrl.searchParams.set("lookup_key", `eq.search:${lookupKey}`);
@@ -539,7 +540,19 @@ Deno.serve(async (req: Request) => {
     try {
       let payload: Record<string, any>;
       let raw: Record<string, unknown>[];
-      if (marketplace === "amazon") {
+      if (marketplace === "makro") {
+        if (!reefKey) throw new Error("Makro search is not configured. Add REEFAPI_KEY to Supabase Edge Function secrets.");
+        providerAttempted = true;
+        const upstream = await fetch("https://api.reefapi.com/makro/v1/search", {
+          method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
+          body: JSON.stringify({ query, page: 1, ...(postalCode ? { postal_code: postalCode } : {}) }),
+          signal: AbortSignal.timeout(15000),
+        });
+        payload = await upstream.json();
+        providerPayload = payload;
+        if (!upstream.ok || payload?.ok === false) throw new Error(payload?.error?.message ?? payload?.error?.detail ?? upstream.statusText ?? "ReefAPI Makro search failed");
+        raw = payload?.data?.products ?? [];
+      } else if (marketplace === "amazon") {
         if (!reefKey) throw new Error("Amazon search is not configured. Add REEFAPI_KEY to Supabase Edge Function secrets.");
         const searchParams = { query, marketplace: "co.za", page: 1 };
         const callAmazon = async () => {
@@ -613,20 +626,27 @@ Deno.serve(async (req: Request) => {
       };
       const products = raw.map((p: Record<string, unknown>) => {
         const isAmazon = marketplace === "amazon";
+        const isMakro = marketplace === "makro";
         const asin = typeof p.asin === "string" ? p.asin : null;
         return {
-          id: isAmazon ? asin : p.plid,
+          id: isAmazon ? asin : isMakro ? p.product_id ?? p.item_id : p.plid,
           title: (isAmazon ? p.product_title : p.title) ?? "Untitled product",
           brand: p.brand ?? null,
           price: parsePrice(isAmazon ? p.product_price : p.price),
           original_price: parsePrice(isAmazon ? p.product_original_price : p.original_price),
+          discount_percent: isMakro ? p.discount_percent ?? null : null,
+          pack_size: isMakro ? p.pack_size ?? null : null,
+          sold_by_makro: isMakro ? p.sold_by_makro ?? null : null,
+          seller_id: isMakro ? p.seller_id ?? null : null,
+          availability: isMakro ? p.availability ?? null : null,
+          key_specs: isMakro ? p.key_specs ?? [] : [],
           currency: "ZAR",
           image: (isAmazon ? p.product_photo : p.image) ?? null,
           url: (isAmazon ? p.product_url : p.url) ?? (asin ? `https://www.amazon.co.za/dp/${asin}` : null),
           in_stock: p.in_stock ?? null,
           rating: isAmazon ? p.product_star_rating ?? null : p.rating ?? null,
           review_count: isAmazon ? p.product_num_ratings ?? null : p.review_count ?? p.rating_count ?? null,
-          seller: p.seller_name ?? null,
+          seller: isMakro ? (p.sold_by_makro ? "Makro" : p.seller_id ? `Marketplace seller (${p.seller_id})` : null) : p.seller_name ?? null,
           delivery: p.delivery ?? null,
           sales_volume: p.sales_volume ?? null,
           product_badge: p.product_badge ?? null,
