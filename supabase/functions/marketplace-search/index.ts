@@ -465,6 +465,8 @@ Deno.serve(async (req: Request) => {
 
   const postalCode = typeof body.postal_code === "string" ? body.postal_code.trim() : "";
   if (marketplace === "makro" && postalCode && !/^\d{4}$/.test(postalCode)) return json({ error: "Enter a valid four-digit South African postal code.", code: "INVALID_POSTAL_CODE" }, 400);
+  const requestId = body.request_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.request_id)
+    ? body.request_id : crypto.randomUUID();
   const lookupKey = query.toLowerCase().replace(/\s+/g, " ") + (marketplace === "makro" && postalCode ? `:postal:${postalCode}` : "");
   const cacheUrl = new URL("/rest/v1/marketplace_price_cache", supabaseUrl);
   cacheUrl.searchParams.set("marketplace", `eq.${marketplace}`);
@@ -483,6 +485,30 @@ Deno.serve(async (req: Request) => {
     const fresh = cache && new Date(cache.expires_at) > new Date();
     if (cache && !body.force_refresh && (fresh || settings.refresh_enabled === false)) {
       const cachedProducts = cache.source_payload?.products ?? [];
+      let cacheCreditCharged = false;
+      if (!isOwner && !pilotCharged) {
+        const reserve = await fetch(new URL("/rest/v1/rpc/reserve_monthly_search_credit", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace, p_request_id: requestId }),
+        });
+        const reservation = reserve.ok ? await reserve.json() : null;
+        if (!reserve.ok || reservation?.allowed !== true) return json({ error: "You have used all your available marketplace search credits. Purchase another allocation to continue.", code: reservation?.reason ?? "CREDIT_RESERVATION_FAILED", usage: reservation }, 402);
+        if (reservation.duplicate) return json({ error: "This search request has already been processed. Please start a new search.", code: "DUPLICATE_REQUEST" }, 409);
+        cacheCreditCharged = true;
+      }
+      if (cachedProducts.length === 0 && cacheCreditCharged) {
+        await fetch(new URL("/rest/v1/rpc/refund_monthly_search_credit", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
+        });
+        cacheCreditCharged = false;
+      }
+      if (cachedProducts.length > 0 && cacheCreditCharged) {
+        await fetch(new URL("/rest/v1/rpc/complete_monthly_search_credit", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
+        });
+      }
       if (cachedProducts.length === 0 && pilotCharged) {
         await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
           method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
@@ -497,6 +523,7 @@ Deno.serve(async (req: Request) => {
         fetched_at: cache.fetched_at,
         products: cachedProducts,
         refresh_paused: !fresh,
+        credit_charged: cacheCreditCharged,
       });
     }
 
@@ -515,8 +542,6 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Search limit reached. Please try again in an hour." }, 429);
     }
 
-    const requestId = body.request_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.request_id)
-      ? body.request_id : crypto.randomUUID();
     let charged = !isOwner && !pilotCharged;
     if (charged) {
       const reserve = await fetch(new URL("/rest/v1/rpc/reserve_monthly_search_credit", supabaseUrl), {
