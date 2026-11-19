@@ -593,7 +593,7 @@ Deno.serve(async (req: Request) => {
           body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
         });
       }
-old usage block      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:products.length,result_status:"success",source:"live"})});
+      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:products.length,result_status:"success",source:"live"})});
       return json({ source: "live", marketplace, fetched_at: now.toISOString(), products, provider_meta: payload.meta ?? null, credit_charged: charged });
     } catch (error) {
       if (providerAttempted && !providerUsageLogged) {
