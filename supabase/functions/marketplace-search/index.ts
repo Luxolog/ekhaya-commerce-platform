@@ -158,7 +158,7 @@ Deno.serve(async (req: Request) => {
     if (!updateResponse.ok) return json({ error: "Could not update account status.", detail: await updateResponse.text() }, 500);
 
     let pilotResult: Record<string, unknown> | null = null;
-    let approvalEmail: "queued" | "already_queued" | "dispatch_failed" | "not_applicable" = "not_applicable";
+    let approvalEmail: "sent" | "queued" | "already_queued" | "dispatch_failed" | "not_applicable" = "not_applicable";
     if (nextStatus === "active") {
       const activated = await fetch(new URL("/rest/v1/rpc/activate_seller_pilot", supabaseUrl), {
         method: "POST",
@@ -204,9 +204,11 @@ Deno.serve(async (req: Request) => {
               const sent = await fetch(new URL("/functions/v1/notification-worker", supabaseUrl), {
                 method: "POST",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
-                body: JSON.stringify({ limit: 10 })
+                body: JSON.stringify({ notification_id: queuedRows[0].id })
               });
-              if (!sent.ok) approvalEmail = "dispatch_failed";
+              const delivery = sent.ok ? await sent.json().catch(() => ({})) : {};
+              if (sent.ok && Number(delivery.sent) === 1 && Number(delivery.failed) === 0) approvalEmail = "sent";
+              else approvalEmail = "dispatch_failed";
             } catch {
               approvalEmail = "dispatch_failed";
             }
