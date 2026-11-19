@@ -38,6 +38,20 @@ Deno.serve(async (req: Request) => {
   }
 
   const adminHeaders = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
+  const recordProviderUsage = async (entry: {
+    marketplace: string; lookupKey: string; credits: number; status: "success" | "failed";
+    responseCount?: number; providerRequestId?: string | null; actorId?: string | null;
+  }) => {
+    await fetch(new URL("/rest/v1/api_usage_ledger", supabaseUrl), {
+      method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({
+        provider: "reefapi", action: "search", marketplace: entry.marketplace, lookup_key: entry.lookupKey,
+        credits_charged: Math.max(0, Number(entry.credits) || 0), request_status: entry.status,
+        response_count: entry.responseCount ?? 0, request_id: entry.providerRequestId ?? null,
+        actor_id: entry.actorId ?? null,
+      }),
+    });
+  };
   let user: Record<string, unknown>;
   try {
     const userResponse = await fetch(new URL("/auth/v1/user", supabaseUrl), {
@@ -412,7 +426,7 @@ Deno.serve(async (req: Request) => {
 
     const requestId = body.request_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.request_id)
       ? body.request_id : crypto.randomUUID();
-    const charged = !isOwner && !pilotCharged;
+    let charged = !isOwner && !pilotCharged;
     if (charged) {
       const reserve = await fetch(new URL("/rest/v1/rpc/reserve_monthly_search_credit", supabaseUrl), {
         method: "POST",
@@ -429,6 +443,9 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    let providerAttempted = false;
+    let providerPayload: Record<string, any> | null = null;
+    let providerUsageLogged = false;
     try {
       let payload: Record<string, any>;
       let providerName: string;
@@ -437,6 +454,7 @@ Deno.serve(async (req: Request) => {
         if (!reefKey) throw new Error("Amazon search is not configured. Add REEFAPI_KEY to Supabase Edge Function secrets.");
         const searchParams = { query, marketplace: "co.za", page: 1 };
         const callAmazon = async () => {
+          providerAttempted = true;
           const upstream = await fetch("https://api.reefapi.com/amazon/v1/search", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
@@ -444,6 +462,7 @@ Deno.serve(async (req: Request) => {
             signal: AbortSignal.timeout(15000),
           });
           const result = await upstream.json();
+          providerPayload = result;
           if (!upstream.ok || result?.ok === false) {
             const providerError = result?.error ?? {};
             const failure = new Error(String(providerError.message ?? providerError.detail ?? upstream.statusText ?? "ReefAPI Amazon search failed"));
@@ -483,6 +502,7 @@ Deno.serve(async (req: Request) => {
         })) as Record<string, unknown>[];
       } else {
         if (!reefKey) throw new Error("Takealot search is not configured. Add REEFAPI_KEY to Supabase Edge Function secrets.");
+        providerAttempted = true;
         const upstream = await fetch("https://api.reefapi.com/takealot/v1/search", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
@@ -490,6 +510,7 @@ Deno.serve(async (req: Request) => {
           signal: AbortSignal.timeout(9000),
         });
         payload = await upstream.json();
+        providerPayload = payload;
         if (!upstream.ok || payload?.ok === false) throw new Error(payload?.error?.message ?? upstream.statusText ?? "Provider lookup failed");
         providerName = "reefapi";
         raw = payload?.data?.results ?? [];
@@ -531,6 +552,12 @@ Deno.serve(async (req: Request) => {
           variant_selection_required: p.variant_selection_required ?? p.has_variations ?? false,
         };
       });
+      await recordProviderUsage({
+        marketplace, lookupKey: `search:${lookupKey}`, credits: Number(payload.meta?.charged_credits ?? 0),
+        status: "success", responseCount: products.length, providerRequestId: payload.meta?.request_id ?? null,
+        actorId: charged ? userId : null,
+      });
+      providerUsageLogged = true;
       const now = new Date();
       const ttl = Math.max(5, Math.min(10080, Number(settings.cache_ttl_minutes) || 360));
       const expires = new Date(now.getTime() + ttl * 60 * 1000);
@@ -546,6 +573,22 @@ Deno.serve(async (req: Request) => {
       });
       if (!cacheWrite.ok) throw new Error("Marketplace data was found but could not be saved to shared cache.");
 
+      if (products.length === 0) {
+        if (pilotCharged) {
+          await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
+            method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }),
+          });
+          pilotCharged = false;
+        }
+        if (charged) {
+          await fetch(new URL("/rest/v1/rpc/refund_monthly_search_credit", supabaseUrl), {
+            method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
+          });
+          charged = false;
+        }
+      }
       if (charged) {
         await fetch(new URL("/rest/v1/rpc/complete_monthly_search_credit", supabaseUrl), {
           method: "POST",
@@ -553,33 +596,34 @@ Deno.serve(async (req: Request) => {
           body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
         });
       }
-      await fetch(new URL("/rest/v1/api_usage_ledger", supabaseUrl), {
-        method: "POST",
-        headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
-        body: JSON.stringify({
-          provider: providerName, action: "search", marketplace, lookup_key: `search:${lookupKey}`,
-          credits_charged: Number(payload.meta?.charged_credits ?? 0), request_status: "success",
-          response_count: products.length, request_id: payload.meta?.request_id ?? null, actor_id: charged ? userId : null,
-        }),
-      });
-      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:products.length,result_status:"success",source:"live"})});
+old usage block      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:products.length,result_status:"success",source:"live"})});
       return json({ source: "live", marketplace, fetched_at: now.toISOString(), products, provider_meta: payload.meta ?? null, credit_charged: charged });
     } catch (error) {
-      if (marketplace === "takealot" && cache && Array.isArray(cache.source_payload?.products) && cache.source_payload.products.length > 0) {
-        return json({ source: "stale-cache", marketplace, fetched_at: cache.fetched_at, products: cache.source_payload.products, refresh_paused: false, warning: "Live Takealot refresh failed; showing the last successfully cached results instead." });
+      if (providerAttempted && !providerUsageLogged) {
+        await recordProviderUsage({
+          marketplace, lookupKey: `search:${lookupKey}`,
+          credits: Number(providerPayload?.meta?.charged_credits ?? 0), status: "failed",
+          responseCount: 0, providerRequestId: providerPayload?.meta?.request_id ?? null,
+          actorId: charged ? userId : null,
+        });
+        providerUsageLogged = true;
       }
       if (pilotCharged) {
         await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
           method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
           body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }),
         });
+        pilotCharged = false;
       }
       if (charged) {
         await fetch(new URL("/rest/v1/rpc/refund_monthly_search_credit", supabaseUrl), {
-          method: "POST",
-          headers: { ...adminHeaders, "Content-Type": "application/json" },
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
           body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
         });
+        charged = false;
+      }
+      if (marketplace === "takealot" && cache && Array.isArray(cache.source_payload?.products) && cache.source_payload.products.length > 0) {
+        return json({ source: "stale-cache", marketplace, fetched_at: cache.fetched_at, products: cache.source_payload.products, refresh_paused: false, warning: "Live Takealot refresh failed; showing the last successfully cached results instead. No seller search credit was used." });
       }
       throw error;
     }
