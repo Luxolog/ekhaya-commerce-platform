@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
   const queueUrl = new URL("/rest/v1/user_notifications", base);
   queueUrl.searchParams.set("email_status", "eq.pending");
   queueUrl.searchParams.set("email_attempted_at", "is.null");
-  queueUrl.searchParams.set("select", "id,user_id,title,message,action_url,created_at");
+  queueUrl.searchParams.set("select", "id,user_id,event_key,title,message,action_url,created_at");
   queueUrl.searchParams.set("order", "created_at.asc");
   queueUrl.searchParams.set("limit", "10");
   let requestedNotificationId: string | null = null;
@@ -100,7 +100,31 @@ Deno.serve(async (req) => {
       const actionHtml = safeAction
         ? `<tr><td align="center" style="padding:26px 32px 30px"><a href="${escapeHtml(safeAction)}" style="display:inline-block;background:#1769aa;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:.3px;padding:14px 26px;border-radius:5px">OPEN PRICE CHECKER</a></td></tr>`
         : "";
-      const textBody = `Hello ${recipientName},\n\n${message}${safeAction ? `\n\nOpen Price Checker: ${safeAction}` : ""}\n\nEkhaya Technologies\nDIGITAL SOLUTIONS · BUILT AROUND YOU`;
+      const isPilotApproval = item.event_key === "seller_pilot_approved_v1";
+      const textBody = isPilotApproval
+        ? `Hello ${recipientName},\n\nYour application to join the Ekhaya Price Checker Seller Pilot Programme has been approved. Welcome aboard!\n\nYOUR PILOT ACCESS\nDuration: 5 days from approval\nDaily allowance: Up to 10 successful searches\nTotal allowance: 50 successful searches\nMarketplace: Takealot\nDaily reset: Midnight South African time\n\nIMPORTANT\nFailed, blocked or rejected searches do not use your allowance. Unused daily searches do not roll over. Your pilot access ends automatically after five days.\n\n${safeAction ? `Open Ekhaya Price Checker: ${safeAction}\n\n` : ""}For assistance, contact support@ekhayatech.co.za.\n\nThank you for helping us improve Ekhaya Price Checker.\n\nEkhaya Technologies\nDIGITAL SOLUTIONS · BUILT AROUND YOU`
+        : `Hello ${recipientName},\n\n${message}${safeAction ? `\n\nOpen Price Checker: ${safeAction}` : ""}\n\nEkhaya Technologies\nDIGITAL SOLUTIONS · BUILT AROUND YOU`;
+
+      const pilotDetailsHtml = isPilotApproval ? `
+        <p style="font-size:15px;line-height:1.65;color:#30445d;margin:0 0 18px">Your application to join the Ekhaya Price Checker Seller Pilot Programme has been approved. Welcome aboard!</p>
+        <div style="border:1px solid #dce7f0;border-radius:6px;overflow:hidden;margin:20px 0 22px">
+          <div style="background:#edf3f8;padding:13px 16px;font-size:12px;font-weight:700;letter-spacing:1px;color:#173452">YOUR PILOT ACCESS</div>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size:14px;color:#40536a">
+            <tr><td style="padding:11px 16px;border-bottom:1px solid #e8edf3">Duration</td><td align="right" style="padding:11px 16px;border-bottom:1px solid #e8edf3;font-weight:700;color:#10243e">5 days from approval</td></tr>
+            <tr><td style="padding:11px 16px;border-bottom:1px solid #e8edf3">Daily allowance</td><td align="right" style="padding:11px 16px;border-bottom:1px solid #e8edf3;font-weight:700;color:#10243e">10 successful searches</td></tr>
+            <tr><td style="padding:11px 16px;border-bottom:1px solid #e8edf3">Total allowance</td><td align="right" style="padding:11px 16px;border-bottom:1px solid #e8edf3;font-weight:700;color:#10243e">50 successful searches</td></tr>
+            <tr><td style="padding:11px 16px;border-bottom:1px solid #e8edf3">Marketplace</td><td align="right" style="padding:11px 16px;border-bottom:1px solid #e8edf3;font-weight:700;color:#10243e">Takealot</td></tr>
+            <tr><td style="padding:11px 16px">Daily reset</td><td align="right" style="padding:11px 16px;font-weight:700;color:#10243e">Midnight (South Africa)</td></tr>
+          </table>
+        </div>
+        <div style="background:#f5f8fb;border-left:3px solid #1976b9;padding:14px 16px;margin:0 0 18px">
+          <div style="font-size:13px;font-weight:700;color:#173452;margin-bottom:7px">PLEASE NOTE</div>
+          <div style="font-size:13px;line-height:1.7;color:#52667c">Failed, blocked or rejected searches do not use your allowance. Unused daily searches do not roll over. Your pilot access ends automatically after five days.</div>
+        </div>
+        <p style="font-size:14px;line-height:1.7;color:#40536a;margin:0">For assistance, contact <a href="mailto:support@ekhayatech.co.za" style="color:#1769aa;text-decoration:none;font-weight:700">support@ekhayatech.co.za</a>.</p>
+        <p style="font-size:14px;line-height:1.7;color:#40536a;margin:14px 0 0">Thank you for helping us improve Ekhaya Price Checker. We appreciate your participation and feedback.</p>
+      ` : `${isPilotApproval ? pilotDetailsHtml : `<div style="font-size:15px;line-height:1.75;color:#40536a">${safeMessage}</div>`}`;
+      const greetingHtml = `<p style="font-size:15px;line-height:1.65;color:#30445d;margin:0 0 14px">Hello ${safeName},</p>`;
 
       await transporter.sendMail({
         from: { name: "Ekhaya Technologies", address: username },
@@ -117,8 +141,8 @@ Deno.serve(async (req) => {
 <tr><td style="padding:34px 34px 8px">
 <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:#1976b9;text-transform:uppercase">EKHAYA PRICE CHECKER</div>
 <h1 style="font-size:26px;line-height:1.25;color:#10243e;margin:12px 0 22px;font-weight:700">${safeTitle}</h1>
-<p style="font-size:15px;line-height:1.65;color:#30445d;margin:0 0 14px">Hello ${safeName},</p>
-<div style="font-size:15px;line-height:1.75;color:#40536a">${safeMessage}</div>
+${greetingHtml}
+${isPilotApproval ? pilotDetailsHtml : `<div style="font-size:15px;line-height:1.75;color:#40536a">${safeMessage}</div>`}
 </td></tr>
 ${actionHtml}
 <tr><td style="padding:0 34px 30px"><div style="border-top:1px solid #e8edf3;padding-top:19px;font-size:12px;line-height:1.6;color:#7b8999">You are receiving this message because of activity on your Ekhaya Price Checker account.</div></td></tr>
