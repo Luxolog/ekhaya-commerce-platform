@@ -1,0 +1,1 @@
+alter table public.seller_pilot_access drop constraint if exists seller_pilot_access_daily_limit_check; alter table public.seller_pilot_access add constraint seller_pilot_access_daily_limit_check check (daily_limit = 10);
