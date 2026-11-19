@@ -448,7 +448,6 @@ Deno.serve(async (req: Request) => {
     let providerUsageLogged = false;
     try {
       let payload: Record<string, any>;
-      let providerName: string;
       let raw: Record<string, unknown>[];
       if (marketplace === "amazon") {
         if (!reefKey) throw new Error("Amazon search is not configured. Add REEFAPI_KEY to Supabase Edge Function secrets.");
@@ -484,7 +483,6 @@ Deno.serve(async (req: Request) => {
         if (marketplaceCode !== "co.za" || currencyCode !== "ZAR") {
           throw new Error("ReefAPI returned a marketplace or currency other than Amazon South Africa (ZAR); results were rejected.");
         }
-        providerName = "reefapi";
         raw = (payload?.data?.results ?? []).map((p: Record<string, unknown>) => ({
           asin: p.asin,
           product_title: p.title,
@@ -512,7 +510,6 @@ Deno.serve(async (req: Request) => {
         payload = await upstream.json();
         providerPayload = payload;
         if (!upstream.ok || payload?.ok === false) throw new Error(payload?.error?.message ?? upstream.statusText ?? "Provider lookup failed");
-        providerName = "reefapi";
         raw = payload?.data?.results ?? [];
       }
 
