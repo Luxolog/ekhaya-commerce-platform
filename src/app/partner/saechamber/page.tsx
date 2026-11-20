@@ -11,6 +11,7 @@ type Partner = { id: string; partner_name: string; partner_slug: string; referra
 type Referral = { id: string; referred_user_id: string; registered_at: string; first_paid_at: string | null };
 type Commission = { id: string; payment_month: string; plan_code: string; qualifying_amount: number; active_referred_sellers: number; commission_band: number; commission_rate: number; commission_amount: number; status: string; paid_at: string | null };
 type Statement = { id: string; statement_month: string; active_referred_sellers: number; qualifying_revenue: number; commission_total: number; adjustment_total: number; payment_due_date: string; status: string; paid_at: string | null };
+type Invitation = { id: string; invited_email: string; status: string; invited_at: string; expires_at: string };
 
 const money = (value: number) => new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(value || 0);
 const date = (value?: string | null) => value ? new Intl.DateTimeFormat("en-ZA", { dateStyle: "medium" }).format(new Date(value)) : "—";
@@ -27,6 +28,11 @@ export default function SAeChamberPartnerPage() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [tab, setTab] = useState<"overview" | "referrals" | "commissions" | "statements">("overview");
+  const [isOwner, setIsOwner] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteMessage, setInviteMessage] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
   const referralUrl = typeof window !== "undefined" ? window.location.origin + "/account/?ref=SAECHAMBER" : "/account/?ref=SAECHAMBER";
 
   const api = useCallback(async (path: string) => {
@@ -58,18 +64,25 @@ export default function SAeChamberPartnerPage() {
         const userResponse = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: ANON_KEY, Authorization: `Bearer ${session.access_token}` }, cache: "no-store" });
         if (!userResponse.ok) throw new Error("Your sign-in session has expired. Please sign in again.");
         const user = await userResponse.json();
-        const partners = await api(`partner_programs?select=id,partner_name,partner_slug,referral_code,status,program_live_at&partner_user_id=eq.${user.id}&limit=1`);
+        const ownerRows = await api(`partner_owner_access?select=user_id&user_id=eq.${user.id}&limit=1`);
+        const ownerMode = (ownerRows as {user_id:string}[]).length > 0;
+        if (!live) return;
+        setIsOwner(ownerMode);
+        const partners = ownerMode
+          ? await api("partner_programs?select=id,partner_name,partner_slug,referral_code,status,program_live_at&partner_slug=eq.saechamber&limit=1")
+          : await api(`partner_programs?select=id,partner_name,partner_slug,referral_code,status,program_live_at&partner_user_id=eq.${user.id}&limit=1`);
         if (!live) return;
         const current = (partners as Partner[])[0] ?? null;
         setPartner(current);
         if (!current) return;
-        const [r, c, s] = await Promise.all([
+        const [r, c, s, inv] = await Promise.all([
           api(`partner_referrals?select=id,referred_user_id,registered_at,first_paid_at&partner_id=eq.${current.id}&order=registered_at.desc`),
           api(`partner_commission_ledger?select=id,payment_month,plan_code,qualifying_amount,active_referred_sellers,commission_band,commission_rate,commission_amount,status,paid_at&partner_id=eq.${current.id}&order=payment_month.desc,created_at.desc`),
           api(`partner_monthly_statements?select=id,statement_month,active_referred_sellers,qualifying_revenue,commission_total,adjustment_total,payment_due_date,status,paid_at&partner_id=eq.${current.id}&order=statement_month.desc`),
+          ownerMode ? api(`partner_invitations?select=id,invited_email,status,invited_at,expires_at&partner_id=eq.${current.id}&order=invited_at.desc`) : Promise.resolve([]),
         ]);
         if (!live) return;
-        setReferrals(r as Referral[]); setCommissions(c as Commission[]); setStatements(s as Statement[]);
+        setReferrals(r as Referral[]); setCommissions(c as Commission[]); setStatements(s as Statement[]); setInvitations(inv as Invitation[]);
       } catch (e) { if (live) setError(e instanceof Error ? e.message : "Unable to load the partner dashboard."); }
       finally { if (live) setLoading(false); }
     })();
@@ -83,6 +96,20 @@ export default function SAeChamberPartnerPage() {
     pending: commissions.filter(x => x.status === "pending" || x.status === "approved").reduce((n, x) => n + Number(x.commission_amount), 0),
     paid: commissions.filter(x => x.status === "paid").reduce((n, x) => n + Number(x.commission_amount), 0),
   }), [referrals, commissions]);
+
+  async function sendInvitation() {
+    if (!session?.access_token || !inviteEmail.trim()) return;
+    setInviting(true); setInviteMessage("");
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/invite-saechamber-partner`, { method: "POST", headers: { apikey: ANON_KEY, Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ email: inviteEmail.trim() }) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Invitation could not be sent.");
+      setInviteMessage(`Invitation sent to ${result.invited_email}. It expires in 14 days.`); setInviteEmail("");
+      const updated = await api(`partner_invitations?select=id,invited_email,status,invited_at,expires_at&partner_id=eq.${partner?.id}&order=invited_at.desc`);
+      setInvitations(updated as Invitation[]);
+    } catch (e) { setInviteMessage(e instanceof Error ? e.message : "Invitation could not be sent."); }
+    finally { setInviting(false); }
+  }
 
   async function copyLink() {
     await navigator.clipboard.writeText(referralUrl);
@@ -102,6 +129,7 @@ export default function SAeChamberPartnerPage() {
       {!session && <div style={{ ...card, maxWidth: 560, margin: "50px auto", textAlign: "center" }}><h1 style={{ marginTop: 0 }}>Partner sign-in required</h1><p style={muted}>Sign in using the SA eChamber partner account authorised by Ekhaya Technologies.</p><Link href="/account/" style={{ display: "inline-block", background: "#079BD3", color: "#fff", padding: "12px 20px", borderRadius: 8, fontWeight: 700 }}>Go to sign in</Link></div>}
       {session && !partner && <div style={{ ...card, maxWidth: 720, margin: "50px auto" }}><p style={{ color: "#079BD3", fontWeight: 800, letterSpacing: 1, fontSize: 11 }}>PARTNER ACCESS SETUP</p><h1 style={{ marginTop: 0 }}>Your partner account is not linked yet</h1><p style={{ color: "#60758A", lineHeight: 1.7 }}>Your login is valid, but it has not yet been assigned to the SA eChamber partner record. Ekhaya must verify the authorised Chamber contact and link this account before referral and commission information becomes visible. This is the permanent partner portal; this address will remain the dedicated access point for SA eChamber.</p><p style={{ ...muted, marginBottom: 4 }}>Partner referral code</p><strong>SAECHAMBER</strong><p style={{ ...muted, marginTop: 18 }}>For security, referral and commission data will appear once the authorised Chamber login is linked to this partner record.</p><Link href="/account/" style={{ color: "#079BD3", fontWeight: 700 }}>Return to account →</Link></div>}
       {session && partner && <>
+        {isOwner && <div style={{ ...card, borderColor: "#079BD3", marginBottom: 18 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}><div><strong style={{ color: "#079BD3" }}>EKHAYA OWNER VIEW</strong><p style={{ ...muted, margin: "6px 0 0" }}>You are viewing the partner dashboard with the same figures and tabs the SA eChamber owner will see. Administrative controls are shown separately below.</p></div><span style={{ fontSize: 12, fontWeight: 700 }}>Read-only partner preview</span></div><div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #DCE8F1" }}><strong>Invite SA eChamber owner</strong><p style={muted}>They will receive a secure email invitation, accept it, create their own sign-in and choose their referral link code.</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="Chamber owner email address" style={{ flex: "1 1 250px", minWidth: 0, padding: 11, border: "1px solid #DCE8F1", borderRadius: 8 }} /><button onClick={sendInvitation} disabled={inviting || !inviteEmail.includes("@")} style={{ background: "#079BD3", color: "#fff", border: 0, borderRadius: 8, padding: "10px 16px", fontWeight: 700, cursor: "pointer" }}>{inviting ? "Sending…" : "Send invitation"}</button></div>{inviteMessage && <p role="status" style={{ ...muted, marginTop: 8 }}>{inviteMessage}</p>}{invitations.length > 0 && <div style={{ marginTop: 12, overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}><thead><tr>{["Invited email","Sent","Expires","Status"].map(v=><th key={v} style={{ textAlign: "left", padding: 8, background: "#F4F8FC" }}>{v}</th>)}</tr></thead><tbody>{invitations.map(i=><tr key={i.id}>{[i.invited_email,date(i.invited_at),date(i.expires_at),i.status].map((v,n)=><td key={n} style={{ padding: 8, borderBottom: "1px solid #DCE8F1" }}>{v}</td>)}</tr>)}</tbody></table></div>}</div></div>}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
           <div><p style={{ color: "#079BD3", fontSize: 11, fontWeight: 800, letterSpacing: 1, margin: "0 0 6px" }}>PARTNER OVERVIEW</p><h1 style={{ fontSize: 32, margin: 0 }}>{partner.partner_name}</h1><p style={muted}>Programme status: {partner.status} · Launch date: {date(partner.program_live_at)}</p></div>
           <div style={{ ...card, minWidth: 320, flex: "0 1 430px" }}><div style={{ fontWeight: 800, marginBottom: 7 }}>Your unique seller onboarding link</div><div style={{ background: "#F4F8FC", border: "1px solid #DCE8F1", padding: 11, borderRadius: 8, fontSize: 12, overflowWrap: "anywhere" }}>{referralUrl}</div>{partner.status === "active" ? <button onClick={copyLink} style={{ marginTop: 10, background: "#079BD3", color: "#fff", border: 0, borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}>{copied ? "Copied" : "Copy referral link"}</button> : <p style={{ ...muted, marginBottom: 0 }}>The permanent referral link will be enabled once the authorised partner account is activated.</p>}</div>
