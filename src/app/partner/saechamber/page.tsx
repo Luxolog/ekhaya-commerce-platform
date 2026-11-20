@@ -33,7 +33,7 @@ export default function SAeChamberPartnerPage() {
   const [inviteMessage, setInviteMessage] = useState("");
   const [inviting, setInviting] = useState(false);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const referralUrl = typeof window !== "undefined" ? window.location.origin + "/account/?ref=SAECHAMBER" : "/account/?ref=SAECHAMBER";
+  const referralUrl = typeof window !== "undefined" ? window.location.origin + "/account/?ref=" + (partner?.referral_code || "SAECHAMBER") : "/account/?ref=" + (partner?.referral_code || "SAECHAMBER");
 
   const api = useCallback(async (path: string) => {
     if (!session?.access_token) throw new Error("Please sign in first.");
