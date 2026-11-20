@@ -74,7 +74,7 @@ async function initialiseCheckout(req: Request) {
 
   const body = await req.json().catch(() => null);
   const planCode = body?.plan as PlanCode;
-  if (!planCode || !(planCode in plans)) return json({ error: "Choose a valid subscription plan." }, 400);
+  if (!planCode || !Object.prototype.hasOwnProperty.call(plans, planCode)) return json({ error: "Choose a valid subscription plan." }, 400);
 
   const admin = getAdminClient();
   const userId = authData.user.id;
@@ -167,13 +167,36 @@ async function handleWebhook(req: Request) {
   }
 
   const rawBody = await req.text();
-  const received = req.headers.get("x-paystack-signature") ?? "";
-  const expected = await hmacSha512(secret, rawBody);
-  if (!received || !timingSafeEqual(received.toLowerCase(), expected)) {
-    return json({ error: "Invalid webhook signature." }, 401);
+  const modernHeader = req.headers.get("paystack-signature") ?? "";
+  const legacyHeader = req.headers.get("x-paystack-signature") ?? "";
+  let signatureValid = false;
+
+  // Current Paystack signing-secret format: HMAC(timestamp + "." + raw body),
+  // using the whole whsec_ secret. Enforce the documented 5-minute replay window.
+  const webhookSecret = Deno.env.get("PAYSTACK_WEBHOOK_SECRET");
+  if (modernHeader && webhookSecret) {
+    const parts = modernHeader.split(",").map((part) => part.trim());
+    const timestamp = parts.find((part) => part.startsWith("t="))?.slice(2);
+    const timestampSeconds = Number(timestamp);
+    if (timestamp && Number.isFinite(timestampSeconds) && Math.abs(Date.now() / 1000 - timestampSeconds) <= 300) {
+      const signatures = parts.filter((part) => part.startsWith("v1=")).map((part) => part.slice(3));
+      const expected = await hmacSha512(webhookSecret, `${timestamp}.${rawBody}`);
+      signatureValid = signatures.some((candidate) => {
+        const signature = candidate.includes(":") ? candidate.slice(candidate.indexOf(":") + 1) : candidate;
+        return /^[0-9a-f]{128}$/i.test(signature) && timingSafeEqual(signature.toLowerCase(), expected);
+      });
+    }
   }
 
-  const event = JSON.parse(rawBody);
+  // Backward compatibility while the dashboard still emits the legacy header.
+  if (!signatureValid && legacyHeader && /^[0-9a-f]{128}$/i.test(legacyHeader)) {
+    const expected = await hmacSha512(secret, rawBody);
+    signatureValid = timingSafeEqual(legacyHeader.toLowerCase(), expected);
+  }
+  if (!signatureValid) return json({ error: "Invalid webhook signature." }, 401);
+
+  let event: Record<string, any>;
+  try { event = JSON.parse(rawBody); } catch { return json({ error: "Invalid webhook payload." }, 400); }
   if (event?.event !== "charge.success" || !event?.data?.reference) return json({ received: true });
 
   const reference = String(event.data.reference);
