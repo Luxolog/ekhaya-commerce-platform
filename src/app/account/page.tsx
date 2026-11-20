@@ -10,7 +10,7 @@ const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 export default function AccountPage() {
   const router = useRouter();
-  const [mode,setMode] = useState<"signin"|"signup"|"reset"|"new-password">("signup");
+  const [mode,setMode] = useState<"signin"|"signup"|"reset"|"new-password"|"accept-partner">("signup");
   const [email,setEmail] = useState("");
   const [password,setPassword] = useState("");
   const [name,setName] = useState("");
@@ -20,11 +20,22 @@ export default function AccountPage() {
   const [busy,setBusy] = useState(false);
   const [recoveryToken,setRecoveryToken] = useState("");
   const [referralCode,setReferralCode] = useState("");
+  const [partnerInvitationId,setPartnerInvitationId] = useState("");
+  const [partnerLinkCode,setPartnerLinkCode] = useState("SAECHAMBER");
   useEffect(()=>{
     const referral = new URLSearchParams(window.location.search).get("ref");
     if(referral) setReferralCode(referral.toUpperCase().replace(/[^A-Z0-9_-]/g,""));
     const params = new URLSearchParams(window.location.hash.replace(/^#/,""));
     const token = params.get("access_token");
+    const inviteId = new URLSearchParams(window.location.search).get("partner_invite");
+    if(params.get("type")==="invite" && token && inviteId){
+      setRecoveryToken(token);
+      setPartnerInvitationId(inviteId);
+      setMode("accept-partner");
+      setMessage("Welcome. Create your password and choose the unique code for your SA eChamber seller referral link.");
+      window.history.replaceState({},document.title,window.location.pathname+window.location.search);
+      return;
+    }
     if(params.get("type")==="recovery" && token){
       setRecoveryToken(token);
       setMode("new-password");
@@ -45,6 +56,21 @@ export default function AccountPage() {
         const data=await response.json().catch(()=>({}));
         if(!response.ok)throw new Error(data.msg??data.message??data.error_description??"Unable to send password reset email.");
         setMessage("If an account exists for this email, a password reset link has been sent. Check your inbox and spam folder.");
+        return;
+      }
+      if(mode==="accept-partner"){
+        if(!recoveryToken || !partnerInvitationId) throw new Error("Your invitation link is missing or expired. Ask Ekhaya to send another invitation.");
+        if(password.length<8) throw new Error("Choose a password with at least 8 characters.");
+        const passwordResponse=await fetch(supabaseUrl+"/auth/v1/user",{method:"PUT",headers:{"Content-Type":"application/json","apikey":anonKey,"Authorization":"Bearer "+recoveryToken},body:JSON.stringify({password})});
+        const passwordData=await passwordResponse.json().catch(()=>({}));
+        if(!passwordResponse.ok) throw new Error(passwordData.msg??passwordData.message??"Unable to set your password.");
+        const acceptResponse=await fetch(supabaseUrl+"/functions/v1/accept-saechamber-partner-invitation",{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey,"Authorization":"Bearer "+recoveryToken},body:JSON.stringify({invitation_id:partnerInvitationId,referral_code:partnerLinkCode})});
+        const accepted=await acceptResponse.json().catch(()=>({}));
+        if(!acceptResponse.ok) throw new Error(accepted.error??"Unable to accept partner invitation.");
+        const session={access_token:recoveryToken,token_type:"bearer",expires_in:3600,expires_at:Math.floor(Date.now()/1000)+3600,user:accepted.user};
+        localStorage.setItem("ekhaya_session",JSON.stringify(session));
+        setMessage("Your SA eChamber partner account is ready. Opening your partner dashboard…");
+        window.location.href="/partner/saechamber/";
         return;
       }
       if(mode==="new-password"){
@@ -83,13 +109,14 @@ export default function AccountPage() {
     </header>
     <section style={{maxWidth:480,margin:"70px auto",background:"#fff",border:"1px solid #DCE8F1",borderRadius:14,padding:28,boxShadow:"0 8px 30px #071b3108"}}>
       <p style={{color:"#079BD3",fontSize:10,fontWeight:800,letterSpacing:2}}>EKHAYA SELLER ACCESS</p>
-      <h1 style={{fontSize:30,fontWeight:700,margin:"8px 0 10px"}}>{mode==="signup"?"Create your seller account":mode==="reset"?"Reset your password":mode==="new-password"?"Choose a new password":"Welcome back"}</h1>
+      <h1 style={{fontSize:30,fontWeight:700,margin:"8px 0 10px"}}>{mode==="signup"?"Create your seller account":mode==="reset"?"Reset your password":mode==="new-password"?"Choose a new password":mode==="accept-partner"?"Accept partner invitation":"Welcome back"}</h1>
       <p style={{color:"#60758A",fontSize:13,lineHeight:1.6}}>Your account keeps your monthly live marketplace search allowance separate from other sellers.</p>
       {mode==="signup"&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={field}/>}
       {mode==="signup"&&<div style={{fontSize:12,lineHeight:1.6,color:"#40566B",marginTop:14}}><label style={{display:"flex",gap:9,alignItems:"flex-start"}}><input type="checkbox" checked={privacyAccepted} onChange={e=>setPrivacyAccepted(e.target.checked)} style={{marginTop:3}}/><span>I have read and acknowledge the <Link href="/privacy/" target="_blank">Ekhaya Privacy Notice</Link>. I understand how my account information will be processed. *</span></label><label style={{display:"flex",gap:9,alignItems:"flex-start",marginTop:10}}><input type="checkbox" checked={marketingOptIn} onChange={e=>setMarketingOptIn(e.target.checked)} style={{marginTop:3}}/><span>Optional: Send me product news and offers. I can opt out at any time.</span></label></div>}
-      {mode!=="new-password"&&<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address" style={field}/>}
+      {mode==="accept-partner"&&<><p style={{fontSize:13,color:"#40566B",lineHeight:1.6}}>Create your own secure password and choose a unique referral code. Your link will be yours to share with prospective sellers.</p><input value={partnerLinkCode} onChange={e=>setPartnerLinkCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,20))} placeholder="Your unique link code (5–20 letters/numbers)" style={field}/></>}
+      {mode!=="new-password"&&mode!=="accept-partner"&&<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address" style={field}/>}
       {mode!=="reset"&&<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="new-password"?"New password (at least 8 characters)":"Password (at least 8 characters)"} style={field}/>}
-      <button onClick={submit} disabled={busy||(mode!=="new-password"&&!email)||(mode!=="reset"&&password.length<8)} style={{width:"100%",padding:14,background:"#079BD3",border:0,borderRadius:8,color:"#fff",fontWeight:700,marginTop:12,cursor:"pointer"}}>{busy?"Please wait…":mode==="signup"?"Create account":mode==="reset"?"Send reset link":mode==="new-password"?"Update password":"Sign in"}</button>
+      <button onClick={submit} disabled={busy||(mode!=="new-password"&&mode!=="accept-partner"&&!email)||(mode!=="reset"&&password.length<8)||(mode==="accept-partner"&&partnerLinkCode.length<5)} style={{width:"100%",padding:14,background:"#079BD3",border:0,borderRadius:8,color:"#fff",fontWeight:700,marginTop:12,cursor:"pointer"}}>{busy?"Please wait…":mode==="signup"?"Create account":mode==="reset"?"Send reset link":mode==="new-password"?"Update password":mode==="accept-partner"?"Accept invitation & create account":"Sign in"}</button>
       {mode==="signin"&&<button onClick={()=>{setMode("reset");setMessage("");}} style={{width:"100%",padding:10,background:"transparent",border:0,color:"#079BD3",fontWeight:700,cursor:"pointer"}}>Forgot password?</button>}
       <button onClick={()=>{setMode(mode==="signup"?"signin":mode==="signin"?"signup":"signin");setMessage("");}} style={{width:"100%",padding:12,background:"transparent",border:0,color:"#079BD3",fontWeight:700,cursor:"pointer"}}>{mode==="signup"?"Already registered? Sign in":mode==="reset"||mode==="new-password"?"Back to sign in":"New to Ekhaya? Create an account"}</button>
       {signedIn&&<button onClick={signOut} style={{width:"100%",padding:10,border:"1px solid #DCE8F1",borderRadius:8,background:"#fff",color:"#071B31"}}>Sign out</button>}
