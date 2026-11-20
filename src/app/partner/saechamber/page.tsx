@@ -5,7 +5,6 @@ import Link from "next/link";
 
 const SUPABASE_URL = "https://itxxnhcjjiynrmivexcb.supabase.co";
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-const REFERRAL_URL = "https://pricechecker.ekhayatech.co.za/account/?ref=SAECHAMBER";
 
 type Session = { access_token: string; user?: { id?: string; email?: string } };
 type Partner = { id: string; partner_name: string; partner_slug: string; referral_code: string; status: string; program_live_at: string | null };
@@ -28,6 +27,7 @@ export default function SAeChamberPartnerPage() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [tab, setTab] = useState<"overview" | "referrals" | "commissions" | "statements">("overview");
+  const referralUrl = typeof window !== "undefined" ? window.location.origin + "/account/?ref=SAECHAMBER" : "/account/?ref=SAECHAMBER";
 
   const api = useCallback(async (path: string) => {
     if (!session?.access_token) throw new Error("Please sign in first.");
@@ -85,7 +85,7 @@ export default function SAeChamberPartnerPage() {
   }), [referrals, commissions]);
 
   async function copyLink() {
-    await navigator.clipboard.writeText(REFERRAL_URL);
+    await navigator.clipboard.writeText(referralUrl);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
   }
@@ -104,7 +104,7 @@ export default function SAeChamberPartnerPage() {
       {session && partner && <>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
           <div><p style={{ color: "#079BD3", fontSize: 11, fontWeight: 800, letterSpacing: 1, margin: "0 0 6px" }}>PARTNER OVERVIEW</p><h1 style={{ fontSize: 32, margin: 0 }}>{partner.partner_name}</h1><p style={muted}>Programme status: {partner.status} · Launch date: {date(partner.program_live_at)}</p></div>
-          <div style={{ ...card, minWidth: 320, flex: "0 1 430px" }}><div style={{ fontWeight: 800, marginBottom: 7 }}>Your unique seller onboarding link</div><div style={{ background: "#F4F8FC", border: "1px solid #DCE8F1", padding: 11, borderRadius: 8, fontSize: 12, overflowWrap: "anywhere" }}>{REFERRAL_URL}</div><button onClick={copyLink} style={{ marginTop: 10, background: "#079BD3", color: "#fff", border: 0, borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}>{copied ? "Copied" : "Copy referral link"}</button></div>
+          <div style={{ ...card, minWidth: 320, flex: "0 1 430px" }}><div style={{ fontWeight: 800, marginBottom: 7 }}>Your unique seller onboarding link</div><div style={{ background: "#F4F8FC", border: "1px solid #DCE8F1", padding: 11, borderRadius: 8, fontSize: 12, overflowWrap: "anywhere" }}>{referralUrl}</div>{partner.status === "active" ? <button onClick={copyLink} style={{ marginTop: 10, background: "#079BD3", color: "#fff", border: 0, borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}>{copied ? "Copied" : "Copy referral link"}</button> : <p style={{ ...muted, marginBottom: 0 }}>Referral link will be enabled when the programme launch is activated.</p>}</div>
         </div>
         <nav style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>{(["overview","referrals","commissions","statements"] as const).map(x => <button key={x} onClick={() => setTab(x)} style={{ padding: "10px 15px", borderRadius: 8, border: "1px solid #DCE8F1", background: tab === x ? "#071B31" : "#fff", color: tab === x ? "#fff" : "#40566B", textTransform: "capitalize", fontWeight: 700, cursor: "pointer" }}>{x}</button>)}</nav>
         {tab === "overview" && <>
