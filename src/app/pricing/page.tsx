@@ -39,9 +39,10 @@ export default function PricingPage() {
         </article>
       </div>
       <p style={{...muted,fontSize:12,marginTop:14}}>New accounts receive 5 welcome searches once per account. Monthly plan allowances reset each billing month. When your searches are used, you can upgrade to continue. Search allowances apply per seller account and are not shared between sellers.</p>
-      <p role="note" style={{...muted,fontSize:13,marginTop:18,padding:16,background:"#FFF7E6",border:"1px solid #F2D9A6",borderRadius:10}}>
-        Paid-plan online checkout is not enabled yet. Contact Ekhaya Technologies to request paid-plan activation. Do not send payment details by email or use unofficial payment links.
-      </p>
+      <div role="status" style={{...muted,fontSize:13,marginTop:18,padding:18,background:"#EAF7FC",border:"1px solid #B9E4F3",borderRadius:10}}>
+        <strong style={{display:"block",color:"#075477",marginBottom:5}}>Online payments are being prepared</strong>
+        Paid subscriptions will be available as soon as Ekhaya Technologies completes payment-provider approval. No payment is collected on this page yet. Create a seller account to get your 5 welcome searches and explore the platform in the meantime.
+      </div>
       <p style={{...muted,fontSize:12,marginTop:8}}>For plan enquiries, use Ekhaya Technologies&apos; official published contact details.</p>
       <Link href="/account/" style={{display:"inline-block",marginTop:8,padding:"13px 19px",background:"#079BD3",color:"#fff",borderRadius:8,textDecoration:"none",fontWeight:800,fontSize:12}}>CREATE SELLER ACCOUNT →</Link>
     </section>
