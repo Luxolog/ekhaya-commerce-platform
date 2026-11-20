@@ -1,11 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 
 export default function BillingReturnPage() {
-  const params = useSearchParams();
-  const reference = params.get("reference");
+  const [reference, setReference] = useState("");
+  useEffect(() => { setReference(new URLSearchParams(window.location.search).get("reference") ?? ""); }, []);
 
   return (
     <main style={{minHeight:"100vh",display:"grid",placeItems:"center",padding:24,background:"#F4F8FC",color:"#071B31",fontFamily:"Arial,sans-serif"}}>
