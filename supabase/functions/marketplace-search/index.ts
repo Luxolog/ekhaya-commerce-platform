@@ -321,64 +321,131 @@ Deno.serve(async (req: Request) => {
   }
   if (body.action === "owner_partner_analytics") {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    // This is the central owner view: all registered users, all seller searches,
+    // provider usage, subscriptions, payments and partner programme records.
     const paths = [
       "/rest/v1/partner_programs?select=id,partner_name,partner_slug,referral_code,partner_user_id,status,program_live_at,created_at&order=created_at.desc",
       "/rest/v1/partner_referrals?select=id,partner_id,referred_user_id,referral_code,registered_at,first_paid_at&order=registered_at.desc&limit=10000",
       "/rest/v1/partner_commission_ledger?select=id,partner_id,referral_id,referred_user_id,payment_month,plan_code,qualifying_amount,active_referred_sellers,commission_band,commission_rate,commission_amount,status,paid_at,created_at&order=created_at.desc&limit=10000",
       "/rest/v1/partner_monthly_statements?select=id,partner_id,statement_month,active_referred_sellers,qualifying_revenue,commission_total,adjustment_total,payment_due_date,status,paid_at&order=statement_month.desc&limit=5000",
       "/rest/v1/seller_pilot_activity?select=user_id,marketplace,query,result_count,result_status,source,created_at&order=created_at.desc&limit=10000",
-      "/rest/v1/profiles?select=id,display_name,plan_code,account_status"
+      "/rest/v1/profiles?select=id,display_name,plan_code,account_status,created_at",
+      "/rest/v1/subscriptions?select=user_id,plan_code,status,current_period_start,current_period_end,created_at&order=created_at.desc&limit=10000",
+      "/rest/v1/payment_transactions?select=user_id,amount,currency,status,payment_kind,paid_at,created_at&order=created_at.desc&limit=10000",
+      "/rest/v1/api_usage_ledger?select=provider,action,marketplace,lookup_key,credits_charged,request_status,response_count,actor_id,created_at&order=created_at.desc&limit=20000"
     ];
-    const responses = await Promise.all(paths.map(path => fetch(new URL(path, supabaseUrl), { headers: adminHeaders })));
+    const [authResponse, ...responses] = await Promise.all([
+      fetch(new URL("/auth/v1/admin/users?page=1&per_page=1000", supabaseUrl), { headers: adminHeaders }),
+      ...paths.map(path => fetch(new URL(path, supabaseUrl), { headers: adminHeaders }))
+    ]);
     const failed = responses.findIndex(response => !response.ok);
-    if (failed >= 0) return json({ error: "Could not load owner partner activity.", source: paths[failed], status: responses[failed].status }, 502);
-    const [partners, referrals, commissions, statements, allActivity, profiles] = await Promise.all(responses.map(response => response.json()));
+    if (!authResponse.ok || failed >= 0) return json({
+      error: "Could not load the complete owner dashboard data.",
+      source: failed >= 0 ? paths[failed] : "auth users",
+      status: failed >= 0 ? responses[failed].status : authResponse.status
+    }, 502);
+    const authPayload = await authResponse.json();
+    const authUsers = Array.isArray(authPayload) ? authPayload : authPayload.users ?? [];
+    const [partners, referrals, commissions, statements, allActivity, profiles, subscriptions, payments, apiUsage] =
+      await Promise.all(responses.map(response => response.json()));
     const partnerById = new Map(partners.map((p: Record<string, unknown>) => [p.id, p]));
     const referralByUser = new Map(referrals.map((r: Record<string, unknown>) => [r.referred_user_id, r]));
     const profileById = new Map(profiles.map((p: Record<string, unknown>) => [p.id, p]));
-    const referredIds = new Set(referrals.map((r: Record<string, unknown>) => r.referred_user_id));
+    const authById = new Map(authUsers.map((u: Record<string, unknown>) => [u.id, u]));
+    const latestSubscription = new Map<string, Record<string, unknown>>();
+    for (const sub of subscriptions) if (!latestSubscription.has(String(sub.user_id))) latestSubscription.set(String(sub.user_id), sub);
+    const userPayments = new Map<string, Record<string, unknown>[]>();
+    for (const payment of payments) {
+      const key = String(payment.user_id);
+      userPayments.set(key, [...(userPayments.get(key) ?? []), payment]);
+    }
+    const sellerSearchCounts = new Map<string, { searches: number; failures: number; last_search: string | null }>();
+    for (const item of allActivity) {
+      const key = String(item.user_id);
+      const entry = sellerSearchCounts.get(key) ?? { searches: 0, failures: 0, last_search: null };
+      entry.searches++;
+      if (item.result_status !== "success") entry.failures++;
+      if (!entry.last_search || String(item.created_at) > entry.last_search) entry.last_search = String(item.created_at);
+      sellerSearchCounts.set(key, entry);
+    }
+    const sellers = authUsers.map((u: Record<string, any>) => {
+      const profile = profileById.get(u.id) as Record<string, unknown> | undefined;
+      const referral = referralByUser.get(u.id) as Record<string, unknown> | undefined;
+      const partner = referral ? partnerById.get(referral.partner_id) as Record<string, unknown> | undefined : undefined;
+      const sellerPayments = userPayments.get(u.id) ?? [];
+      const successfulPayments = sellerPayments.filter(p => p.status === "paid" || p.status === "success");
+      const searchStats = sellerSearchCounts.get(u.id) ?? { searches: 0, failures: 0, last_search: null };
+      const sub = latestSubscription.get(u.id);
+      return {
+        id: u.id, email: u.email ?? null,
+        display_name: profile?.display_name ?? u.user_metadata?.display_name ?? u.user_metadata?.full_name ?? null,
+        created_at: u.created_at ?? null, last_sign_in_at: u.last_sign_in_at ?? null,
+        email_confirmed_at: u.email_confirmed_at ?? null,
+        role: u.app_metadata?.role ?? (u.app_metadata?.is_owner === true ? "owner" : "seller"),
+        account_status: profile?.account_status ?? "pending",
+        plan_code: sub?.plan_code ?? profile?.plan_code ?? "free",
+        subscription_status: sub?.status ?? "none",
+        subscription_period_end: sub?.current_period_end ?? null,
+        partner_name: partner?.partner_name ?? null,
+        referral_code: referral?.referral_code ?? null,
+        searches: searchStats.searches, search_failures: searchStats.failures, last_search: searchStats.last_search,
+        payments_count: successfulPayments.length,
+        payments_total: successfulPayments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0)
+      };
+    });
     const partnerActivity = allActivity
-      .filter((item: Record<string, unknown>) => referredIds.has(item.user_id))
+      .filter((item: Record<string, unknown>) => referralByUser.has(item.user_id))
       .map((item: Record<string, unknown>) => {
-        const referral = referralByUser.get(item.user_id) as Record<string, unknown> | undefined;
-        const partner = referral ? partnerById.get(referral.partner_id) as Record<string, unknown> | undefined : undefined;
+        const referral = referralByUser.get(item.user_id) as Record<string, unknown>;
+        const partner = partnerById.get(referral.partner_id) as Record<string, unknown> | undefined;
         const profile = profileById.get(item.user_id) as Record<string, unknown> | undefined;
-        return {
-          ...item,
-          partner_id: referral?.partner_id ?? null,
-          partner_name: partner?.partner_name ?? "Unknown partner",
-          referral_code: referral?.referral_code ?? null,
-          seller_display_name: profile?.display_name ?? null,
-          seller_plan: profile?.plan_code ?? "free",
-          seller_account_status: profile?.account_status ?? "unknown"
-        };
+        return { ...item, partner_id: referral.partner_id, partner_name: partner?.partner_name ?? "Unknown partner",
+          referral_code: referral.referral_code, seller_display_name: profile?.display_name ?? null,
+          seller_plan: profile?.plan_code ?? "free", seller_account_status: profile?.account_status ?? "unknown" };
       });
+    const allSearchActivity = allActivity.map((item: Record<string, unknown>) => {
+      const seller = sellers.find((s: Record<string, unknown>) => s.id === item.user_id) as Record<string, unknown> | undefined;
+      const referral = referralByUser.get(item.user_id) as Record<string, unknown> | undefined;
+      const partner = referral ? partnerById.get(referral.partner_id) as Record<string, unknown> | undefined : undefined;
+      return { ...item, seller_email: seller?.email ?? null, seller_display_name: seller?.display_name ?? null,
+        seller_plan: seller?.plan_code ?? "free", partner_name: partner?.partner_name ?? null, event_type: "seller_search" };
+    });
+    const providerActivity = apiUsage.map((item: Record<string, unknown>) => {
+      const seller = item.actor_id ? sellers.find((s: Record<string, unknown>) => s.id === item.actor_id) as Record<string, unknown> | undefined : undefined;
+      return { ...item, user_id: item.actor_id ?? null, seller_email: seller?.email ?? null,
+        seller_display_name: seller?.display_name ?? null, seller_plan: seller?.plan_code ?? "unknown",
+        query: item.lookup_key ?? "", result_count: item.response_count ?? 0, result_status: item.request_status ?? "unknown",
+        event_type: "provider_usage" };
+    });
+    const allPlatformActivity = [...allSearchActivity, ...providerActivity]
+      .sort((a: Record<string, unknown>, b: Record<string, unknown>) => String(b.created_at).localeCompare(String(a.created_at)));
     const totalCommission = (rows: Record<string, unknown>[]) => rows
       .filter(row => row.status !== "reversed")
       .reduce((sum, row) => sum + Number(row.commission_amount ?? 0), 0);
     return json({
-      ok: true,
-      generated_at: new Date().toISOString(),
+      ok: true, generated_at: new Date().toISOString(),
       totals: {
-        partners: partners.length,
-        active_partners: partners.filter((p: Record<string, unknown>) => p.status === "active").length,
-        registered_referred_sellers: referrals.length,
-        paying_referred_sellers: referrals.filter((r: Record<string, unknown>) => Boolean(r.first_paid_at)).length,
+        users: authUsers.length, sellers: sellers.filter((s: Record<string, unknown>) => s.role !== "owner").length,
+        active_sellers: sellers.filter((s: Record<string, unknown>) => s.role !== "owner" && s.account_status === "active").length,
+        paying_sellers: sellers.filter((s: Record<string, unknown>) => s.role !== "owner" && ["active","trialing"].includes(String(s.subscription_status))).length,
+        total_searches: allActivity.length, total_search_failures: allActivity.filter((a: Record<string, unknown>) => a.result_status !== "success").length,
+        provider_api_events: apiUsage.length, total_payments: payments.filter((p: Record<string, unknown>) => p.status === "paid" || p.status === "success").length,
+        partners: partners.length, active_partners: partners.filter((p: Record<string, unknown>) => p.status === "active").length,
+        registered_referred_sellers: referrals.length, paying_referred_sellers: referrals.filter((r: Record<string, unknown>) => Boolean(r.first_paid_at)).length,
         total_commission_recorded: totalCommission(commissions),
         pending_commission: commissions.filter((c: Record<string, unknown>) => c.status === "pending" || c.status === "approved").reduce((sum: number, c: Record<string, unknown>) => sum + Number(c.commission_amount ?? 0), 0),
         commission_paid: commissions.filter((c: Record<string, unknown>) => c.status === "paid").reduce((sum: number, c: Record<string, unknown>) => sum + Number(c.commission_amount ?? 0), 0),
         partner_searches: partnerActivity.length,
         partner_search_failures: partnerActivity.filter((a: Record<string, unknown>) => a.result_status !== "success").length
       },
-      partners,
-      referrals: referrals.map((r: Record<string, unknown>) => {
+      sellers, all_activity: allPlatformActivity.slice(0, 20000), api_usage: apiUsage,
+      partners, referrals: referrals.map((r: Record<string, unknown>) => {
         const partner = partnerById.get(r.partner_id) as Record<string, unknown> | undefined;
         const profile = profileById.get(r.referred_user_id) as Record<string, unknown> | undefined;
-        return { ...r, partner_name: partner?.partner_name ?? "Unknown partner", seller_display_name: profile?.display_name ?? null, seller_plan: profile?.plan_code ?? "free", seller_account_status: profile?.account_status ?? "unknown" };
+        return { ...r, partner_name: partner?.partner_name ?? "Unknown partner", seller_display_name: profile?.display_name ?? null,
+          seller_plan: profile?.plan_code ?? "free", seller_account_status: profile?.account_status ?? "unknown" };
       }),
-      commissions,
-      statements,
-      activity: partnerActivity.slice(0, 500)
+      commissions, statements, activity: partnerActivity.slice(0, 500)
     });
   }
   if (body.action === "owner_financial_analytics") {
