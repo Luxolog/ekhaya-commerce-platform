@@ -7,7 +7,10 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// Hard release gate: keep false until merchant approval and end-to-end tests are complete.\nconst CHECKOUT_RELEASE_ENABLED = false;\n\nconst plans = {
+// Hard release gate: keep false until merchant approval and end-to-end tests are complete.
+const CHECKOUT_RELEASE_ENABLED = false;
+
+const plans = {
   starter: { amount: 9900, credits: 50 },
   growth: { amount: 14900, credits: 100 },
   pro: { amount: 19900, credits: 250 },
