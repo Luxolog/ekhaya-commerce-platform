@@ -1,6 +1,6 @@
 # Paystack checkout preparation
 
-This branch prepares Paystack-hosted, one-off monthly subscription payments for Ekhaya Price Checker. It deliberately does not enable or deploy checkout to the public website.
+This branch prepares Paystack-hosted, one-off monthly subscription payments for Ekhaya Price Checker. The Edge Function is deployed to Supabase in a disabled state; no website deployment or live checkout has been enabled.
 
 ## Commercial plan configuration
 
@@ -28,7 +28,9 @@ Configure these in Supabase Edge Function secrets only after Ekhaya Technologies
 
 - `PAYSTACK_SECRET_KEY` — secret key; never expose it in browser code or Git.
 - `PAYSTACK_WEBHOOK_SECRET` — Paystack webhook signing secret (`whsec_...`) for the current `Paystack-Signature` header. The handler also supports the legacy `x-paystack-signature` header while Paystack transitions integrations.
-- `PAYSTACK_CHECKOUT_ENABLED` — keep unset or `false` until approval and end-to-end testing; set to `true` only when ready.
+- `PAYSTACK_CHECKOUT_ENABLED` — keep unset or `false` until approval and end-to-end testing.
+
+The source also contains a hard-coded `CHECKOUT_RELEASE_ENABLED = false` release gate. This must be deliberately changed only after merchant approval and acceptance testing; setting an environment variable alone cannot activate checkout.
 - `APP_BASE_URL` — approved production application origin, including scheme.
 - `APP_ORIGIN` — exact allowed browser origin for CORS.
 - Supabase provides `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` to Edge Functions.
