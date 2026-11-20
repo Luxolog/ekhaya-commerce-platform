@@ -7,7 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const plans = {
+// Hard release gate: keep false until merchant approval and end-to-end tests are complete.\nconst CHECKOUT_RELEASE_ENABLED = false;\n\nconst plans = {
   starter: { amount: 9900, credits: 50 },
   growth: { amount: 14900, credits: 100 },
   pro: { amount: 19900, credits: 250 },
@@ -49,7 +49,7 @@ function getAdminClient() {
 }
 
 async function initialiseCheckout(req: Request) {
-  if (Deno.env.get("PAYSTACK_CHECKOUT_ENABLED") !== "true") {
+  if (!CHECKOUT_RELEASE_ENABLED || Deno.env.get("PAYSTACK_CHECKOUT_ENABLED") !== "true") {
     return json({ error: "Paid checkout is not available yet. Free welcome searches remain available." }, 503);
   }
 
@@ -162,7 +162,7 @@ async function initialiseCheckout(req: Request) {
 
 async function handleWebhook(req: Request) {
   const secret = Deno.env.get("PAYSTACK_SECRET_KEY");
-  if (!secret || Deno.env.get("PAYSTACK_CHECKOUT_ENABLED") !== "true") {
+  if (!CHECKOUT_RELEASE_ENABLED || !secret || Deno.env.get("PAYSTACK_CHECKOUT_ENABLED") !== "true") {
     return json({ error: "Webhook processing is not enabled." }, 503);
   }
 
