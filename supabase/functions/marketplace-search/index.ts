@@ -319,6 +319,68 @@ Deno.serve(async (req: Request) => {
     }
     return json({ok:true,totals:{searches:activity.length,failures:activity.filter((x:Record<string,unknown>)=>x.result_status!=="success").length,feedback:feedback.length,open_feedback:feedback.filter((x:Record<string,unknown>)=>x.status==="open").length},by_seller:bySeller,popular_queries:Object.entries(popular).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([query,count])=>({query,count})),feedback,activity:activity.slice(0,200)});
   }
+  if (body.action === "owner_partner_analytics") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const paths = [
+      "/rest/v1/partner_programs?select=id,partner_name,partner_slug,referral_code,partner_user_id,status,program_live_at,created_at&order=created_at.desc",
+      "/rest/v1/partner_referrals?select=id,partner_id,referred_user_id,referral_code,registered_at,first_paid_at&order=registered_at.desc&limit=10000",
+      "/rest/v1/partner_commission_ledger?select=id,partner_id,referral_id,referred_user_id,payment_month,plan_code,qualifying_amount,active_referred_sellers,commission_band,commission_rate,commission_amount,status,paid_at,created_at&order=created_at.desc&limit=10000",
+      "/rest/v1/partner_monthly_statements?select=id,partner_id,statement_month,active_referred_sellers,qualifying_revenue,commission_total,adjustment_total,payment_due_date,status,paid_at&order=statement_month.desc&limit=5000",
+      "/rest/v1/seller_pilot_activity?select=user_id,marketplace,query,result_count,result_status,source,created_at&order=created_at.desc&limit=10000",
+      "/rest/v1/profiles?select=id,display_name,plan_code,account_status"
+    ];
+    const responses = await Promise.all(paths.map(path => fetch(new URL(path, supabaseUrl), { headers: adminHeaders })));
+    const failed = responses.findIndex(response => !response.ok);
+    if (failed >= 0) return json({ error: "Could not load owner partner activity.", source: paths[failed], status: responses[failed].status }, 502);
+    const [partners, referrals, commissions, statements, allActivity, profiles] = await Promise.all(responses.map(response => response.json()));
+    const partnerById = new Map(partners.map((p: Record<string, unknown>) => [p.id, p]));
+    const referralByUser = new Map(referrals.map((r: Record<string, unknown>) => [r.referred_user_id, r]));
+    const profileById = new Map(profiles.map((p: Record<string, unknown>) => [p.id, p]));
+    const referredIds = new Set(referrals.map((r: Record<string, unknown>) => r.referred_user_id));
+    const partnerActivity = allActivity
+      .filter((item: Record<string, unknown>) => referredIds.has(item.user_id))
+      .map((item: Record<string, unknown>) => {
+        const referral = referralByUser.get(item.user_id) as Record<string, unknown> | undefined;
+        const partner = referral ? partnerById.get(referral.partner_id) as Record<string, unknown> | undefined : undefined;
+        const profile = profileById.get(item.user_id) as Record<string, unknown> | undefined;
+        return {
+          ...item,
+          partner_id: referral?.partner_id ?? null,
+          partner_name: partner?.partner_name ?? "Unknown partner",
+          referral_code: referral?.referral_code ?? null,
+          seller_display_name: profile?.display_name ?? null,
+          seller_plan: profile?.plan_code ?? "free",
+          seller_account_status: profile?.account_status ?? "unknown"
+        };
+      });
+    const totalCommission = (rows: Record<string, unknown>[]) => rows
+      .filter(row => row.status !== "reversed")
+      .reduce((sum, row) => sum + Number(row.commission_amount ?? 0), 0);
+    return json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      totals: {
+        partners: partners.length,
+        active_partners: partners.filter((p: Record<string, unknown>) => p.status === "active").length,
+        registered_referred_sellers: referrals.length,
+        paying_referred_sellers: referrals.filter((r: Record<string, unknown>) => Boolean(r.first_paid_at)).length,
+        total_commission_recorded: totalCommission(commissions),
+        pending_commission: commissions.filter((c: Record<string, unknown>) => c.status === "pending" || c.status === "approved").reduce((sum: number, c: Record<string, unknown>) => sum + Number(c.commission_amount ?? 0), 0),
+        commission_paid: commissions.filter((c: Record<string, unknown>) => c.status === "paid").reduce((sum: number, c: Record<string, unknown>) => sum + Number(c.commission_amount ?? 0), 0),
+        partner_searches: partnerActivity.length,
+        partner_search_failures: partnerActivity.filter((a: Record<string, unknown>) => a.result_status !== "success").length
+      },
+      partners,
+      referrals: referrals.map((r: Record<string, unknown>) => {
+        const partner = partnerById.get(r.partner_id) as Record<string, unknown> | undefined;
+        const profile = profileById.get(r.referred_user_id) as Record<string, unknown> | undefined;
+        return { ...r, partner_name: partner?.partner_name ?? "Unknown partner", seller_display_name: profile?.display_name ?? null, seller_plan: profile?.plan_code ?? "free", seller_account_status: profile?.account_status ?? "unknown" };
+      }),
+      commissions,
+      statements,
+      activity: partnerActivity.slice(0, 500)
+    });
+  }
   if (body.action === "owner_financial_analytics") {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
     const paths = [
