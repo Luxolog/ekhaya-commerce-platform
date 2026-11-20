@@ -19,7 +19,10 @@ export default function AccountPage() {
   const [message,setMessage] = useState("");
   const [busy,setBusy] = useState(false);
   const [recoveryToken,setRecoveryToken] = useState("");
+  const [referralCode,setReferralCode] = useState("");
   useEffect(()=>{
+    const referral = new URLSearchParams(window.location.search).get("ref");
+    if(referral) setReferralCode(referral.toUpperCase().replace(/[^A-Z0-9_-]/g,""));
     const params = new URLSearchParams(window.location.hash.replace(/^#/,""));
     const token = params.get("access_token");
     if(params.get("type")==="recovery" && token){
@@ -56,7 +59,7 @@ export default function AccountPage() {
         return;
       }
       const endpoint = mode === "signup" ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
-      const response = await fetch(supabaseUrl+endpoint,{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:JSON.stringify(mode==="signup"?{email,password,data:{display_name:name,privacy_notice_acknowledged_at:new Date().toISOString(),privacy_notice_version:"2026-11-16",marketing_opt_in:marketingOptIn}}:{email,password})});
+      const response = await fetch(supabaseUrl+endpoint,{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:JSON.stringify(mode==="signup"?{email,password,data:{display_name:name,privacy_notice_acknowledged_at:new Date().toISOString(),privacy_notice_version:"2026-11-16",marketing_opt_in:marketingOptIn,...(referralCode?{referral_code:referralCode}:{})}}:{email,password})});
       const data = await response.json();
       if(!response.ok) throw new Error(data.msg??data.message??data.error_description??"Unable to process your account request.");
       if(data.access_token) {
