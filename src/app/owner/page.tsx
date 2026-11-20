@@ -49,6 +49,31 @@ export default function EkhayaOwnerDashboard() {
   useEffect(() => { void load(); }, [load]);
 
   const tabs = ["overview", "partners", "referrals", "activity", "commissions"] as const;
+
+  // Keep dashboard sections in the URL so browser Back/Forward works.
+  useEffect(() => {
+    const syncTabFromUrl = () => {
+      const requested = window.location.hash.replace(/^#/, "");
+      if (tabs.includes(requested as typeof tabs[number])) {
+        setTab(requested as typeof tabs[number]);
+      } else {
+        setTab("overview");
+      }
+    };
+    syncTabFromUrl();
+    window.addEventListener("popstate", syncTabFromUrl);
+    window.addEventListener("hashchange", syncTabFromUrl);
+    return () => {
+      window.removeEventListener("popstate", syncTabFromUrl);
+      window.removeEventListener("hashchange", syncTabFromUrl);
+    };
+  }, []);
+
+  const navigateToTab = (next: typeof tabs[number]) => {
+    setTab(next);
+    const nextUrl = window.location.pathname + window.location.search + (next === "overview" ? "" : "#" + next);
+    window.history.pushState({ ownerDashboardTab: next }, "", nextUrl);
+  };
   const total = data?.totals;
 
   return <main style={shell}>
@@ -84,7 +109,7 @@ export default function EkhayaOwnerDashboard() {
           ].map(([label,value]) => <article key={label} style={panel}><div style={small}>{label}</div><div style={{ fontSize: 25, fontWeight: 800, marginTop: 10 }}>{value}</div></article>)}
         </div>
         <nav style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-          {tabs.map(x => <button key={x} onClick={() => setTab(x)} style={{ padding: "10px 15px", borderRadius: 8, border: "1px solid #DDE6EF", background: tab === x ? "#10243A" : "#fff", color: tab === x ? "#fff" : "#3C5368", textTransform: "capitalize", fontWeight: 700, cursor: "pointer" }}>{x}</button>)}
+          {tabs.map(x => <button key={x} onClick={() => navigateToTab(x)} style={{ padding: "10px 15px", borderRadius: 8, border: "1px solid #DDE6EF", background: tab === x ? "#10243A" : "#fff", color: tab === x ? "#fff" : "#3C5368", textTransform: "capitalize", fontWeight: 700, cursor: "pointer" }}>{x}</button>)}
         </nav>
 
         {tab === "overview" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 16 }}>
