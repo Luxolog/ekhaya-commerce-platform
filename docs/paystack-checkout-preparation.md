@@ -17,7 +17,7 @@ The Supabase `plan_search_allowances` table already contains the matching 50 / 1
 - Authenticated sellers request a checkout session for a server-allowlisted plan.
 - The Edge Function creates a pending subscription and payment transaction, then asks Paystack to initialize a ZAR transaction.
 - The seller is redirected to Paystack's hosted authorization page.
-- The webhook validates `x-paystack-signature` using HMAC SHA-512 and independently verifies the transaction with Paystack.
+- The webhook validates the current timestamped `Paystack-Signature` format using HMAC SHA-512 and a five-minute replay window, with legacy `x-paystack-signature` support and independently verifies the transaction with Paystack.
 - Only a verified successful payment activates the subscription and marks the payment complete.
 - The existing database trigger `allocate_search_credits_on_payment_complete` allocates the plan's search credits after payment completion.
 - Billing mode is `manual`: this implementation does not silently create a recurring debit mandate. Sellers renew monthly through a fresh hosted checkout until an approved recurring-billing arrangement is deliberately implemented.
@@ -27,6 +27,7 @@ The Supabase `plan_search_allowances` table already contains the matching 50 / 1
 Configure these in Supabase Edge Function secrets only after Ekhaya Technologies' Paystack merchant profile is approved:
 
 - `PAYSTACK_SECRET_KEY` — secret key; never expose it in browser code or Git.
+- `PAYSTACK_WEBHOOK_SECRET` — Paystack webhook signing secret (`whsec_...`) for the current `Paystack-Signature` header. The handler also supports the legacy `x-paystack-signature` header while Paystack transitions integrations.
 - `PAYSTACK_CHECKOUT_ENABLED` — keep unset or `false` until approval and end-to-end testing; set to `true` only when ready.
 - `APP_BASE_URL` — approved production application origin, including scheme.
 - `APP_ORIGIN` — exact allowed browser origin for CORS.
