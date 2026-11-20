@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "https://ekhayatech.co.za",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-paystack-signature",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-paystack-signature, paystack-signature",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
