@@ -19,7 +19,7 @@ export default function AccountPage() {
   const [recoveryToken,setRecoveryToken] = useState("");
   const [referralCode,setReferralCode] = useState("");
   const [partnerInvitationId,setPartnerInvitationId] = useState("");
-  const [partnerLinkCode,setPartnerLinkCode] = useState("SAECHAMBER");
+  const [partnerLinkCode,setPartnerLinkCode] = useState("PARTNER");
   const [accountType,setAccountType] = useState<"seller"|"partner"|"owner">("seller");
   const [signedIn,setSignedIn] = useState(false);
   const [availableRoles,setAvailableRoles] = useState<string[]>([]);
@@ -28,7 +28,7 @@ export default function AccountPage() {
   const [otpCode,setOtpCode] = useState("");
   const [otpEmailHint,setOtpEmailHint] = useState("");
   const [otpBusy,setOtpBusy] = useState(false);
-  const destinations = { seller: "/price-checker/", partner: "/partner/saechamber/", owner: "/owner/" } as const;
+  const destinations = { seller: "/price-checker/", partner: "/partner/", owner: "/owner/" } as const;
   async function emailOtpRequest(accessToken: string, payload: Record<string, unknown>) {
     const response = await fetch(supabaseUrl+"/functions/v1/partner-admin-email-otp", {
       method: "POST",
@@ -95,7 +95,7 @@ export default function AccountPage() {
       setRecoveryToken(token);
       setPartnerInvitationId(inviteId);
       setMode("accept-partner");
-      setMessage("Welcome. Create your password and choose the unique code for your SA eChamber seller referral link.");
+      setMessage("Welcome. Create your password and choose a unique code for your partner referral link.");
       window.history.replaceState({},document.title,window.location.pathname+window.location.search);
       return;
     }
@@ -157,8 +157,8 @@ export default function AccountPage() {
         if(!acceptResponse.ok) throw new Error(accepted.error??"Unable to accept partner invitation.");
         const session={access_token:recoveryToken,token_type:"bearer",expires_in:3600,expires_at:Math.floor(Date.now()/1000)+3600,user:accepted.user};
         localStorage.setItem("ekhaya_session",JSON.stringify(session));
-        setMessage("Your SA eChamber partner account is ready. Opening your partner dashboard…");
-        window.location.href="/partner/saechamber/";
+        setMessage("Your partner account is ready. Opening your partner dashboard…");
+        window.location.href="/partner/";
         return;
       }
       if(mode==="new-password"){
@@ -212,7 +212,7 @@ export default function AccountPage() {
       <h1 style={{fontSize:30,fontWeight:700,margin:"8px 0 10px"}}>{signedIn?"Your Ekhaya accounts":mode==="signup"?"Create your seller account":mode==="reset"?"Reset your password":mode==="new-password"?"Choose a new password":mode==="accept-partner"?"Accept partner invitation":"Sign in to your account"}</h1>
       <p style={{color:"#60758A",fontSize:13,lineHeight:1.6}}>Sign in to continue to your Ekhaya workspace. New to Ekhaya? You can create a seller account below.</p>
       {!signedIn&&mode!=="accept-partner"&&mode!=="reset"&&mode!=="new-password"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(115px,1fr))",gap:9,margin:"18px 0"}}>
-        {([{id:"seller",title:"Seller Account",desc:"Marketplace searches",icon:"🛍️"},{id:"partner",title:"Partner Account",desc:"SA eChamber dashboard",icon:"🤝"},{id:"owner",title:"Admin Account",desc:"Owner controls & analytics",icon:"🔐"}] as const).map(item=><button key={item.id} type="button" onClick={()=>{setAccountType(item.id);setMessage("");if(item.id!=="seller"&&mode==="signup")setMode("signin");}} style={{textAlign:"left",padding:12,borderRadius:10,border:accountType===item.id?"2px solid #079BD3":"1px solid #DCE8F1",background:accountType===item.id?"#EFF9FE":"#fff",color:"#071B31",cursor:"pointer"}}>
+        {([{id:"seller",title:"Seller Account",desc:"Marketplace searches",icon:"🛍️"},{id:"partner",title:"Partner Account",desc:"Partner workspace",icon:"🤝"},{id:"owner",title:"Admin Account",desc:"Owner controls & analytics",icon:"🔐"}] as const).map(item=><button key={item.id} type="button" onClick={()=>{setAccountType(item.id);setMessage("");if(item.id!=="seller"&&mode==="signup")setMode("signin");}} style={{textAlign:"left",padding:12,borderRadius:10,border:accountType===item.id?"2px solid #079BD3":"1px solid #DCE8F1",background:accountType===item.id?"#EFF9FE":"#fff",color:"#071B31",cursor:"pointer"}}>
           <span style={{fontSize:21}}>{item.icon}</span><strong style={{display:"block",fontSize:13,marginTop:6}}>{item.title}</strong><span style={{display:"block",fontSize:10,color:"#60758A",lineHeight:1.4,marginTop:4}}>{item.desc}</span>
         </button>)}
       </div>}
@@ -225,7 +225,7 @@ export default function AccountPage() {
       {signedIn&&!otpPending&&<div style={{background:"#F4F8FC",border:"1px solid #DCE8F1",borderRadius:10,padding:14,marginBottom:14}}>
         <strong style={{fontSize:13}}>Your available accounts</strong>
         {checkingAccess?<p style={{fontSize:12,color:"#60758A",marginBottom:0}}>Checking your account permissions…</p>:<div style={{display:"grid",gap:8,marginTop:10}}>
-          {([{id:"seller",title:"Seller account",href:"/price-checker/"},{id:"partner",title:"Partner account",href:"/partner/saechamber/"},{id:"owner",title:"Admin / Owner account",href:"/owner/"}] as const).filter(item=>availableRoles.includes(item.id)).map(item=><Link key={item.id} href={item.href} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff",border:"1px solid #DCE8F1",borderRadius:8,padding:"10px 12px",color:"#087EAC",fontSize:13,fontWeight:700,textDecoration:"none"}}>{item.title}<span>Open →</span></Link>)}
+          {([{id:"seller",title:"Seller account",href:"/price-checker/"},{id:"partner",title:"Partner account",href:"/partner/"},{id:"owner",title:"Admin / Owner account",href:"/owner/"}] as const).filter(item=>availableRoles.includes(item.id)).map(item=><Link key={item.id} href={item.href} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff",border:"1px solid #DCE8F1",borderRadius:8,padding:"10px 12px",color:"#087EAC",fontSize:13,fontWeight:700,textDecoration:"none"}}>{item.title}<span>Open →</span></Link>)}
           {!availableRoles.length&&<p style={{fontSize:12,color:"#60758A",margin:0}}>Your account permissions could not be confirmed. Please sign in again.</p>}
         </div>}
       </div>}
