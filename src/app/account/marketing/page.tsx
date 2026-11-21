@@ -19,7 +19,7 @@ type MarketingSubscription = {
   current_period_start?: string | null; current_period_end?: string | null; created_at: string;
 };
 type UsageEvent = { feature_code: string; quantity: number; created_at: string };
-type Campaign = { id: string; title: string; objective?: string | null; platform?: string | null; status: string; updated_at: string };
+type Campaign = { id: string; title: string; objective?: string | null; platform?: string | null; content?: string | null; status: string; updated_at: string };
 type CalendarPost = { id: string; title: string; content: string; platform: string; scheduled_for: string; status: "draft" | "approved" | "archived" };
 
 const money = (amount: number) => new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 2 }).format(amount);
@@ -96,7 +96,7 @@ export default function MarketingDashboardPage() {
       const [plans, subs, drafts] = await Promise.all([
         get<MarketingPlan>("marketing_plans?select=code,name,price_zar,billing_interval,monthly_ai_posts,monthly_campaign_ideas,monthly_research_queries,monthly_trend_reports&is_active=eq.true&order=price_zar.asc"),
         get<MarketingSubscription>("seller_marketing_subscriptions?select=id,plan_code,status,billing_mode,current_period_start,current_period_end,created_at&order=created_at.desc&limit=10"),
-        get<Campaign>("marketing_campaigns?select=id,title,objective,platform,status,updated_at&order=updated_at.desc&limit=10"),
+        get<Campaign>("marketing_campaigns?select=id,title,objective,platform,content,status,updated_at&order=updated_at.desc&limit=20"),
       ]);
       const active = subs.find(item => item.status === "active");
       const usageStart = active?.current_period_start ?? from;
@@ -380,7 +380,7 @@ export default function MarketingDashboardPage() {
         <h2 style={{ fontFamily: "Manrope,sans-serif", fontSize: 20, margin: 0 }}>Recent campaign drafts</h2>
         <button type="button" onClick={() => void load()} disabled={loading} style={{ border: "1px solid #DCE8F1", background: "#fff", borderRadius: 8, padding: "9px 13px", color: "#075477", fontWeight: 700, cursor: loading ? "wait" : "pointer" }}>{loading ? "Refreshing…" : "Refresh"}</button>
       </div>
-      {loading ? <p style={{ color: "#60758A", fontSize: 13 }}>Loading marketing workspace…</p> : campaigns.length ? <div style={{ overflowX: "auto", marginTop: 12 }}><table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 12 }}><thead><tr>{["Campaign","Platform","Status","Last updated"].map(label => <th key={label} style={{ padding: 10, color: "#60758A", borderBottom: "1px solid #DCE8F1" }}>{label}</th>)}</tr></thead><tbody>{campaigns.map(campaign => <tr key={campaign.id}><td style={{ padding: 10, borderBottom: "1px solid #EEF3F7", fontWeight: 700 }}>{campaign.title}</td><td style={{ padding: 10, borderBottom: "1px solid #EEF3F7" }}>{campaign.platform ? pretty(campaign.platform) : "—"}</td><td style={{ padding: 10, borderBottom: "1px solid #EEF3F7" }}>{pretty(campaign.status)}</td><td style={{ padding: 10, borderBottom: "1px solid #EEF3F7" }}>{date(campaign.updated_at)}</td></tr>)}</tbody></table></div> : <p style={{ color: "#60758A", fontSize: 13, lineHeight: 1.6, marginTop: 14 }}>No campaign drafts yet.</p>}
+      {loading ? <p style={{ color: "#60758A", fontSize: 13 }}>Loading marketing workspace…</p> : campaigns.length ? <div style={{ overflowX: "auto", marginTop: 12 }}><table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 12 }}><thead><tr>{["Campaign","Platform","Status","Last updated"].map(label => <th key={label} style={{ padding: 10, color: "#60758A", borderBottom: "1px solid #DCE8F1" }}>{label}</th>)}</tr></thead><tbody>{campaigns.map(campaign => <tr key={campaign.id}><td style={{ padding: 10, borderBottom: "1px solid #EEF3F7", fontWeight: 700, verticalAlign: "top" }}>{campaign.title}<p style={{ color: "#71869A", fontWeight: 400, lineHeight: 1.5, maxWidth: 460, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{campaign.content ? campaign.content.slice(0, 220) + (campaign.content.length > 220 ? "…" : "") : campaign.objective ?? "No content attached."}</p></td><td style={{ padding: 10, borderBottom: "1px solid #EEF3F7", verticalAlign: "top" }}>{campaign.platform ? pretty(campaign.platform) : "—"}</td><td style={{ padding: 10, borderBottom: "1px solid #EEF3F7", verticalAlign: "top" }}>{pretty(campaign.status)}</td><td style={{ padding: 10, borderBottom: "1px solid #EEF3F7", verticalAlign: "top" }}>{date(campaign.updated_at)}{campaign.content && <p><button type="button" onClick={() => void navigator.clipboard.writeText(campaign.content ?? "").then(() => setNotice("Campaign content copied."), () => setError("Clipboard access unavailable."))} style={{ border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", padding: "6px 9px", color: "#075477", fontWeight: 700, cursor: "pointer" }}>Copy content</button></p>}</td></tr>)}</tbody></table></div> : <p style={{ color: "#60758A", fontSize: 13, lineHeight: 1.6, marginTop: 14 }}>No campaign drafts yet.</p>}
     </section>
 
     <section style={{ maxWidth: 1180, margin: "22px auto 0", background: "#fff", border: "1px solid #DCE8F1", borderRadius: 14, padding: 24 }}>
