@@ -244,7 +244,7 @@ export default function MarketingDashboardPage() {
     } finally { setWeeklyBusy(false); }
   }
 
-  async function updateCalendarPost(post: CalendarPost, status: "approved" | "draft") {
+  async function updateCalendarPost(post: CalendarPost, status: "approved" | "draft" | "archived") {
     setBusy(true); setError(""); setNotice("");
     try {
       const headers = await getHeaders();
@@ -253,7 +253,7 @@ export default function MarketingDashboardPage() {
         body: JSON.stringify({ status, approved_at: status === "approved" ? new Date().toISOString() : null, updated_at: new Date().toISOString() }),
       });
       if (!response.ok) { const detail = await response.json().catch(() => ({})); throw new Error(detail.message ?? "Unable to update post approval."); }
-      setNotice(status === "approved" ? "Post marked as seller-approved. It has not been published or sent to a platform." : "Post returned to draft.");
+      setNotice(status === "approved" ? "Post marked as seller-approved. It has not been published or sent to a platform." : status === "archived" ? "Post archived." : "Post returned to draft.");
       await load();
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to update post."); }
     finally { setBusy(false); }
@@ -533,7 +533,7 @@ export default function MarketingDashboardPage() {
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button type="button" onClick={() => void navigator.clipboard.writeText(post.content).then(() => setNotice("Post copied."), () => setError("Clipboard access unavailable."))} style={{ padding: "8px 11px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Copy post</button>
             <button type="button" onClick={() => setEditingCalendarPost({ ...post })} style={{ padding: "8px 11px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Edit post</button>
-            <button type="button" disabled={busy} onClick={() => void updateCalendarPost(post, "archived" as "approved" | "draft")} style={{ padding: "8px 11px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Archive</button>
+            <button type="button" disabled={busy} onClick={() => void updateCalendarPost(post, "archived")} style={{ padding: "8px 11px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Archive</button>
             {post.status === "draft" ? <button type="button" disabled={busy} onClick={() => void updateCalendarPost(post, "approved")} style={{ padding: "8px 11px", border: 0, borderRadius: 7, background: "#E8F6EE", color: "#147A46", fontWeight: 700 }}>Approve post</button> : <button type="button" disabled={busy} onClick={() => void updateCalendarPost(post, "draft")} style={{ padding: "8px 11px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Return to draft</button>}
           </div>
           {editingCalendarPost?.id === post.id && <div style={{ display: "grid", gap: 9, marginTop: 12, borderTop: "1px solid #DCE8F1", paddingTop: 12 }}>
