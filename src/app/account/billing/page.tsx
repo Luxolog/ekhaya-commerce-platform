@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useSearchParams } from "next/navigation";
 
 const SUPABASE_URL = "https://itxxnhcjjiynrmivexcb.supabase.co";
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -25,9 +24,6 @@ const zar = (value: number, currency = "ZAR") => new Intl.NumberFormat("en-ZA", 
 const date = (value?: string | null) => value ? new Intl.DateTimeFormat("en-ZA", { dateStyle: "medium" }).format(new Date(value)) : "—";
 
 export default function BillingDashboardPage() {
-  const searchParams = useSearchParams();
-  const requestedPlan = searchParams.get("plan") ?? "";
-  const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [allocations, setAllocations] = useState<Allocation[]>([]);
@@ -48,7 +44,6 @@ export default function BillingDashboardPage() {
     }
     if (!current?.access_token || !current.refresh_token) throw new Error("Sign in to view your billing dashboard.");
     if (Number(current.expires_at) > Date.now() / 1000 + 60) {
-      setSession(current);
       return { "Content-Type": "application/json", apikey: ANON_KEY, Authorization: `Bearer ${current.access_token}` };
     }
     const refreshed = await fetch(SUPABASE_URL + "/auth/v1/token?grant_type=refresh_token", {
@@ -63,7 +58,6 @@ export default function BillingDashboardPage() {
     }
     const next: Session = { ...current, ...payload, expires_at: Math.floor(Date.now() / 1000) + Number(payload.expires_in ?? 3600) };
     localStorage.setItem("ekhaya_session", JSON.stringify(next));
-    setSession(next);
     return { "Content-Type": "application/json", apikey: ANON_KEY, Authorization: `Bearer ${payload.access_token}` };
   }, []);
 
@@ -100,7 +94,7 @@ export default function BillingDashboardPage() {
     }
   }, [getHeaders]);
 
-  useEffect(() => { void loadBilling(); }, [loadBilling]);
+  useEffect(() => {\n    const requestedPlan = new URLSearchParams(window.location.search).get("plan") ?? "";\n    if (plans.some(plan => plan.code === requestedPlan)) setSelectedPlan(requestedPlan);\n    void loadBilling();\n  }, [loadBilling]);
 
   const currentSubscription = subscriptions.find(s => s.status === "active") ?? subscriptions[0] ?? null;
   const currentPlan = plans.find(p => p.code === (currentSubscription?.plan_code ?? profile?.plan_code));
@@ -113,7 +107,7 @@ export default function BillingDashboardPage() {
   const monthlySearches = usage.reduce((sum, item) => sum + (Number(item.product_searches) || 0), 0);
   const today = new Date().toISOString().slice(0, 10);
   const todaySearches = usage.find(item => item.usage_date === today)?.product_searches ?? 0;
-  const selected = plans.find(plan => plan.code === selectedPlan);
+  const selected = plans.find(plan => plan.code === selectedPlan);\n  const currentPlanLabel = currentPlan?.name ?? (profile?.plan_code ? label(profile.plan_code) : "Free access");
 
   return <main style={{ minHeight: "100vh", background: "#F4F8FC", color: "#071B31", padding: "24px clamp(18px,5vw,72px) 64px" }}>
     <header style={{ maxWidth: 1180, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 18, flexWrap: "wrap", borderBottom: "1px solid #DCE8F1", paddingBottom: 18 }}>
@@ -135,7 +129,7 @@ export default function BillingDashboardPage() {
 
     <section style={{ maxWidth: 1180, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,230px),1fr))", gap: 14 }}>
       {[
-        ["CURRENT PLAN", currentPlan?.name ?? label(profile?.plan_code) === "—" ? "Free access" : label(profile?.plan_code), currentSubscription ? label(currentSubscription.status) : "No paid subscription"],
+        ["CURRENT PLAN", currentPlanLabel, currentSubscription ? label(currentSubscription.status) : "No paid subscription"],
         ["SEARCHES AVAILABLE", creditTotals.available.toLocaleString("en-ZA"), "Paid search credits remaining"],
         ["SEARCHES USED THIS MONTH", monthlySearches.toLocaleString("en-ZA"), "Based on daily account usage"],
         ["SEARCHES TODAY", Number(todaySearches).toLocaleString("en-ZA"), "Successful product searches"],
