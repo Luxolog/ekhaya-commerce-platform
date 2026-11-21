@@ -27,3 +27,19 @@ Paystack checkout is not enabled by this change. The dedicated Edge Function is 
 
 ## Current release boundary
 This is a GitHub-only implementation branch. No production database migration, Edge Function deployment, website deployment, or live payment was performed.
+
+
+## Seven-day content calendar
+
+The seller dashboard includes a seven-day planner backed by
+`supabase/functions/ai-marketing-weekly-plan`. A successful weekly plan reserves
+and consumes seven `ai_post` allowance units, then saves seven seller-owned
+calendar drafts in `marketing_calendar_posts`. If generation or persistence
+fails, the reserved usage events are released.
+
+The seller can review, copy, approve, or return each post to draft. Approval
+records the seller's review only. The calendar has no external publishing,
+social-account connection, automatic scheduling, or background delivery.
+Posts are not queued or marked as published by this feature. The separate
+calendar migration must be applied to a non-production test database and
+validated before any release.
