@@ -86,12 +86,14 @@ export default function MarketingDashboardPage() {
       const monthStart = new Date();
       monthStart.setDate(1);
       const from = monthStart.toISOString();
-      const [plans, subs, events, drafts] = await Promise.all([
+      const [plans, subs, drafts] = await Promise.all([
         get<MarketingPlan>("marketing_plans?select=code,name,price_zar,billing_interval,monthly_ai_posts,monthly_campaign_ideas,monthly_research_queries,monthly_trend_reports&is_active=eq.true&order=price_zar.asc"),
         get<MarketingSubscription>("seller_marketing_subscriptions?select=id,plan_code,status,billing_mode,current_period_start,current_period_end,created_at&order=created_at.desc&limit=10"),
-        get<UsageEvent>("marketing_usage_events?select=feature_code,quantity,created_at&created_at=gte." + encodeURIComponent(from) + "&order=created_at.desc&limit=500"),
         get<Campaign>("marketing_campaigns?select=id,title,objective,platform,status,updated_at&order=updated_at.desc&limit=10"),
       ]);
+      const active = subs.find(item => item.status === "active");
+      const usageStart = active?.current_period_start ?? from;
+      const events = await get<UsageEvent>("marketing_usage_events?select=feature_code,quantity,created_at&created_at=gte." + encodeURIComponent(usageStart) + "&order=created_at.desc&limit=500");
       setPlan(plans.find(item => item.code === "marketing_mini") ?? plans[0] ?? null);
       setSubscriptions(subs);
       setUsage(events);
