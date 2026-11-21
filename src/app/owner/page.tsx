@@ -99,7 +99,7 @@ export default function EkhayaOwnerDashboard() {
         <nav aria-label="Owner dashboard sections" style={{ position: "sticky", top: 0, zIndex: 30, display: "flex", flexWrap: "wrap", gap: 8, margin: "0 0 18px", padding: "12px 0", background: "#F3F6FA", borderBottom: "1px solid #DDE6EF" }}>
           {OWNER_TABS.map(x => <button key={x} aria-current={tab === x ? "page" : undefined} onClick={() => navigateToTab(x)} style={{ padding: "10px 15px", borderRadius: 8, border: tab === x ? "1px solid #10243A" : "1px solid #DDE6EF", background: tab === x ? "#10243A" : "#fff", color: tab === x ? "#fff" : "#3C5368", textTransform: "capitalize", fontWeight: 700, cursor: "pointer" }}>{x}</button>)}
         </nav>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(185px,1fr))", gap: 13, marginBottom: 20 }}>
+        {tab === "overview" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(185px,1fr))", gap: 13, marginBottom: 20 }}>
           {[
             ["Registered sellers", String(total.sellers)],
             ["Active sellers", String(total.active_sellers)],
@@ -118,7 +118,7 @@ export default function EkhayaOwnerDashboard() {
             ["Pending / approved", money(total.pending_commission)],
             ["Commission paid", money(total.commission_paid)]
           ].map(([label,value]) => <article key={label} style={panel}><div style={small}>{label}</div><div style={{ fontSize: 25, fontWeight: 800, marginTop: 10 }}>{value}</div></article>)}
-        </div>
+        </div>}
         {tab === "overview" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 16 }}>
           <section style={panel}><h2 style={{ fontSize: 18, marginTop: 0 }}>Partner accounts</h2>{data.partners.length ? data.partners.map(p => <div key={p.id} style={{ padding: "12px 0", borderBottom: "1px solid #EDF1F5", display: "flex", justifyContent: "space-between", gap: 12 }}><div><b>{p.partner_name}</b><div style={small}>Referral code: {p.referral_code}</div></div><span style={{ fontSize: 12, fontWeight: 700, color: p.status === "active" ? "#16835D" : "#A66B1C" }}>{p.status}</span></div>) : <p style={small}>No partner records yet.</p>}</section>
           <section style={panel}><h2 style={{ fontSize: 18, marginTop: 0 }}>Recent partner activity</h2>{data.activity.slice(0,8).length ? data.activity.slice(0,8).map((a,i)=><div key={a.user_id+a.created_at+i} style={{ padding: "11px 0", borderBottom: "1px solid #EDF1F5" }}><b>{a.partner_name}</b><div style={small}>{a.seller_display_name || "Referred seller"} · {a.marketplace} · {a.result_status}</div><div style={{ fontSize: 12, marginTop: 4 }}>{a.query}</div><div style={{ ...small, marginTop: 4 }}>{when(a.created_at)}</div></div>) : <p style={small}>No search activity has been recorded for referred sellers yet.</p>}</section>
@@ -131,6 +131,7 @@ export default function EkhayaOwnerDashboard() {
         {tab === "platform activity" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All platform activity</h2><p style={small}>Owner-only event feed combining seller search activity and marketplace provider API usage.</p><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Date","Event","Seller","Email","Marketplace","Details","Results / credits","Status","Partner"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.all_activity.map((a,i)=><tr key={String(a.user_id)+a.created_at+a.event_type+i}><td style={td}>{when(a.created_at)}</td><td style={td}>{a.event_type === "seller_search" ? "Seller search" : "Provider API usage"}</td><td style={td}>{a.seller_display_name || a.user_id || "System / unassigned"}</td><td style={td}>{a.seller_email || "—"}</td><td style={td}>{a.marketplace || "—"}</td><td style={td}>{a.query || a.action || "—"}</td><td style={td}>{a.event_type === "seller_search" ? a.result_count : a.credits_charged ?? 0}</td><td style={td}>{a.result_status}</td><td style={td}>{a.partner_name || "—"}</td></tr>)}</tbody></table>{!data.all_activity.length && <p style={small}>No platform activity recorded yet.</p>}</div>}
 
         {tab === "api usage" && <div style={{ display: "grid", gap: 16 }}>
+          <header><h2 style={{ margin: 0, fontSize: 22 }}>API usage and remaining search credits</h2><p style={small}>Usage and allowance for your registered sellers, with provider calls shown separately from Ekhaya search credits.</p></header>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 13 }}>
             {[
               ["Monthly search allowance", total.monthly_search_allowance],
