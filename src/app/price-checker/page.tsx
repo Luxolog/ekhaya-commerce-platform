@@ -134,7 +134,7 @@ export default function PriceCheckerPage() {
         const incoming=(payload.products??[]).map((p:MarketplaceProduct)=>({...p,marketplace,relevance:classifyProduct(productQuery,p)})).filter((p:MarketplaceProduct)=>p.relevance!==undefined && p.relevance!==null);
         setProducts(old=>[...old.filter(p=>p.marketplace!==marketplace),...incoming]);
         setSource(payload.source==="cache"?"Shared cache":payload.source==="stale-cache"?"Stale shared cache — prices may be outdated":"Live marketplace data");
-        if(incoming.length===0)setError("No sufficiently relevant product matches were found. Unrelated listings were filtered out; your search credit was refunded when no usable results were returned.");
+        if(incoming.length===0)setError("No sufficiently relevant product matches were found. Unrelated listings were filtered out. Refine your search and try again.");
       }catch(e){errors.push((marketplace==="amazon"?"Amazon SA":marketplace==="makro"?"Makro":"Takealot")+": "+(e instanceof Error?e.message:"Search failed"));setError(errors.join(" · "));}
       finally{done++;if(done===marketplaces.length)setLoading(false);}
     }));
@@ -180,7 +180,7 @@ export default function PriceCheckerPage() {
   },[products,buying,category,volume,kg,takealotMode,sellerDelivery]);
   return <main className="page">
     <header className="top"><Link href="/" aria-label="Ekhaya Technologies home"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={230} height={190} className="logo" priority/></Link><span className="pill">PRICE INTELLIGENCE · LIVE RESEARCH</span><Link href="/account/" className="pill">SELLER ACCOUNT</Link></header>
-    <section className="hero"><p className="eyebrow">SELL SMARTER. PRICE WITH CONFIDENCE.</p><h1>Know your numbers<br/><em>before you buy.</em></h1><p>Find a product, enter your buying price and compare estimated profit after marketplace fulfilment fees.</p></section>
+    <section className="hero"><p className="eyebrow">SELL SMARTER. PRICE WITH CONFIDENCE.</p><h1>Know your numbers<br/><em>before you buy.</em></h1><p>Compare marketplace listings and estimate Takealot profit using your buying cost, category and packed dimensions. Amazon and Makro fee calculations remain disabled until their fee schedules are verified.</p></section>
     <section className="panel">
       <div className="heading"><div><small>01 / FIND A PRODUCT</small><h2>How would you like to search?</h2></div><span className="connected">● MARKETPLACE DATA</span></div>
       <div className="modes">{(["barcode","photo","name"] as Mode[]).map(m=><button key={m} className={mode===m?"active":""} onClick={()=>{setMode(m);setError("");}}>{m==="barcode"?"▦ Enter barcode":m==="photo"?"▧ Take a picture":"⌕ Search by name"}</button>)}</div>
