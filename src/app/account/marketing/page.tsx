@@ -461,6 +461,7 @@ export default function MarketingDashboardPage() {
         <Link href="/price-checker/" style={{ color: "#60758A" }}>Price Checker</Link>
         <Link href="/account/marketing/intelligence/" style={{ color: "#079BD3" }}>Marketing Intelligence</Link>
           <Link href="/account/marketing/brand/" style={{ color: "#60758A" }}>Brand &amp; products</Link>
+          <Link href="/account/marketing/contacts/" style={{ color: "#60758A" }}>Contacts &amp; email</Link>
           <Link href="/account/marketing/overview/" style={{ color: "#60758A" }}>Overview &amp; usage</Link>
         <Link href="/account/marketing/guide/" style={{ color: "#60758A" }}>Help centre</Link>
         <Link href="/account/billing/" style={{ color: "#60758A" }}>Billing</Link>
