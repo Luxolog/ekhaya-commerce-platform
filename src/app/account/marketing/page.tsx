@@ -66,6 +66,9 @@ export default function MarketingDashboardPage() {
   const [calendarPosts, setCalendarPosts] = useState<CalendarPost[]>([]);
   const [calendarStatusFilter, setCalendarStatusFilter] = useState("all");
   const [calendarMonthFilter, setCalendarMonthFilter] = useState("");
+  const [calendarView, setCalendarView] = useState("month");
+  const [calendarFocusDate, setCalendarFocusDate] = useState(new Date().toLocaleDateString("en-CA"));
+  const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
   const [editingCalendarPost, setEditingCalendarPost] = useState<CalendarPost | null>(null);
   const [weeklyContext, setWeeklyContext] = useState("");
   const [weeklyPlatform, setWeeklyPlatform] = useState("instagram");
@@ -444,8 +447,52 @@ export default function MarketingDashboardPage() {
 
   const filteredCalendarPosts = calendarPosts.filter(post =>
     (calendarStatusFilter === "all" || post.status === calendarStatusFilter) &&
-    (!calendarMonthFilter || post.scheduled_for.slice(0, 7) === calendarMonthFilter)
+    (calendarView !== "month" || !calendarMonthFilter || post.scheduled_for.slice(0, 7) === calendarMonthFilter) &&
+    (calendarView === "month" || (() => {
+      const target = new Date(calendarFocusDate + "T12:00:00");
+      const scheduled = new Date(post.scheduled_for);
+      if (calendarView === "day") return scheduled.toDateString() === target.toDateString();
+      const start = new Date(target); start.setDate(target.getDate() - ((target.getDay() + 6) % 7)); start.setHours(0,0,0,0);
+      const end = new Date(start); end.setDate(start.getDate() + 7);
+      return scheduled >= start && scheduled < end;
+    })())
   );
+
+  async function duplicateCalendarPost(post: CalendarPost) {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const headers = await getHeaders();
+      const nextDate = new Date(post.scheduled_for); nextDate.setDate(nextDate.getDate() + 1);
+      const response = await fetch(SUPABASE_URL + "/rest/v1/marketing_calendar_posts", {
+        method: "POST", headers: { ...headers, Prefer: "return=representation" },
+        body: JSON.stringify({ title: post.title + " (copy)", content: post.content, platform: post.platform, scheduled_for: nextDate.toISOString(), status: "draft" }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message ?? payload.msg ?? "Could not duplicate calendar post.");
+      setNotice("A duplicate draft was created for the following day. It has not been published.");
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not duplicate calendar post."); }
+    finally { setBusy(false); }
+  }
+
+  async function bulkApproveCalendarPosts() {
+    const selectedDrafts = calendarPosts.filter(post => selectedCalendarIds.includes(post.id) && post.status === "draft");
+    if (!selectedDrafts.length) { setError("Select at least one draft post to approve."); return; }
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const headers = await getHeaders();
+      const ids = selectedDrafts.map(post => post.id).join(",");
+      const response = await fetch(SUPABASE_URL + "/rest/v1/marketing_calendar_posts?id=in.(" + ids + ")&status=eq.draft", {
+        method: "PATCH", headers: { ...headers, Prefer: "return=minimal" },
+        body: JSON.stringify({ status: "approved", approved_at: new Date().toISOString(), updated_at: new Date().toISOString() }),
+      });
+      if (!response.ok) { const payload = await response.json().catch(() => ({})); throw new Error(payload.message ?? "Could not approve selected posts."); }
+      setSelectedCalendarIds([]);
+      setNotice(selectedDrafts.length + " posts marked seller-approved. Nothing was published externally.");
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Bulk approval failed."); }
+    finally { setBusy(false); }
+  }
 
   const quotaRows = plan ? [
     ["AI social posts", "ai_post", plan.monthly_ai_posts],
@@ -614,18 +661,22 @@ export default function MarketingDashboardPage() {
         <button type="button" onClick={() => void generateWeeklyPlan()} disabled={weeklyBusy || weeklyContext.trim().length < 12} style={{ padding: 13, border: 0, borderRadius: 8, background: weeklyBusy || weeklyContext.trim().length < 12 ? "#9FB5C5" : "#079BD3", color: "#fff", fontWeight: 800 }}>{weeklyBusy ? "BUILDING YOUR WEEK…" : "GENERATE 7-DAY CONTENT PLAN · 7 CREDITS"}</button>
       </div>}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end", marginTop: 18 }}>
-        <label style={formLabel}>Filter by month<input type="month" value={calendarMonthFilter} onChange={event => setCalendarMonthFilter(event.target.value)} style={field}/></label>
+        <label style={formLabel}>Calendar view<select value={calendarView} onChange={event => setCalendarView(event.target.value)} style={field}><option value="month">Month</option><option value="week">Week</option><option value="day">Day</option></select></label>
+        {calendarView !== "month" ? <label style={formLabel}>Focus date<input type="date" value={calendarFocusDate} onChange={event => setCalendarFocusDate(event.target.value)} style={field}/></label> : <label style={formLabel}>Filter by month<input type="month" value={calendarMonthFilter} onChange={event => setCalendarMonthFilter(event.target.value)} style={field}/></label>}
         <label style={formLabel}>Filter by status<select value={calendarStatusFilter} onChange={event => setCalendarStatusFilter(event.target.value)} style={field}><option value="all">All statuses</option><option value="draft">Draft</option><option value="approved">Approved</option><option value="archived">Archived</option></select></label>
         <button type="button" onClick={exportCalendarPlan} disabled={!filteredCalendarPosts.length} style={{ padding: 10, border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Export CSV</button>
+        <button type="button" onClick={() => setSelectedCalendarIds(filteredCalendarPosts.filter(post => post.status === "draft").map(post => post.id))} disabled={!filteredCalendarPosts.some(post => post.status === "draft")} style={{ padding: 10, border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Select visible drafts</button>
+        <button type="button" onClick={() => void bulkApproveCalendarPosts()} disabled={busy || selectedCalendarIds.length === 0} style={{ padding: 10, border: 0, borderRadius: 7, background: "#E8F6EE", color: "#147A46", fontWeight: 800 }}>Approve selected ({selectedCalendarIds.length})</button>
       </div>
       <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
         {filteredCalendarPosts.length ? filteredCalendarPosts.map(post => <article key={post.id} style={{ border: "1px solid #DCE8F1", borderRadius: 10, padding: 15 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><strong>{post.title}</strong><span style={{ fontSize: 11, color: post.status === "approved" ? "#147A46" : "#60758A", fontWeight: 800 }}>{pretty(post.status)}</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><label style={{display:"flex",gap:8,alignItems:"center",fontSize:12}}><input type="checkbox" checked={selectedCalendarIds.includes(post.id)} onChange={event => setSelectedCalendarIds(ids => event.target.checked ? [...ids,post.id] : ids.filter(id => id!==post.id))} disabled={post.status!=="draft"}/><strong>{post.title}</strong></label><span style={{ fontSize: 11, color: post.status === "approved" ? "#147A46" : "#60758A", fontWeight: 800 }}>{pretty(post.status)}</span></div>
           <p style={{ color: "#71869A", fontSize: 11, margin: "6px 0" }}>{pretty(post.platform)} · {date(post.scheduled_for)}</p>
           <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: "#40566B", fontSize: 13, lineHeight: 1.65 }}>{post.content}</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button type="button" onClick={() => void navigator.clipboard.writeText(post.content).then(() => setNotice("Post copied."), () => setError("Clipboard access unavailable."))} style={{ padding: "8px 11px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Copy post</button>
             <button type="button" onClick={() => setEditingCalendarPost({ ...post })} style={{ padding: "8px 11px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Edit post</button>
+            <button type="button" disabled={busy} onClick={() => void duplicateCalendarPost(post)} style={{ padding: "8px 11px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Duplicate +1 day</button>
             <button type="button" disabled={busy} onClick={() => void updateCalendarPost(post, "archived")} style={{ padding: "8px 11px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Archive</button>
             {post.status === "draft" ? <button type="button" disabled={busy} onClick={() => void updateCalendarPost(post, "approved")} style={{ padding: "8px 11px", border: 0, borderRadius: 7, background: "#E8F6EE", color: "#147A46", fontWeight: 700 }}>Approve post</button> : <button type="button" disabled={busy} onClick={() => void updateCalendarPost(post, "draft")} style={{ padding: "8px 11px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Return to draft</button>}
           </div>
