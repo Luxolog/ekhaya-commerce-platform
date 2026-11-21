@@ -30,6 +30,7 @@ export default function PricingPage() {
           <p style={{margin:"0 0 4px"}}><strong style={{fontFamily:"Manrope,sans-serif",fontSize:36}}>{plan.price}</strong><span style={{color:"#60758A",fontSize:13}}>/ month</span></p>
           <p style={{color:"#079BD3",fontSize:14,fontWeight:800,margin:"8px 0 12px"}}>{plan.searches}</p>
           <p style={{...muted,margin:0}}>{plan.description}</p>
+          <Link href={`/account/billing/?plan=${plan.name.toLowerCase()}`} style={{display:"inline-block",marginTop:18,padding:"11px 15px",background:plan.featured?"#079BD3":"#EAF7FC",color:plan.featured?"#fff":"#075477",borderRadius:8,textDecoration:"none",fontWeight:800,fontSize:12}}>VIEW PLAN & BILLING →</Link>
         </article>)}
         <article style={{...card,background:"#071B31",color:"#fff",borderColor:"#071B31"}}>
           <h3 style={{fontFamily:"Manrope,sans-serif",fontSize:23,margin:"0 0 8px"}}>Custom</h3>
@@ -39,9 +40,10 @@ export default function PricingPage() {
         </article>
       </div>
       <p style={{...muted,fontSize:12,marginTop:14}}>New accounts receive 5 welcome searches once per account. Monthly plan allowances reset each billing month. When your searches are used, you can upgrade to continue. Search allowances apply per seller account and are not shared between sellers.</p>
-      <p role="note" style={{...muted,fontSize:13,marginTop:18,padding:16,background:"#FFF7E6",border:"1px solid #F2D9A6",borderRadius:10}}>
-        Paid-plan online checkout is not enabled yet. Contact Ekhaya Technologies to request paid-plan activation. Do not send payment details by email or use unofficial payment links.
-      </p>
+      <div role="status" style={{...muted,fontSize:13,marginTop:18,padding:18,background:"#EAF7FC",border:"1px solid #B9E4F3",borderRadius:10}}>
+        <strong style={{display:"block",color:"#075477",marginBottom:5}}>Online payments are being prepared</strong>
+        Paid subscriptions will be available as soon as Ekhaya Technologies completes payment-provider approval. No payment is collected on this page yet. Create a seller account to get your 5 welcome searches and explore the platform in the meantime.
+      </div>
       <p style={{...muted,fontSize:12,marginTop:8}}>For plan enquiries, use Ekhaya Technologies&apos; official published contact details.</p>
       <Link href="/account/" style={{display:"inline-block",marginTop:8,padding:"13px 19px",background:"#079BD3",color:"#fff",borderRadius:8,textDecoration:"none",fontWeight:800,fontSize:12}}>CREATE SELLER ACCOUNT →</Link>
     </section>
