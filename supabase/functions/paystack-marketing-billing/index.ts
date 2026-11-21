@@ -52,7 +52,7 @@ async function initialiseCheckout(req: Request) {
   if (!secret || !appUrl || !supabaseUrl || !anonKey) return json({ error: "Checkout is temporarily unavailable." }, 503);
 
   const authHeader = req.headers.get("Authorization") ?? "";
-  const token = authHeader.replace(/^Bearer\\s+/i, "");
+  const token = authHeader.replace(/^Bearer\s+/i, "");
   if (!token || token === authHeader) return json({ error: "Sign in to continue." }, 401);
 
   const auth = createClient(supabaseUrl, anonKey, { auth: { persistSession: false } });
