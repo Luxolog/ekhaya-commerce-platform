@@ -76,6 +76,10 @@ export default function EkhayaOwnerDashboard() {
 
   useEffect(() => { void load(); }, [load]);
 
+  useEffect(() => {
+    if (tab === "partners" && data) void loadPartnerInvitations();
+  }, [tab, data]);
+
   // Keep dashboard sections in the URL so browser Back/Forward works.
   useEffect(() => {
     const syncTabFromUrl = () => {
