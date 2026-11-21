@@ -5,11 +5,12 @@ import Link from "next/link";
 
 const API = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+type ActionEvent = { id:string; action_type:string; title:string; body:string; created_at:string; calendar_post_id:string|null };
 type Rule = { id:string; name:string; description:string; trigger_type:string; action_type:string; schedule_timezone:string; next_run_at:string|null; recurrence_rule:string|null; status:string; created_at:string };
 type Session = { access_token?:string; refresh_token?:string; expires_at?:number; [key:string]:unknown };
 
 export default function MarketingAutomationsPage(){
- const [rules,setRules]=useState<Rule[]>([]),[name,setName]=useState(""),[trigger,setTrigger]=useState("scheduled_once"),[action,setAction]=useState("create_draft"),[runAt,setRunAt]=useState(""),[recurrence,setRecurrence]=useState("weekly"),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
+ const [rules,setRules]=useState<Rule[]>([]),[events,setEvents]=useState<ActionEvent[]>([]),[name,setName]=useState(""),[trigger,setTrigger]=useState("scheduled_once"),[action,setAction]=useState("create_draft"),[runAt,setRunAt]=useState(""),[recurrence,setRecurrence]=useState("weekly"),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const headers=useCallback(async()=>{
   if(!API||!KEY)throw new Error("Supabase environment variables are not configured.");
   let s:Session|null=null;try{s=JSON.parse(localStorage.getItem("ekhaya_session")||"null")}catch{}
@@ -26,7 +27,7 @@ export default function MarketingAutomationsPage(){
   const h=await headers(),r=await fetch(API+"/rest/v1/"+path,{...init,headers:{...h,Prefer:"return=representation",...(init.headers||{})},cache:"no-store"});
   const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.message||d.msg||"Marketing automation request failed.");return d;
  },[headers]);
- const load=useCallback(async()=>{setLoading(true);setError("");try{setRules(await request("marketing_automations?select=id,name,description,trigger_type,action_type,schedule_timezone,next_run_at,recurrence_rule,status,created_at&order=created_at.desc"));}catch(e){setError(e instanceof Error?e.message:"Unable to load automations.");}finally{setLoading(false);}},[request]);
+ const load=useCallback(async()=>{setLoading(true);setError("");try{const [ruleRows,eventRows]=await Promise.all([request("marketing_automations?select=id,name,description,trigger_type,action_type,schedule_timezone,next_run_at,recurrence_rule,status,created_at&order=created_at.desc"),request("marketing_automation_action_events?select=id,action_type,title,body,created_at,calendar_post_id&order=created_at.desc&limit=50")]);setRules(ruleRows);setEvents(eventRows);}catch(e){setError(e instanceof Error?e.message:"Unable to load automations.");}finally{setLoading(false);}},[request]);
  useEffect(()=>{void load()},[load]);
  async function create(e:React.FormEvent){
   e.preventDefault();setBusy(true);setError("");setNotice("");
@@ -64,7 +65,12 @@ export default function MarketingAutomationsPage(){
     <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:12,fontWeight:800,color:rule.status==="active"?"#21734A":"#60758A"}}>{rule.status}</span>{rule.status==="active"&&<button disabled={busy} onClick={()=>void setStatus(rule,"paused")} style={smallButton}>Pause</button>}{rule.status!=="cancelled"&&<button disabled={busy} onClick={()=>void setStatus(rule,"cancelled")} style={smallButton}>Cancel</button>}</div>
    </article>)}</div>}
   </section>
-  <p style={{fontSize:12,color:"#71869A",marginTop:22}}>Execution history is stored separately and will populate only after a reviewed worker is deployed. Sellers can pause or cancel rules; activation is reserved for the trusted worker after release approval.</p>
+  <section style={{marginTop:26}}>
+   <h2 style={{fontSize:18}}>Automation activity</h2>
+   <p style={{fontSize:13,color:"#60758A"}}>Internal actions recorded by the worker. Draft creation appears in your content calendar. No email or external publishing is performed.</p>
+   {loading?<p style={{color:"#60758A"}}>Loading activity…</p>:events.length===0?<p style={{color:"#60758A"}}>No automation activity yet. Events appear after a reviewed worker has been configured and run.</p>:<div style={{display:"grid",gap:9}}>{events.map(event=><article key={event.id} style={{border:"1px solid #DCE6EE",borderRadius:10,padding:13}}><strong>{event.title}</strong><p style={{fontSize:12,color:"#60758A",margin:"5px 0"}}>{event.action_type.replaceAll("_"," ")} · {new Date(event.created_at).toLocaleString()}</p><p style={{fontSize:13,whiteSpace:"pre-wrap",margin:"6px 0"}}>{event.body}</p>{event.calendar_post_id&&<Link href="/account/marketing/" style={{fontSize:12,color:"#0789BE",fontWeight:700}}>Open content calendar →</Link>}</article>)}</div>}
+  </section>
+  <p style={{fontSize:12,color:"#71869A",marginTop:22}}>Sellers can pause or cancel rules; activation is reserved for the trusted worker after release approval.</p>
  </main>;
 }
 const input:React.CSSProperties={padding:10,border:"1px solid #D5E1EA",borderRadius:8,fontSize:13,minWidth:0};
