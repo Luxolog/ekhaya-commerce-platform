@@ -6,6 +6,7 @@ import Image from "next/image";
 
 const SUPABASE_URL = "https://itxxnhcjjiynrmivexcb.supabase.co";
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const CHECKOUT_UI_ENABLED = false;
 
 type Session = { access_token?: string; refresh_token?: string; expires_at?: number; [key: string]: unknown };
 type MarketingPlan = {
@@ -96,13 +97,38 @@ export default function MarketingDashboardPage() {
     }
   }, [getHeaders]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("payment") === "return") {
+      setNotice("Payment return received. Your subscription will only activate after the Paystack webhook independently verifies successful payment. Refresh shortly to check your access.");
+    }
+    void load();
+  }, [load]);
 
   const activeSubscription = subscriptions.find(item => item.status === "active") ?? null;
   const usageTotals = useMemo(() => usage.reduce((totals, event) => {
     totals[event.feature_code] = (totals[event.feature_code] ?? 0) + Number(event.quantity || 0);
     return totals;
   }, {} as Record<string, number>), [usage]);
+
+  async function startCheckout() {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const headers = await getHeaders();
+      const response = await fetch(SUPABASE_URL + "/functions/v1/paystack-marketing-billing", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ plan: plan?.code ?? "marketing_mini" }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || typeof payload.authorization_url !== "string") {
+        throw new Error(payload.error ?? "Checkout is not available yet.");
+      }
+      window.location.assign(payload.authorization_url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to start checkout.");
+      setBusy(false);
+    }
+  }
 
   async function saveDraft(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -163,7 +189,7 @@ export default function MarketingDashboardPage() {
         <div style={{ marginTop: 18, padding: 13, borderRadius: 9, background: "#18334B", fontSize: 12, lineHeight: 1.6 }}>
           {activeSubscription ? "Marketing access is enabled for your account." : "Online payment activation is pending merchant approval. No payment will be collected from this page yet."}
         </div>
-        <button type="button" disabled style={{ width: "100%", padding: 13, marginTop: 16, border: 0, borderRadius: 8, background: "#7890A3", color: "#fff", fontWeight: 800, cursor: "not-allowed" }}>{activeSubscription ? "SUBSCRIPTION ACTIVE" : "SUBSCRIPTIONS NOT YET ENABLED"}</button>
+        <button type="button" onClick={() => void startCheckout()} disabled={!CHECKOUT_UI_ENABLED || busy || !!activeSubscription} style={{ width: "100%", padding: 13, marginTop: 16, border: 0, borderRadius: 8, background: !CHECKOUT_UI_ENABLED || activeSubscription ? "#7890A3" : "#079BD3", color: "#fff", fontWeight: 800, cursor: !CHECKOUT_UI_ENABLED || activeSubscription ? "not-allowed" : "pointer" }}>{activeSubscription ? "SUBSCRIPTION ACTIVE" : busy ? "PLEASE WAIT…" : CHECKOUT_UI_ENABLED ? "SUBSCRIBE FOR R29 / MONTH" : "PAYMENTS NOT YET ENABLED"}</button>
       </article>
 
       <article style={{ background: "#fff", border: "1px solid #DCE8F1", borderRadius: 16, padding: 26 }}>
