@@ -51,12 +51,34 @@ Deno.serve(async (req: Request) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !serviceKey) return json({ error: "Worker server configuration is incomplete." }, 503);
 
+  const declaredLength = Number(req.headers.get("content-length") ?? "0");
+  if (Number.isFinite(declaredLength) && declaredLength > 8_192) {
+    return json({ error: "Worker request body is too large." }, 413);
+  }
+  const rawBody = await req.text();
+  if (new TextEncoder().encode(rawBody).byteLength > 8_192) {
+    return json({ error: "Worker request body is too large." }, 413);
+  }
+  let body: unknown = {};
+  if (rawBody.trim()) {
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return json({ error: "Worker request body must be valid JSON." }, 400);
+    }
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return json({ error: "Worker request body must be a JSON object." }, 400);
+  }
+  const requestedLimit = (body as Record<string, unknown>).limit ?? 10;
+  if (!Number.isInteger(requestedLimit) || Number(requestedLimit) < 1 || Number(requestedLimit) > 25) {
+    return json({ error: "Worker limit must be an integer between 1 and 25." }, 400);
+  }
+  const limit = Number(requestedLimit);
+
   const admin = createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const body = await req.json().catch(() => ({}));
-  const requestedLimit = Number(body?.limit ?? 10);
-  const limit = Number.isInteger(requestedLimit) ? Math.min(25, Math.max(1, requestedLimit)) : 10;
 
   const { error: scheduleError } = await admin.rpc("claim_due_marketing_automations", { p_limit: limit });
   if (scheduleError) {
