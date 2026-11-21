@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-const SUPABASE_URL = "https://itxxnhcjjiynrmivexcb.supabase.co";
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 type Session = { access_token?: string; refresh_token?: string; expires_at?: number; [key: string]: unknown };
