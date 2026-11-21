@@ -28,6 +28,31 @@ export default function EkhayaOwnerDashboard() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<(typeof OWNER_TABS)[number]>("overview");
+  const [invitePartnerId, setInvitePartnerId] = useState("");
+  const [inviteContactName, setInviteContactName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteFeedback, setInviteFeedback] = useState("");
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [partnerInvitations, setPartnerInvitations] = useState<Array<{id:string;partner_id:string;invited_email:string;contact_name:string|null;status:string;invited_at:string;expires_at:string;accepted_at:string|null}>>([]);
+  const manageInvitations = async (payload: Record<string,string>) => {
+    const session = JSON.parse(localStorage.getItem("ekhaya_session") ?? "null");
+    if (!session?.access_token) throw new Error("Sign in with the Ekhaya owner account first.");
+    const response = await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/invite-saechamber-partner", { method: "POST", headers: { apikey: KEY, Authorization: "Bearer " + session.access_token, "Content-Type": "application/json" }, body: JSON.stringify(payload), cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || "Partner invitation request failed.");
+    return body;
+  };
+  const loadPartnerInvitations = async () => {
+    try { const result = await manageInvitations({ action: "list" }); setPartnerInvitations(result.invitations || []); }
+    catch (e) { setInviteFeedback(e instanceof Error ? e.message : "Could not load invitations."); }
+  };
+  const sendPartnerInvitation = async () => {
+    if (!invitePartnerId || !inviteContactName.trim() || !inviteEmail.trim()) return;
+    setInviteBusy(true); setInviteFeedback("");
+    try { const result = await manageInvitations({ partner_id: invitePartnerId, contact_name: inviteContactName.trim(), email: inviteEmail.trim() }); setInviteFeedback("Invitation sent to " + result.invited_email + " for " + result.partner_name + ". It expires in 14 days."); setInviteContactName(""); setInviteEmail(""); await loadPartnerInvitations(); }
+    catch (e) { setInviteFeedback(e instanceof Error ? e.message : "Invitation could not be sent."); }
+    finally { setInviteBusy(false); }
+  };
 
   const load = useCallback(async () => {
     setBusy(true); setError("");
@@ -179,7 +204,35 @@ export default function EkhayaOwnerDashboard() {
           </div>
           <div style={{ ...panel, borderColor: "#E8D8B5" }}><b>Important distinction</b><p style={{ ...small, marginBottom: 0 }}>Remaining means the seller’s remaining platform search credits for the current month. The connected marketplace provider’s own external account quota is not exposed in the current integration, so it is not represented as a remaining provider quota.</p></div>
         </div>}
-        {tab === "partners" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All partner accounts</h2><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Partner","Referral code","Status","Linked owner user","Go-live date","Created"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.partners.map(p=><tr key={p.id}><td style={td}><b>{p.partner_name}</b><div style={small}>{p.partner_slug}</div></td><td style={td}>{p.referral_code}</td><td style={td}>{p.status}</td><td style={td}>{p.partner_user_id ?? "Not linked"}</td><td style={td}>{when(p.program_live_at)}</td><td style={td}>{when(p.created_at)}</td></tr>)}</tbody></table></div>}
+        {tab === "partners" && <div style={{ display: "grid", gap: 16 }}>
+          <section style={panel}>
+            <h2 style={{ marginTop: 0, fontSize: 18 }}>Invite a partner owner</h2>
+            <p style={small}>Select any registered partner programme. The email is personalised with the contact and partner names and expires after 14 days. No email is sent until you press the button.</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
+              <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 700 }}>Partner programme
+                <select value={invitePartnerId} onChange={e=>setInvitePartnerId(e.target.value)} style={{ padding: 11, border: "1px solid #DDE6EF", borderRadius: 8, background: "#fff" }}>
+                  <option value="">Select a partner</option>
+                  {data.partners.filter(p=>!p.partner_user_id).map(p=><option key={p.id} value={p.id}>{p.partner_name} · {p.partner_slug}</option>)}
+                </select>
+              </label>
+              <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 700 }}>Contact person
+                <input value={inviteContactName} onChange={e=>setInviteContactName(e.target.value)} maxLength={120} placeholder="Partner contact's full name" style={{ padding: 11, border: "1px solid #DDE6EF", borderRadius: 8 }} />
+              </label>
+              <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 700 }}>Email address
+                <input type="email" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="name@organisation.co.za" style={{ padding: 11, border: "1px solid #DDE6EF", borderRadius: 8 }} />
+              </label>
+            </div>
+            <button onClick={()=>void sendPartnerInvitation()} disabled={inviteBusy || !invitePartnerId || !inviteContactName.trim() || !inviteEmail.includes("@")} style={{ marginTop: 12, border: 0, borderRadius: 8, padding: "11px 16px", background: "#078FC4", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{inviteBusy ? "Sending…" : "Send partner invitation"}</button>
+            {inviteFeedback && <p role="status" style={{ ...small, marginTop: 10 }}>{inviteFeedback}</p>}
+          </section>
+          <section style={{ ...panel, overflowX: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All partner accounts</h2><button onClick={()=>void loadPartnerInvitations()} style={{ border: "1px solid #DDE6EF", background: "#fff", borderRadius: 8, padding: "8px 12px", fontWeight: 700, cursor: "pointer" }}>Refresh invitations</button></div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Partner","Referral code","Status","Linked owner user","Go-live date","Created"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.partners.map(p=><tr key={p.id}><td style={td}><b>{p.partner_name}</b><div style={small}>{p.partner_slug}</div></td><td style={td}>{p.referral_code}</td><td style={td}>{p.status}</td><td style={td}>{p.partner_user_id ?? "Not linked"}</td><td style={td}>{when(p.program_live_at)}</td><td style={td}>{when(p.created_at)}</td></tr>)}</tbody></table>
+            <h3 style={{ fontSize: 16, margin: "22px 0 10px" }}>Partner invitations</h3>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 620 }}><thead><tr>{["Partner","Contact","Email","Sent","Expires","Status"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{partnerInvitations.map(inv=><tr key={inv.id}><td style={td}>{data.partners.find(p=>p.id===inv.partner_id)?.partner_name || inv.partner_id}</td><td style={td}>{inv.contact_name || "—"}</td><td style={td}>{inv.invited_email}</td><td style={td}>{when(inv.invited_at)}</td><td style={td}>{when(inv.expires_at)}</td><td style={td}>{inv.status}</td></tr>)}</tbody></table>
+            {!partnerInvitations.length && <p style={small}>No invitations loaded yet. Select “Refresh invitations” to check the invitation ledger.</p>}
+          </section>
+        </div>}
 
         {tab === "referrals" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All referred sellers</h2><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Partner","Seller","Plan","Account status","Registered","First payment"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.referrals.map(r=><tr key={r.id}><td style={td}>{r.partner_name}</td><td style={td}>{r.seller_display_name || r.referred_user_id}</td><td style={td}>{r.seller_plan}</td><td style={td}>{r.seller_account_status}</td><td style={td}>{when(r.registered_at)}</td><td style={td}>{when(r.first_paid_at)}</td></tr>)}</tbody></table>{!data.referrals.length && <p style={small}>No referred sellers recorded yet.</p>}</div>}
 
