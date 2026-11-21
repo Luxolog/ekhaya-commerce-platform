@@ -101,7 +101,9 @@ Deno.serve(async (req: Request) => {
   }, { onConflict: "partner_id,invited_email" }).select("id").single();
   if (insertError || !invitation) return new Response(JSON.stringify({ error: "Could not create invitation record" }), { status: 500, headers: cors });
 
-  const redirectTo = "https://pricechecker.ekhayatech.co.za/account/?partner_invite=" + invitation.id;
+  const requestOrigin = req.headers.get("Origin") || "";
+  const redirectOrigin = isAllowedOrigin(requestOrigin) ? requestOrigin : "https://pricechecker.ekhayatech.co.za";
+  const redirectTo = redirectOrigin + "/account/?partner_invite=" + invitation.id;
   // Existing Ekhaya users keep their current account and password. Send a
   // magic sign-in link that returns them to the partner invitation acceptance.
   const { data: authUsers, error: usersError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
