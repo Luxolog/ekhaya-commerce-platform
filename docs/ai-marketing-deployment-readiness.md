@@ -27,8 +27,20 @@ Apply these files to an isolated non-production database in this order, after re
 5. 20261122020000_add_marketing_research_reports.sql
 6. 20261122030000_expand_marketing_campaigns.sql
 7. 20261122040000_allow_seller_campaign_approval.sql
+8. 20261122050000_add_marketing_brand_and_products.sql
+9. 20261122060000_add_marketing_contacts_and_email_drafts.sql
 
 Do not apply this list directly to production. Confirm migration history and dependencies in the target environment first.
+
+
+## Brand, product, contacts and email draft notes
+
+- Brand profiles and product records are seller-owned under RLS. Product context is looked up server-side using both the saved product ID and authenticated seller ID.
+- Product image references are metadata only; no image upload or media storage integration is enabled.
+- Contact records are private seller CRM data. CSV import skips duplicate email addresses within the seller's existing contact list. Contacts imported without a documented consent basis remain non-marketable.
+- An email campaign is only a saved draft. The database validates that every selected recipient belongs to the same seller and has a recorded consent, a non-null email address and no opt-out timestamp.
+- No email provider is connected. The platform does not send emails, claim delivery or claim open/click tracking.
+- Sellers must collect and retain valid consent evidence and honour opt-outs. This workflow is a technical safeguard, not a legal determination of POPIA compliance.
 
 ## Edge Function release order
 
