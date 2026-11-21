@@ -31,7 +31,7 @@ export default function BillingDashboardPage() {
   const [usage, setUsage] = useState<Usage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selectedPlan, setSelectedPlan] = useState(requestedPlan);
+  const [selectedPlan, setSelectedPlan] = useState("");
 
   const getHeaders = useCallback(async () => {
     if (!ANON_KEY) throw new Error("Account services are not configured. Please contact Ekhaya support.");
@@ -94,7 +94,11 @@ export default function BillingDashboardPage() {
     }
   }, [getHeaders]);
 
-  useEffect(() => {\n    const requestedPlan = new URLSearchParams(window.location.search).get("plan") ?? "";\n    if (plans.some(plan => plan.code === requestedPlan)) setSelectedPlan(requestedPlan);\n    void loadBilling();\n  }, [loadBilling]);
+  useEffect(() => {
+    const requestedPlan = new URLSearchParams(window.location.search).get("plan") ?? "";
+    if (plans.some(plan => plan.code === requestedPlan)) setSelectedPlan(requestedPlan);
+    void loadBilling();
+  }, [loadBilling]);
 
   const currentSubscription = subscriptions.find(s => s.status === "active") ?? subscriptions[0] ?? null;
   const currentPlan = plans.find(p => p.code === (currentSubscription?.plan_code ?? profile?.plan_code));
@@ -107,7 +111,8 @@ export default function BillingDashboardPage() {
   const monthlySearches = usage.reduce((sum, item) => sum + (Number(item.product_searches) || 0), 0);
   const today = new Date().toISOString().slice(0, 10);
   const todaySearches = usage.find(item => item.usage_date === today)?.product_searches ?? 0;
-  const selected = plans.find(plan => plan.code === selectedPlan);\n  const currentPlanLabel = currentPlan?.name ?? (profile?.plan_code ? label(profile.plan_code) : "Free access");
+  const selected = plans.find(plan => plan.code === selectedPlan);
+  const currentPlanLabel = currentPlan?.name ?? (profile?.plan_code ? label(profile.plan_code) : "Free access");
 
   return <main style={{ minHeight: "100vh", background: "#F4F8FC", color: "#071B31", padding: "24px clamp(18px,5vw,72px) 64px" }}>
     <header style={{ maxWidth: 1180, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 18, flexWrap: "wrap", borderBottom: "1px solid #DCE8F1", paddingBottom: 18 }}>
