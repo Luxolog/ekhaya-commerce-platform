@@ -76,7 +76,15 @@ export default function AccountPage() {
         const session=JSON.parse(raw);
         if(session?.access_token){
           setSignedIn(true); setMode("signin"); setCheckingAccess(true);
-          loadAccountRoles(session.access_token).then(roles=>{if(active)setAvailableRoles(roles);})
+          loadAccountRoles(session.access_token).then(roles=>{
+            if(!active) return;
+            setAvailableRoles(roles);
+            const requested = new URLSearchParams(window.location.search).get("account");
+            if(requested === "partner" && roles.includes("partner")) window.location.replace(destinations.partner);
+            else if(requested === "owner" && roles.includes("owner")) window.location.replace(destinations.owner);
+            else if(requested === "seller" && roles.includes("seller")) window.location.replace(destinations.seller);
+            else if(requested === "partner" || requested === "owner") setMessage("This account does not have access to the requested workspace. Choose an authorised account or contact Ekhaya support.");
+          })
             .catch(e=>{if(active)setMessage(e instanceof Error?e.message:"Could not verify account access.");})
             .finally(()=>{if(active)setCheckingAccess(false);});
         }
