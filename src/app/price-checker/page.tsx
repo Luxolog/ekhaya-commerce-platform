@@ -168,7 +168,7 @@ export default function PriceCheckerPage() {
   const calculations=useMemo(()=>{
     return products.map(p=>{
       const price=Number(p.price)||0;
-      if(p.relevance==="accessory" || p.marketplace!=="takealot") return {id:p.id,fee:0,profit:0,margin:0,fulfilment:0,success:0,size:"Not calculated",feeKnown:false};
+      if(p.relevance!=="exact" || p.marketplace!=="takealot") return {id:p.id,fee:0,profit:0,margin:0,fulfilment:0,success:0,size:"Not calculated",feeKnown:false};
       const tal=takealotFulfilment(category,volume,kg);
       const success=price*(takealotRates[category]??12)/100;
       const talFulfilment=takealotMode==="marketplace"?tal.fee:(Number(sellerDelivery)||0);
