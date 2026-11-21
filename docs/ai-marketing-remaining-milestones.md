@@ -8,8 +8,10 @@ This document is the execution ledger. A skipped CI job, unavailable environment
 
 ## Current baseline
 
-- Latest inspected baseline before the current CI hardening commit: `f5fb2ef79fe7f2476c86e2c2465c0ccb08a88385`.
-- CI hardening commit: `3c8ba48f8791ac303e009c69f4dbd42236566422` (automatic local migration apply/lint; its run is pending at the time of this edit).
+- Latest inspected code baseline before CI hardening: `f5fb2ef79fe7f2476c86e2c2465c0ccb08a88385`.
+- CI workflow commit: `3c8ba48f8791ac303e009c69f4dbd42236566422`.
+- Supabase config compatibility fix: `110f618823002db116bf880ee593e24833650073` (removed the obsolete `inbucket` config block).
+- Workflow service-exclusion fix: `63b4f9e8378d7b00242912dbb8b3f2bf9b7140f7` (removed unsupported `inbucket` exclusion). Latest CI for this head is pending.
 - The Next.js TypeScript, ESLint and production build job passed on that SHA.
 - AI Marketing Edge Function Deno type-check passed on that SHA.
 - Repository secret-history scan passed on that SHA.
@@ -22,7 +24,7 @@ This document is the execution ledger. A skipped CI job, unavailable environment
 | # | Milestone | Status | Evidence / remaining acceptance work |
 |---|---|---|---|
 | 1 | Establish current state | COMPLETE | Re-fetched branch, PR #35, changed-file list, migration/function sources and latest Actions. Keep this ledger current with each follow-up commit. |
-| 2 | Database migration validation | BLOCKED | Reviewed the AI Marketing migration sequence and key constraints/RPCs. Must run the full repository migration history against a clean local Supabase database, `supabase db lint --local`, and SQL dependency checks. The previous manual CI job was skipped; the workflow now starts an isolated local Supabase stack, applies the complete migration history with `supabase db reset --local`, runs `supabase db lint --local`, and stops the stack. The new automated run must pass before database validation is marked complete. No production migration was applied. |
+| 2 | Database migration validation | BLOCKED | Reviewed the AI Marketing migration sequence and key constraints/RPCs. Must run the full repository migration history against a clean local Supabase database, `supabase db lint --local`, and SQL dependency checks. The previous manual CI job was skipped. The new automated gate initially failed before database startup because the repository used the removed `[inbucket]` config section and an unsupported `inbucket` exclusion. Both compatibility issues have been fixed; the latest automated run must complete `supabase db reset --local` and `supabase db lint --local` before database validation is marked complete. No production migration was applied. |
 | 3 | Seller isolation and security | BLOCKED | RLS and ownership constraints are present in migrations and security notes. Still requires two real non-production seller JWTs and direct API/RPC tests across every seller-owned table, including UUID substitution, writes, deletes, activation denial, anonymous access and worker secret rejection/rotation. |
 | 4 | Automation engine | IN PROGRESS | Durable queue, SKIP LOCKED claims, schedule advancement, timezone arithmetic, invalid-timezone pausing, idempotent action events, transactional calendar drafts and exponential retry code exist. Worker now rejects malformed/non-object/oversized payloads and limits batch size to 1–25. A new migration recovers `running` jobs whose 15-minute worker lease expired, requeues within the retry budget and marks exhausted runs failed. Retry-state persistence failures now produce an HTTP 503 instead of a misleading successful worker response. Still needs executable DB tests for concurrency, DST, missed schedules, retry persistence, maximum attempts, duplicate execution and lease-expiry recovery. No worker is deployed. |
 | 5 | AI content quality | IN PROGRESS | Generation code uses seller brand/product context and explicitly prohibits invented product facts and claims; weekly plan validates seven structured posts. Add automated adversarial tests for conflicting/prohibited claims, missing context, malformed model responses, timeout, rate limits and quota rollback. Provider credentials/runtime are not configured or tested here. |
