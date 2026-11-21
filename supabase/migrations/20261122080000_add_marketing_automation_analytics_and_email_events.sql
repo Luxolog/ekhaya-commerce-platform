@@ -17,6 +17,7 @@ create table if not exists public.marketing_automations (
   max_attempts integer not null default 3 check (max_attempts between 1 and 5),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  constraint marketing_automations_id_user_unique unique (id, user_id),
   constraint marketing_automations_conditions_object check (jsonb_typeof(conditions) = 'object'),
   constraint marketing_automations_action_object check (jsonb_typeof(action_config) = 'object'),
   constraint marketing_automations_recurring_rule check (trigger_type <> 'recurring' or nullif(trim(recurrence_rule), '') is not null)
@@ -47,10 +48,6 @@ create index if not exists marketing_automation_runs_user_created_idx
   on public.marketing_automation_runs(user_id, created_at desc);
 create index if not exists marketing_automation_runs_automation_created_idx
   on public.marketing_automation_runs(automation_id, created_at desc);
-
--- Required by the composite ownership foreign key above.
-create unique index if not exists marketing_automations_id_user_unique
-  on public.marketing_automations(id, user_id);
 
 create table if not exists public.marketing_campaign_performance (
   id uuid primary key default gen_random_uuid(),
