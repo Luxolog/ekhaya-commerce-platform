@@ -20,7 +20,7 @@ declare
   v_used integer;
   v_event_id uuid;
 begin
-  if p_user_id is null or p_feature_code not in ('ai_post','campaign_idea','research_query','trend_report')
+  if p_user_id is null or p_feature_code is null or p_feature_code not in ('ai_post','campaign_idea','research_query','trend_report')
      or p_quantity is null or p_quantity < 1 or p_quantity > 1
      or p_idempotency_key is null or length(p_idempotency_key) < 12 or length(p_idempotency_key) > 128 then
     return jsonb_build_object('ok', false, 'reason', 'invalid_request');
