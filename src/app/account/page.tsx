@@ -24,7 +24,49 @@ export default function AccountPage() {
   const [signedIn,setSignedIn] = useState(false);
   const [availableRoles,setAvailableRoles] = useState<string[]>([]);
   const [checkingAccess,setCheckingAccess] = useState(false);
+  const [otpPending,setOtpPending] = useState(false);
+  const [otpCode,setOtpCode] = useState("");
+  const [otpEmailHint,setOtpEmailHint] = useState("");
+  const [otpBusy,setOtpBusy] = useState(false);
   const destinations = { seller: "/price-checker/", partner: "/partner/saechamber/", owner: "/owner/" } as const;
+  async function emailOtpRequest(accessToken: string, payload: Record<string, unknown>) {
+    const response = await fetch(supabaseUrl+"/functions/v1/partner-admin-email-otp", {
+      method: "POST",
+      headers: {"Content-Type":"application/json", apikey:anonKey, Authorization:"Bearer "+accessToken},
+      body: JSON.stringify(payload),
+      cache: "no-store"
+    });
+    const result = await response.json().catch(()=>({}));
+    if(!response.ok) throw new Error(result.error ?? "Email verification could not be completed.");
+    return result;
+  }
+  async function requireEmailOtp(accessToken: string, roles: string[]) {
+    if(!roles.includes("partner") && !roles.includes("owner")) return false;
+    const status = await emailOtpRequest(accessToken, {action:"status"});
+    if(!status.enabled || status.verified) return false;
+    const challenge = await emailOtpRequest(accessToken, {action:"start"});
+    setOtpEmailHint(String(challenge.email_hint ?? "your registered email"));
+    setOtpCode("");
+    setOtpPending(true);
+    setSignedIn(true);
+    setMessage("We sent a six-digit verification code to "+String(challenge.email_hint ?? "your registered email")+". Enter it to continue.");
+    return true;
+  }
+  async function verifyEmailOtp() {
+    setOtpBusy(true); setMessage("");
+    try {
+      const raw = localStorage.getItem("ekhaya_session");
+      const session = raw ? JSON.parse(raw) : null;
+      if(!session?.access_token) throw new Error("Your sign-in session has expired. Please sign in again.");
+      await emailOtpRequest(session.access_token, {action:"verify", code:otpCode});
+      setOtpPending(false);
+      setMessage("Email verified. Opening your authorised workspace…");
+      window.location.replace(destinations[accountType]);
+    } catch(e) {
+      setMessage(e instanceof Error ? e.message : "Could not verify the email code.");
+    } finally { setOtpBusy(false); }
+  }
+  const destinations
   async function loadAccountRoles(accessToken: string) {
     const headers={apikey:anonKey,Authorization:"Bearer "+accessToken};
     const userResponse=await fetch(supabaseUrl+"/auth/v1/user",{headers,cache:"no-store"});
@@ -76,9 +118,10 @@ export default function AccountPage() {
         const session=JSON.parse(raw);
         if(session?.access_token){
           setSignedIn(true); setMode("signin"); setCheckingAccess(true);
-          loadAccountRoles(session.access_token).then(roles=>{
+          loadAccountRoles(session.access_token).then(async roles=>{
             if(!active) return;
             setAvailableRoles(roles);
+            if(await requireEmailOtp(session.access_token, roles)) return;
             const requested = new URLSearchParams(window.location.search).get("account");
             if(requested === "partner" && roles.includes("partner")) window.location.replace(destinations.partner);
             else if(requested === "owner" && roles.includes("owner")) window.location.replace(destinations.owner);
@@ -141,6 +184,7 @@ export default function AccountPage() {
         if(mode==="signin"){
           const roles=await loadAccountRoles(session.access_token);
           setAvailableRoles(roles);
+          if(await requireEmailOtp(session.access_token, roles)) return;
           if(!roles.includes(accountType)) throw new Error("This login is not authorised for the selected "+(accountType==="owner"?"Admin/Owner":accountType)+" account. Contact Ekhaya support if you believe this is incorrect.");
           window.location.href=destinations[accountType];
           return;
@@ -172,6 +216,12 @@ export default function AccountPage() {
         {([{id:"seller",title:"Seller Account",desc:"Marketplace searches",icon:"🛍️"},{id:"partner",title:"Partner Account",desc:"SA eChamber dashboard",icon:"🤝"},{id:"owner",title:"Admin Account",desc:"Owner controls & analytics",icon:"🔐"}] as const).map(item=><button key={item.id} type="button" onClick={()=>{setAccountType(item.id);setMessage("");if(item.id!=="seller"&&mode==="signup")setMode("signin");}} style={{textAlign:"left",padding:12,borderRadius:10,border:accountType===item.id?"2px solid #079BD3":"1px solid #DCE8F1",background:accountType===item.id?"#EFF9FE":"#fff",color:"#071B31",cursor:"pointer"}}>
           <span style={{fontSize:21}}>{item.icon}</span><strong style={{display:"block",fontSize:13,marginTop:6}}>{item.title}</strong><span style={{display:"block",fontSize:10,color:"#60758A",lineHeight:1.4,marginTop:4}}>{item.desc}</span>
         </button>)}
+      </div>}
+      {otpPending&&<div style={{background:"#EFF9FE",border:"1px solid #B9DDED",borderRadius:10,padding:16,margin:"18px 0"}}>
+        <strong style={{fontSize:14}}>Verify your email address</strong>
+        <p style={{fontSize:12,color:"#40566B",lineHeight:1.6}}>Enter the six-digit code sent to {otpEmailHint}. The code expires in five minutes.</p>
+        <input inputMode="numeric" autoComplete="one-time-code" value={otpCode} onChange={e=>setOtpCode(e.target.value.replace(/\D/g,"").slice(0,6))} placeholder="6-digit verification code" style={field}/>
+        <button onClick={verifyEmailOtp} disabled={otpBusy||otpCode.length!==6} style={{width:"100%",padding:14,background:"#079BD3",border:0,borderRadius:8,color:"#fff",fontWeight:700,marginTop:12,cursor:"pointer"}}>{otpBusy?"Verifying…":"Verify and continue"}</button>
       </div>}
       {signedIn&&<div style={{background:"#F4F8FC",border:"1px solid #DCE8F1",borderRadius:10,padding:14,marginBottom:14}}>
         <strong style={{fontSize:13}}>Your available accounts</strong>
