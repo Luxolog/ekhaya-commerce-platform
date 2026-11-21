@@ -58,6 +58,12 @@ Deno.serve(async (req: Request) => {
   const requestedLimit = Number(body?.limit ?? 10);
   const limit = Number.isInteger(requestedLimit) ? Math.min(25, Math.max(1, requestedLimit)) : 10;
 
+  const { error: scheduleError } = await admin.rpc("claim_due_marketing_automations", { p_limit: limit });
+  if (scheduleError) {
+    console.error("Due automation scheduling failed:", scheduleError.message);
+    return json({ error: "Unable to schedule due automation runs." }, 503);
+  }
+
   const { data: runs, error: claimError } = await admin.rpc("claim_ready_marketing_automation_runs", {
     p_limit: limit,
   });
@@ -124,12 +130,13 @@ Deno.serve(async (req: Request) => {
       }, { onConflict: "run_id", ignoreDuplicates: true });
       if (eventError) throw new Error("action_event_write_failed");
 
-      await admin.from("marketing_automation_runs").update({
+      const { error: completeError } = await admin.from("marketing_automation_runs").update({
         status: "succeeded",
         completed_at: new Date().toISOString(),
         error_code: null,
         result_summary: "Internal seller action recorded. No email or external publishing was performed.",
       }).eq("id", run.id).eq("user_id", run.user_id);
+      if (completeError) throw new Error("run_completion_update_failed");
       succeeded++;
     } catch (error) {
       const { data: rule } = await admin.from("marketing_automations")
