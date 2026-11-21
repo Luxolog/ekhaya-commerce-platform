@@ -2,64 +2,69 @@
 
 ## Release order
 
-The platform will be introduced in three controlled stages. Work on later stages must not delay or destabilise the current release stage.
+The Price Checker is complete, deployed and working. Development focus now moves to Ekhaya AI Marketing, followed by Ekhaya Support Desk. Later stages must remain isolated from the live Price Checker.
 
-### Stage 1 — Price Checker (first priority)
+### Stage 1 — Ekhaya Price Checker
 
-**Objective:** Prove that the core Price Checker is reliable for real sellers before introducing additional paid modules.
+<status>Complete — deployed and working</status>
 
-Release gates:
+The user has confirmed that the Price Checker is complete, deployed and working. Do not reopen Stage 1 or change its live pricing, credits, subscriptions, payment flows or marketplace behaviour as part of Marketing development unless a specific defect is reported.
 
-- [ ] Seller registration, email verification, sign-in and account recovery work end to end.
-- [ ] Seller approval and referral attribution persist through the complete signup journey.
-- [ ] Subscription status, marketplace entitlements, search limits and credit deductions are correct.
-- [ ] Each marketplace adapter returns correctly attributed results; unsupported marketplaces remain clearly disabled.
-- [ ] Cached and fresh searches apply the intended credit rules consistently.
-- [ ] Marketplace fee and profit figures are labelled as estimates, with the required seller acknowledgement before access.
-- [ ] Supplier comparison, barcode/image lookup and product matching handle missing or ambiguous results safely.
-- [ ] Payment checkout, webhook verification, idempotency, failed payments and subscription renewal states are tested.
-- [ ] Seller dashboards, usage history and support/admin visibility are accurate.
-- [ ] Live pilot feedback and production monitoring show no release-blocking defects.
+### Stage 2 — Ekhaya AI Marketing (current priority)
 
-**Stage 1 release rule:** Do not launch or promote the next module until the Price Checker gates are reviewed and signed off. Do not change existing Price Checker pricing, credits or payment behaviour as part of the AI Marketing work.
+**Objective:** Build and prepare an optional seller marketing suite that can be introduced after the Supabase Pro upgrade and non-production validation.
 
-### Stage 2 — Ekhaya AI Marketing
+Current product foundation:
 
-**Objective:** Introduce AI Marketing as an optional seller add-on only after Stage 1 is stable.
+- Seller-facing AI Marketing dashboard inside the existing account.
+- Marketing Mini package proposed at R29/month, separate from Price Checker billing.
+- AI social posts, campaign ideas, research briefs and trend-planning briefs.
+- Seven-day AI content calendar saved as drafts.
+- Seller campaign workspace.
+- Separate marketing subscription, usage and payment records.
+- Atomic usage reservation and release functions.
+- Dedicated Paystack billing function, with checkout hard-disabled.
 
-Prerequisites:
+Build and acceptance priorities:
 
-- [ ] Stage 1 is signed off.
-- [ ] Marketing database migrations and RLS policies are validated in a non-production database.
-- [ ] Quota reservation, idempotency, exhaustion and failure-release paths are tested.
-- [ ] OpenAI key is stored only as a server-side secret; generation is tested without exposing credentials.
-- [ ] Generated material is saved as drafts; no automatic publishing is implied.
-- [ ] Paystack merchant approval is received.
-- [ ] Marketing checkout and webhook flows pass sandbox and end-to-end tests.
-- [ ] Marketing billing and usage remain isolated from Price Checker subscriptions, credits and payment triggers.
-- [ ] Release gate is explicitly enabled only after approval and testing.
+- [ ] Make the content studio and campaign workspace useful for managing saved content, not just generating it.
+- [ ] Improve seller onboarding and explain the value, allowances and limitations of each tool.
+- [ ] Add clear usage visibility and helpful quota-exhaustion messaging.
+- [ ] Add robust input validation, rate limits, abuse protection and safe error handling.
+- [ ] Review all Edge Function authentication, CORS, idempotency and service-role operations.
+- [ ] Review all SQL grants, RLS policies, security-definer functions and indexes.
+- [ ] Validate every migration on a non-production Supabase branch after Pro is available.
+- [ ] Test active, pending, expired and cancelled subscription states.
+- [ ] Test quota limits, duplicate requests, model failures and quota release.
+- [ ] Configure OpenAI secrets only in Supabase Edge Function secrets; never commit secrets.
+- [ ] Receive Paystack merchant approval and test the separate Marketing payment flow in sandbox.
+- [ ] Keep Marketing billing and allowances isolated from Price Checker subscriptions, credits and payment triggers.
+- [ ] Prepare release notes, support guidance and rollback steps.
+- [ ] Enable Marketing gradually only after the user approves the release.
 
-**Current status:** Feature implementation is on the GitHub feature branch / draft PR. Checkout remains hard-disabled. No production migration, Edge Function deployment or Vercel deployment is authorised by this plan.
+**Current release boundary:** GitHub-only development. Do not create a Supabase development branch until the organisation is on Pro and the cost is understood. Do not apply migrations to production, deploy Edge Functions, enable checkout or deploy to Vercel until separately authorised.
 
 ### Stage 3 — Ekhaya Support Desk
 
-**Objective:** Introduce seller support after Price Checker and AI Marketing are stable.
+**Objective:** Build a seller support service after AI Marketing is ready for staged introduction.
 
-Prerequisites:
+Requirements:
 
-- [ ] Stage 1 and Stage 2 have been signed off.
-- [ ] Support roles and permissions are defined separately from seller permissions.
-- [ ] Ticket ownership, status changes, internal notes and seller-visible replies are tested.
-- [ ] Email notifications and attachment handling are tested with appropriate access controls.
-- [ ] Audit history and escalation paths are available.
-- [ ] Support Desk does not expose one seller's data to another seller.
-- [ ] Any support subscription or charge is separately specified and approved before implementation.
+- [ ] Define seller, support-agent and administrator roles.
+- [ ] Build ticket creation, assignment, priority and status management.
+- [ ] Support seller-visible replies and private internal notes.
+- [ ] Add email notifications and escalation paths.
+- [ ] Secure attachment access and seller data isolation.
+- [ ] Maintain ticket history and audit events.
+- [ ] Define service levels and support operating procedures.
+- [ ] Specify any support subscription or fee separately before implementation.
 
 ## Working and deployment rules
 
-- GitHub is the source of truth during the current development period.
+- GitHub is the source of truth during current development.
 - Do not deploy to Vercel until explicitly authorised.
 - Do not apply feature migrations to the production Supabase project.
 - Do not enable Paystack Marketing checkout while merchant approval is pending.
 - Do not merge the AI Marketing draft PR until its stage gate is reached and the user explicitly approves.
+- Keep the live Price Checker stable and independently deployable.
 - Keep each stage independently testable, with its own release checklist and rollback plan.
