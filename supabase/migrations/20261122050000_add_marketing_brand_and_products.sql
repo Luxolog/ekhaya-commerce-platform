@@ -2,7 +2,7 @@
 -- Apply only after reviewing and validating in a non-production database.
 create table if not exists public.seller_marketing_brand_profiles (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   business_name text not null default '',
   business_description text not null default '',
   industry text not null default '',
