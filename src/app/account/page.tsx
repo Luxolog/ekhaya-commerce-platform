@@ -223,7 +223,7 @@ export default function AccountPage() {
         <input inputMode="numeric" autoComplete="one-time-code" value={otpCode} onChange={e=>setOtpCode(e.target.value.replace(/\D/g,"").slice(0,6))} placeholder="6-digit verification code" style={field}/>
         <button onClick={verifyEmailOtp} disabled={otpBusy||otpCode.length!==6} style={{width:"100%",padding:14,background:"#079BD3",border:0,borderRadius:8,color:"#fff",fontWeight:700,marginTop:12,cursor:"pointer"}}>{otpBusy?"Verifying…":"Verify and continue"}</button>
       </div>}
-      {signedIn&&<div style={{background:"#F4F8FC",border:"1px solid #DCE8F1",borderRadius:10,padding:14,marginBottom:14}}>
+      {signedIn&&!otpPending&&<div style={{background:"#F4F8FC",border:"1px solid #DCE8F1",borderRadius:10,padding:14,marginBottom:14}}>
         <strong style={{fontSize:13}}>Your available accounts</strong>
         {checkingAccess?<p style={{fontSize:12,color:"#60758A",marginBottom:0}}>Checking your account permissions…</p>:<div style={{display:"grid",gap:8,marginTop:10}}>
           {([{id:"seller",title:"Seller account",href:"/price-checker/"},{id:"partner",title:"Partner account",href:"/partner/saechamber/"},{id:"owner",title:"Admin / Owner account",href:"/owner/"}] as const).filter(item=>availableRoles.includes(item.id)).map(item=><Link key={item.id} href={item.href} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff",border:"1px solid #DCE8F1",borderRadius:8,padding:"10px 12px",color:"#087EAC",fontSize:13,fontWeight:700,textDecoration:"none"}}>{item.title}<span>Open →</span></Link>)}
