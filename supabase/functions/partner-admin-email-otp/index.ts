@@ -158,6 +158,15 @@ Deno.serve(async (req: Request) => {
       user_id: user.id, email_otp_enabled: body.enabled, updated_at: new Date().toISOString(),
     });
     if (updateError) return json({ error: "Could not update your security preference." }, 500);
+    // Password reauthentication authorizes enabling the feature in this existing
+    // session; the email challenge is required on the next sign-in.
+    if (body.enabled) {
+      const { error: sessionError } = await admin.from("email_otp_verified_sessions").upsert({
+        user_id: user.id, session_id: sessionId, verified_at: new Date().toISOString(),
+        expires_at: new Date(expiresAt * 1000).toISOString(),
+      });
+      if (sessionError) return json({ error: "The setting was saved, but the current session could not be confirmed. Please sign in again." }, 500);
+    }
     return json({ ok: true, enabled: body.enabled });
   }
 
