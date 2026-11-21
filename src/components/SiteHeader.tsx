@@ -10,6 +10,8 @@ const links = [
   { href: "/affiliates-partnerships/", label: "AFFILIATES & PARTNERSHIPS", key: "affiliates-partnerships" },
   { href: "/download/", label: "DOWNLOAD APP", key: "download" },
   { href: "/account/", label: "MY ACCOUNT", key: "account" },
+  { href: "/partner/account/", label: "PARTNER LOGIN", key: "partner-account" },
+  { href: "/admin/account/", label: "ADMIN LOGIN", key: "admin-account" },
 ];
 
 export default function SiteHeader({ active = "" }: { active?: string }) {

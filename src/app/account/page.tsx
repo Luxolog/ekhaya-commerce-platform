@@ -40,7 +40,12 @@ export default function AccountPage() {
     return roles;
   }
   useEffect(()=>{
-    const referral = new URLSearchParams(window.location.search).get("ref");
+    const searchParams = new URLSearchParams(window.location.search);
+    const referral = searchParams.get("ref");
+    const requestedAccount = searchParams.get("account");
+    if(requestedAccount === "seller" || requestedAccount === "partner" || requestedAccount === "owner") {
+      setAccountType(requestedAccount);
+    }
     if(referral) setReferralCode(referral.toUpperCase().replace(/[^A-Z0-9_-]/g,""));
     const params = new URLSearchParams(window.location.hash.replace(/^#/,""));
     const token = params.get("access_token");
@@ -71,7 +76,15 @@ export default function AccountPage() {
         const session=JSON.parse(raw);
         if(session?.access_token){
           setSignedIn(true); setMode("signin"); setCheckingAccess(true);
-          loadAccountRoles(session.access_token).then(roles=>{if(active)setAvailableRoles(roles);})
+          loadAccountRoles(session.access_token).then(roles=>{
+            if(!active) return;
+            setAvailableRoles(roles);
+            const requested = new URLSearchParams(window.location.search).get("account");
+            if(requested === "partner" && roles.includes("partner")) window.location.replace(destinations.partner);
+            else if(requested === "owner" && roles.includes("owner")) window.location.replace(destinations.owner);
+            else if(requested === "seller" && roles.includes("seller")) window.location.replace(destinations.seller);
+            else if(requested === "partner" || requested === "owner") setMessage("This account does not have access to the requested workspace. Choose an authorised account or contact Ekhaya support.");
+          })
             .catch(e=>{if(active)setMessage(e instanceof Error?e.message:"Could not verify account access.");})
             .finally(()=>{if(active)setCheckingAccess(false);});
         }
@@ -145,14 +158,18 @@ export default function AccountPage() {
   return <main style={{minHeight:"100vh",background:"#F4F8FC",padding:"28px 5%",color:"#071B31",fontFamily:"Arial,sans-serif"}}>
     <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",maxWidth:760,margin:"0 auto",borderBottom:"1px solid #DCE8F1",paddingBottom:18}}>
       <Link href="/"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={170} height={100} style={{width:150,height:"auto"}}/></Link>
-      <Link href="/price-checker/" style={{color:"#079BD3",fontWeight:700,fontSize:13}}>Price checker →</Link>
+      <nav aria-label="Account access" style={{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap",fontSize:12}}>
+        <Link href="/partner/account/" style={{color:"#087EAC",fontWeight:700,textDecoration:"none"}}>Partner access</Link>
+        <Link href="/admin/account/" style={{color:"#087EAC",fontWeight:700,textDecoration:"none"}}>Admin access</Link>
+        <Link href="/price-checker/" style={{color:"#079BD3",fontWeight:700,textDecoration:"none"}}>Price checker →</Link>
+      </nav>
     </header>
     <section style={{maxWidth:480,margin:"70px auto",background:"#fff",border:"1px solid #DCE8F1",borderRadius:14,padding:28,boxShadow:"0 8px 30px #071b3108"}}>
       <p style={{color:"#079BD3",fontSize:10,fontWeight:800,letterSpacing:2}}>EKHAYA ACCOUNT ACCESS</p>
       <h1 style={{fontSize:30,fontWeight:700,margin:"8px 0 10px"}}>{signedIn?"Your Ekhaya accounts":mode==="signup"?"Create your seller account":mode==="reset"?"Reset your password":mode==="new-password"?"Choose a new password":mode==="accept-partner"?"Accept partner invitation":"Sign in to your account"}</h1>
       <p style={{color:"#60758A",fontSize:13,lineHeight:1.6}}>Sign in to continue to your Ekhaya workspace. New to Ekhaya? You can create a seller account below.</p>
       {!signedIn&&mode!=="accept-partner"&&mode!=="reset"&&mode!=="new-password"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(115px,1fr))",gap:9,margin:"18px 0"}}>
-        {([{id:"seller",title:"Seller",desc:"Marketplace searches",icon:"🛍️"},{id:"partner",title:"Partner",desc:"Referrals & commissions",icon:"🤝"},{id:"owner",title:"Admin / Owner",desc:"Platform administration",icon:"🔐"}] as const).map(item=><button key={item.id} type="button" onClick={()=>{setAccountType(item.id);setMessage("");if(item.id!=="seller"&&mode==="signup")setMode("signin");}} style={{textAlign:"left",padding:12,borderRadius:10,border:accountType===item.id?"2px solid #079BD3":"1px solid #DCE8F1",background:accountType===item.id?"#EFF9FE":"#fff",color:"#071B31",cursor:"pointer"}}>
+        {([{id:"seller",title:"Seller Account",desc:"Marketplace searches",icon:"🛍️"},{id:"partner",title:"Partner Account",desc:"SA eChamber dashboard",icon:"🤝"},{id:"owner",title:"Admin Account",desc:"Owner controls & analytics",icon:"🔐"}] as const).map(item=><button key={item.id} type="button" onClick={()=>{setAccountType(item.id);setMessage("");if(item.id!=="seller"&&mode==="signup")setMode("signin");}} style={{textAlign:"left",padding:12,borderRadius:10,border:accountType===item.id?"2px solid #079BD3":"1px solid #DCE8F1",background:accountType===item.id?"#EFF9FE":"#fff",color:"#071B31",cursor:"pointer"}}>
           <span style={{fontSize:21}}>{item.icon}</span><strong style={{display:"block",fontSize:13,marginTop:6}}>{item.title}</strong><span style={{display:"block",fontSize:10,color:"#60758A",lineHeight:1.4,marginTop:4}}>{item.desc}</span>
         </button>)}
       </div>}
