@@ -60,7 +60,7 @@ jobs:
         with:
           version: latest
       - name: Start isolated local Supabase stack
-        run: supabase start -x studio,inbucket,imgproxy,edge-runtime,logflare,vector
+        run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector
       - name: Apply the complete migration history to the local database
         run: supabase db reset --local
       - name: Lint the resulting local database
