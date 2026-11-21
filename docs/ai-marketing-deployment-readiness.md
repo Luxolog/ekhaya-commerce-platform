@@ -33,6 +33,7 @@ Apply these files to an isolated non-production database in this order, after re
 11. 20261122080000_add_marketing_automation_analytics_and_email_events.sql
 12. 20261122090000_lock_automation_activation_until_worker.sql
 13. 20261122100000_add_marketing_automation_worker_runtime.sql
+14. 20261122110000_advance_marketing_automation_schedules.sql
 
 Do not apply this list directly to production. Confirm migration history and dependencies in the target environment first.
 
