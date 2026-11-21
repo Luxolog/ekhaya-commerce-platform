@@ -40,7 +40,12 @@ export default function AccountPage() {
     return roles;
   }
   useEffect(()=>{
-    const referral = new URLSearchParams(window.location.search).get("ref");
+    const searchParams = new URLSearchParams(window.location.search);
+    const referral = searchParams.get("ref");
+    const requestedAccount = searchParams.get("account");
+    if(requestedAccount === "seller" || requestedAccount === "partner" || requestedAccount === "owner") {
+      setAccountType(requestedAccount);
+    }
     if(referral) setReferralCode(referral.toUpperCase().replace(/[^A-Z0-9_-]/g,""));
     const params = new URLSearchParams(window.location.hash.replace(/^#/,""));
     const token = params.get("access_token");
@@ -145,7 +150,11 @@ export default function AccountPage() {
   return <main style={{minHeight:"100vh",background:"#F4F8FC",padding:"28px 5%",color:"#071B31",fontFamily:"Arial,sans-serif"}}>
     <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",maxWidth:760,margin:"0 auto",borderBottom:"1px solid #DCE8F1",paddingBottom:18}}>
       <Link href="/"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={170} height={100} style={{width:150,height:"auto"}}/></Link>
-      <Link href="/price-checker/" style={{color:"#079BD3",fontWeight:700,fontSize:13}}>Price checker →</Link>
+      <nav aria-label="Account access" style={{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap",fontSize:12}}>
+        <Link href="/partner/account/" style={{color:"#087EAC",fontWeight:700,textDecoration:"none"}}>Partner access</Link>
+        <Link href="/admin/account/" style={{color:"#087EAC",fontWeight:700,textDecoration:"none"}}>Admin access</Link>
+        <Link href="/price-checker/" style={{color:"#079BD3",fontWeight:700,textDecoration:"none"}}>Price checker →</Link>
+      </nav>
     </header>
     <section style={{maxWidth:480,margin:"70px auto",background:"#fff",border:"1px solid #DCE8F1",borderRadius:14,padding:28,boxShadow:"0 8px 30px #071b3108"}}>
       <p style={{color:"#079BD3",fontSize:10,fontWeight:800,letterSpacing:2}}>EKHAYA ACCOUNT ACCESS</p>
