@@ -18,7 +18,7 @@ function classifyProduct(query: string, product: { title?: string; brand?: strin
   if (!unique.length) return null;
   const matched = unique.filter((token) => source.includes(token));
   const ratio = matched.length / unique.length;
-  const accessory = ACCESSORY_TERMS.test(source) && PRODUCT_TYPE_TERMS.test(query);
+  const accessory = ACCESSORY_TERMS.test(source) && !ACCESSORY_TERMS.test(query);
   if (accessory) return "accessory";
   if (ratio >= 0.85) return "exact";
   if (ratio >= 0.5 && matched.length >= 2) return "related";
