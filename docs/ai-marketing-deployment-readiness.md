@@ -31,6 +31,8 @@ Apply these files to an isolated non-production database in this order, after re
 9. 20261122060000_add_marketing_contacts_and_email_drafts.sql
 10. 20261122070000_add_campaign_planning_metadata.sql
 11. 20261122080000_add_marketing_automation_analytics_and_email_events.sql
+12. 20261122090000_lock_automation_activation_until_worker.sql
+13. 20261122100000_add_marketing_automation_worker_runtime.sql
 
 Do not apply this list directly to production. Confirm migration history and dependencies in the target environment first.
 
@@ -48,7 +50,8 @@ Do not apply this list directly to production. Confirm migration history and dep
 
 1. ai-marketing-generate
 2. ai-marketing-weekly-plan
-3. paystack-marketing-billing (checkout and webhook remain disabled)
+3. marketing-automation-worker (internal actions only; require a long random MARKETING_AUTOMATION_WORKER_SECRET)
+4. paystack-marketing-billing (checkout and webhook remain disabled)
 
 Deploy only after migrations have been applied and verified in the isolated environment. Keep all provider keys server-side.
 
@@ -95,6 +98,6 @@ Do not add service-role, OpenAI or Paystack secrets to NEXT_PUBLIC variables. Th
 
 A repository Supabase CLI configuration is now present at supabase/config.toml. Its project_id is a local project label, not a production project reference. Link explicitly to the approved non-production project when authorised. Function JWT verification is enabled for the AI Marketing generation, weekly-plan and Paystack Marketing billing functions.
 
-The automation schema is a database foundation only. No scheduler or automation worker is deployed; rules must remain paused until a reviewed worker is available. Analytics performance metrics are seller-entered or provider-imported and must retain their source label.
+The automation worker source is present but is not deployed or scheduled. It requires the runtime migrations, a long random MARKETING_AUTOMATION_WORKER_SECRET and an explicitly configured scheduler. The worker writes only internal seller action events; it does not send email, publish content or call external providers. Sellers cannot activate rules through the UI or authenticated database policy; activation must be performed by an authorised service-role release operation after non-production tests. Analytics performance metrics are seller-entered or provider-imported and must retain their source label.
 
 Email provider selection and credentials remain outstanding. Email drafts and delivery-event schema do not imply outbound email capability.
