@@ -11,6 +11,13 @@ begin
     raise exception 'p_limit must be between 1 and 100';
   end if;
 
+  -- Invalid IANA timezone names must not poison the worker batch. Pause these rules for seller correction.
+  update public.marketing_automations a
+  set status = 'paused'
+  where a.status = 'active'
+    and a.next_run_at <= now()
+    and not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = a.schedule_timezone);
+
   return query
   with due as (
     select a.id, a.user_id, a.next_run_at, a.trigger_type, a.recurrence_rule, a.schedule_timezone
