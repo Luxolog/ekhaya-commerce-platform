@@ -148,3 +148,18 @@ create policy marketing_payment_transactions_read_own
 
 -- No client-side INSERT/UPDATE policies are intentionally granted for subscriptions,
 -- usage events or payment records. Trusted server-side billing/usage functions will own writes.
+
+-- Explicit Data API privileges (Supabase no longer auto-exposes newly created public tables).
+-- RLS remains the row-level boundary; these grants expose only the operations used by the seller UI.
+grant select on public.marketing_plans to authenticated;
+grant select on public.seller_marketing_subscriptions to authenticated;
+grant select on public.marketing_usage_events to authenticated;
+grant select, insert, update, delete on public.marketing_campaigns to authenticated;
+grant select on public.marketing_payment_transactions to authenticated;
+
+-- Trusted Edge Functions use the service role for server-side writes.
+grant all privileges on public.marketing_plans to service_role;
+grant all privileges on public.seller_marketing_subscriptions to service_role;
+grant all privileges on public.marketing_usage_events to service_role;
+grant all privileges on public.marketing_campaigns to service_role;
+grant all privileges on public.marketing_payment_transactions to service_role;
