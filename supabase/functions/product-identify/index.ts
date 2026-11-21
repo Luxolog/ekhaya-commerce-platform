@@ -18,7 +18,7 @@ function extractOcrAttributes(text: string): Record<string, { value: string; sou
   add("wattage", text.match(/\b\d{1,3}\s?W\b/i));
   add("cable_length", text.match(/\b\d+(?:[.,]\d+)?\s?(?:m|cm)\b/i));
   add("capacity", text.match(/\b\d+(?:[.,]\d+)?\s?(?:mAh|Ah|GB|TB|MB)\b/i));
-  add("pack_quantity", text.match(/\b(?:pack of|set of|\d+\s?[- ]?pack|\d+\s?(?:pcs|pieces|units))\b/i));
+  add("pack_quantity", text.match(/\b(?:pack of\s*\d+|set of\s*\d+|\d+\s*[- ]pack|\d+\s*(?:pcs|pieces|units))\b/i));
   add("model_or_sku", text.match(/\b(?:model|model no\.?|sku|item no\.?|p\/n)\s*[:#-]?\s*[A-Z0-9][A-Z0-9._/-]{2,}\b/i));
   add("connector_types", text.match(/\b(?:USB[- ]?C\s*(?:to|[-–])\s*USB[- ]?C|USB[- ]?A\s*(?:to|[-–])\s*USB[- ]?C|USB[- ]?C|USB[- ]?A|Lightning|Micro[- ]?USB)\b/i));
   if (/\bwall charger\b|\bpower adapter\b|\bcharging adapter\b/i.test(text)) attributes.product_type = { value: "wall charger / power adapter", source: "ocr", confirmed: false };
