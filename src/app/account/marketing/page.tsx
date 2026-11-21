@@ -448,6 +448,7 @@ export default function MarketingDashboardPage() {
       <nav style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap", fontSize: 13, fontWeight: 700 }}>
         <Link href="/price-checker/" style={{ color: "#60758A" }}>Price Checker</Link>
         <Link href="/account/marketing/intelligence/" style={{ color: "#079BD3" }}>Marketing Intelligence</Link>
+          <Link href="/account/marketing/overview/" style={{ color: "#60758A" }}>Overview &amp; usage</Link>
         <Link href="/account/marketing/guide/" style={{ color: "#60758A" }}>Help centre</Link>
         <Link href="/account/billing/" style={{ color: "#60758A" }}>Billing</Link>
         <Link href="/account/" style={{ color: "#079BD3" }}>My account</Link>
