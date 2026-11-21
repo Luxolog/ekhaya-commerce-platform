@@ -13,7 +13,10 @@ Use two authorised non-production seller accounts (Seller A and Seller B), with 
 3. Generate each supported content format and confirm no unsupplied facts are invented.
 4. Save, edit, archive and approve a campaign draft.
 5. Create calendar drafts and verify no external publishing occurs.
-6. Create a marketing automation rule; confirm new rules are paused and no job executes without a worker.
+6. Create a marketing automation rule; confirm new rules are paused and sellers cannot activate them.
+7. In an isolated environment only, configure the worker secret and invoke the worker with an authorised scheduler request. Confirm due-run claiming, one-time completion, daily/weekly/monthly timezone-aware schedule advancement, idempotent action-event creation and persisted retry backoff.
+8. Confirm invalid worker secrets receive 401, unauthenticated seller roles cannot execute worker RPCs, and no email or social post is sent/published.
+9. Confirm a malformed action config is recorded as skipped with a clear run result.
 7. Record seller-entered performance data and verify it is labelled as seller-entered.
 8. Import synthetic contacts, including duplicates and unknown-consent rows.
 9. Confirm unknown, withdrawn and opted-out contacts cannot be included in an email draft.
