@@ -30,6 +30,7 @@ Apply these files to an isolated non-production database in this order, after re
 8. 20261122050000_add_marketing_brand_and_products.sql
 9. 20261122060000_add_marketing_contacts_and_email_drafts.sql
 10. 20261122070000_add_campaign_planning_metadata.sql
+11. 20261122080000_add_marketing_automation_analytics_and_email_events.sql
 
 Do not apply this list directly to production. Confirm migration history and dependencies in the target environment first.
 
@@ -79,3 +80,21 @@ Deploy only after migrations have been applied and verified in the isolated envi
 - Confirm transaction history reads only from the Marketing ledger.
 - Confirm Price Checker checkout, subscriptions, marketplace searches and credits remain unchanged.
 - Confirm monitoring and support ownership before opening access to sellers.
+
+
+## Vercel preparation
+
+The Next.js client now reads the Supabase project URL from NEXT_PUBLIC_SUPABASE_URL rather than a hard-coded project URL. Configure these public build-time variables in the intended Vercel project and environment:
+
+- NEXT_PUBLIC_SUPABASE_URL
+- NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+Do not add service-role, OpenAI or Paystack secrets to NEXT_PUBLIC variables. The current Next.js configuration uses static export; verify the generated output and the existing Vercel project build/output settings in a preview before production. No Vercel deployment has been performed.
+
+## Supabase CLI preparation
+
+A repository Supabase CLI configuration is now present at supabase/config.toml. Its project_id is a local project label, not a production project reference. Link explicitly to the approved non-production project when authorised. Function JWT verification is enabled for the AI Marketing generation, weekly-plan and Paystack Marketing billing functions.
+
+The automation schema is a database foundation only. No scheduler or automation worker is deployed; rules must remain paused until a reviewed worker is available. Analytics performance metrics are seller-entered or provider-imported and must retain their source label.
+
+Email provider selection and credentials remain outstanding. Email drafts and delivery-event schema do not imply outbound email capability.
