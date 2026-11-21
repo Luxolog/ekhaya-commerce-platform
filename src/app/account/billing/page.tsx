@@ -119,6 +119,7 @@ export default function BillingDashboardPage() {
       <Link href="/"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={190} height={150} style={{ width: 150, height: "auto" }} priority /></Link>
       <nav style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap", fontSize: 13, fontWeight: 700 }}>
         <Link href="/price-checker/" style={{ color: "#60758A" }}>Price Checker</Link>
+        <Link href="/account/marketing/" style={{ color: "#079BD3" }}>AI Marketing</Link>
         <Link href="/pricing/" style={{ color: "#60758A" }}>Plans & pricing</Link>
         <Link href="/account/" style={{ color: "#079BD3" }}>My account</Link>
       </nav>
