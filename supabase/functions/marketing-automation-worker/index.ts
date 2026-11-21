@@ -78,67 +78,11 @@ Deno.serve(async (req: Request) => {
   let skipped = 0;
 
   for (const run of (runs ?? []) as Run[]) {
-    try {
-      const { data: automation, error: automationError } = await admin
-        .from("marketing_automations")
-        .select("id,user_id,name,description,action_type,action_config,max_attempts,status")
-        .eq("id", run.automation_id)
-        .eq("user_id", run.user_id)
-        .maybeSingle();
+    const { data: result, error: executeError } = await admin.rpc("execute_marketing_automation_action", {
+      p_run_id: run.id,
+    });
 
-      if (automationError) throw new Error("automation_lookup_failed");
-      if (!automation || automation.status !== "active") {
-        await admin.from("marketing_automation_runs").update({
-          status: "skipped",
-          completed_at: new Date().toISOString(),
-          error_code: "automation_not_active",
-          result_summary: "Rule was no longer active when the worker picked it up.",
-        }).eq("id", run.id).eq("user_id", run.user_id);
-        skipped++;
-        continue;
-      }
-
-      const rule = automation as Automation;
-      const config = rule.action_config ?? {};
-      const title = clean(config.title, 160) || clean(rule.name, 120);
-      const content = clean(config.content ?? config.message, 5000) || clean(rule.description, 5000);
-      if (!content) {
-        await admin.from("marketing_automation_runs").update({
-          status: "skipped",
-          completed_at: new Date().toISOString(),
-          error_code: "action_content_missing",
-          result_summary: "Add action_config.content (or message) before activating this rule.",
-        }).eq("id", run.id).eq("user_id", run.user_id);
-        skipped++;
-        continue;
-      }
-
-      const eventPayload = {
-        scheduled_for: run.scheduled_for,
-        automation_name: rule.name,
-        source: "ai_marketing_automation_worker",
-        delivery: "internal_only",
-      };
-      const { error: eventError } = await admin.from("marketing_automation_action_events").upsert({
-        run_id: run.id,
-        automation_id: rule.id,
-        user_id: run.user_id,
-        action_type: rule.action_type,
-        title,
-        body: content,
-        payload: eventPayload,
-      }, { onConflict: "run_id", ignoreDuplicates: true });
-      if (eventError) throw new Error("action_event_write_failed");
-
-      const { error: completeError } = await admin.from("marketing_automation_runs").update({
-        status: "succeeded",
-        completed_at: new Date().toISOString(),
-        error_code: null,
-        result_summary: "Internal seller action recorded. No email or external publishing was performed.",
-      }).eq("id", run.id).eq("user_id", run.user_id);
-      if (completeError) throw new Error("run_completion_update_failed");
-      succeeded++;
-    } catch (error) {
+    if (executeError) {
       const { data: rule } = await admin.from("marketing_automations")
         .select("max_attempts")
         .eq("id", run.automation_id)
@@ -147,7 +91,7 @@ Deno.serve(async (req: Request) => {
       const maxAttempts = Math.min(5, Math.max(1, Number(rule?.max_attempts ?? 3)));
       const isFinal = run.attempt_count >= maxAttempts;
       const delaySeconds = Math.min(3600, 30 * (2 ** Math.max(0, run.attempt_count - 1)));
-      await admin.from("marketing_automation_runs").update({
+      const { error: retryError } = await admin.from("marketing_automation_runs").update({
         status: isFinal ? "failed" : "queued",
         available_at: isFinal ? new Date().toISOString() : new Date(Date.now() + delaySeconds * 1000).toISOString(),
         completed_at: isFinal ? new Date().toISOString() : null,
@@ -156,9 +100,19 @@ Deno.serve(async (req: Request) => {
           ? "The action failed after the maximum retry attempts."
           : "The action failed and was queued for a delayed retry.",
       }).eq("id", run.id).eq("user_id", run.user_id);
+      if (retryError) console.error("Unable to persist automation retry:", retryError.message);
       if (isFinal) failed++;
       else retried++;
-      console.error("Automation action failed:", error instanceof Error ? error.message : "unknown_error");
+      console.error("Automation action execution failed:", executeError.message);
+      continue;
+    }
+
+    const status = result?.status;
+    if (status === "succeeded") succeeded++;
+    else if (status === "skipped") skipped++;
+    else {
+      failed++;
+      console.error("Automation executor returned an unexpected result for run:", run.id);
     }
   }
 
