@@ -87,7 +87,15 @@ export default function AccountPage() {
     if(requestedAccount === "seller" || requestedAccount === "partner" || requestedAccount === "owner") {
       setAccountType(requestedAccount);
     }
-    if(referral) setReferralCode(referral.toUpperCase().replace(/[^A-Z0-9_-]/g,""));
+    try {
+      const capturedReferral = (referral || localStorage.getItem("ekhaya_referral_code") || "").toUpperCase().replace(/[^A-Z0-9_-]/g,"");
+      if(capturedReferral) {
+        setReferralCode(capturedReferral);
+        localStorage.setItem("ekhaya_referral_code", capturedReferral);
+      }
+    } catch {
+      if(referral) setReferralCode(referral.toUpperCase().replace(/[^A-Z0-9_-]/g,""));
+    }
     const params = new URLSearchParams(window.location.hash.replace(/^#/,""));
     const token = params.get("access_token");
     const inviteId = new URLSearchParams(window.location.search).get("partner_invite");
