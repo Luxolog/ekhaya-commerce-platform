@@ -66,7 +66,6 @@ export default function AccountPage() {
       setMessage(e instanceof Error ? e.message : "Could not verify the email code.");
     } finally { setOtpBusy(false); }
   }
-  const destinations
   async function loadAccountRoles(accessToken: string) {
     const headers={apikey:anonKey,Authorization:"Bearer "+accessToken};
     const userResponse=await fetch(supabaseUrl+"/auth/v1/user",{headers,cache:"no-store"});
