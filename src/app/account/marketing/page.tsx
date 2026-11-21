@@ -207,19 +207,7 @@ export default function MarketingDashboardPage() {
       if (!response.ok || !Array.isArray(payload.posts) || payload.posts.length !== 7) {
         throw new Error(payload.error ?? "Unable to create your seven-day plan.");
       }
-      const start = new Date(); start.setHours(9, 0, 0, 0);
-      const rows = payload.posts.map((post: { title: string; content: string }, index: number) => {
-        const scheduled = new Date(start); scheduled.setDate(start.getDate() + index);
-        return { title: post.title, content: post.content, platform: weeklyPlatform, scheduled_for: scheduled.toISOString(), status: "draft" };
-      });
-      const saved = await fetch(SUPABASE_URL + "/rest/v1/marketing_calendar_posts", {
-        method: "POST", headers: { ...headers, Prefer: "return=minimal" }, body: JSON.stringify(rows),
-      });
-      if (!saved.ok) {
-        const detail = await saved.json().catch(() => ({}));
-        throw new Error(detail.message ?? detail.msg ?? "The posts were generated but could not be saved. Contact support before retrying to avoid duplicate credit use.");
-      }
-      setNotice("Your seven-day plan has been saved as drafts. Review and approve each post before using it.");
+      setNotice("Your seven-day plan has been saved as drafts. Seven AI post credits were used. Review and approve each post before using it.");
       setWeeklyContext("");
       await load();
     } catch (e) {
