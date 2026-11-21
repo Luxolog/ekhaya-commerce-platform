@@ -90,12 +90,16 @@ export default function AccountPage() {
       setAccountType(requestedAccount);
     }
     try {
-      const capturedReferral = (referral || localStorage.getItem("ekhaya_referral_code") || "").toUpperCase().replace(/[^A-Z0-9_-]/g,"");
+      const cookieReferral = document.cookie.split("; ").find(part => part.startsWith("ekhaya_referral_code="));
+      const cookieCode = cookieReferral ? decodeURIComponent(cookieReferral.slice("ekhaya_referral_code=".length)) : "";
+      const capturedReferral = (referral || localStorage.getItem("ekhaya_referral_code") || cookieCode || "").toUpperCase().replace(/[^A-Z0-9_-]/g,"");
       if(capturedReferral) {
         setIncomingReferralCode(capturedReferral);
         localStorage.setItem("ekhaya_referral_code", capturedReferral);
+        document.cookie = "ekhaya_referral_code="+encodeURIComponent(capturedReferral)+"; Max-Age=7776000; Path=/; SameSite=Lax; Secure";
       }
     } catch {
+      if(referral) setIncomingReferralCode(referral.toUpperCase().replace(/[^A-Z0-9_-]/g,""));
     }
     fetch(supabaseUrl+"/rest/v1/rpc/get_active_referral_partners",{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:"{}",cache:"no-store"})
       .then(async response=>{if(!response.ok) throw new Error("Could not load partner list");return response.json();})
