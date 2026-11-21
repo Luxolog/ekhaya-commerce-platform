@@ -31,6 +31,10 @@ export default function MarketingDashboardPage() {
   const [subscriptions, setSubscriptions] = useState<MarketingSubscription[]>([]);
   const [usage, setUsage] = useState<UsageEvent[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
+  const [editingCampaignTitle, setEditingCampaignTitle] = useState("");
+  const [editingCampaignContent, setEditingCampaignContent] = useState("");
+  const [editingCampaignPlatform, setEditingCampaignPlatform] = useState("instagram");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -247,6 +251,47 @@ export default function MarketingDashboardPage() {
     }
   }
 
+  function beginCampaignEdit(campaign: Campaign) {
+    setEditingCampaignId(campaign.id);
+    setEditingCampaignTitle(campaign.title);
+    setEditingCampaignContent(campaign.content ?? "");
+    setEditingCampaignPlatform(campaign.platform ?? "instagram");
+    setError("");
+    setNotice("");
+  }
+
+  async function saveCampaignEdit(campaignId: string) {
+    if (!editingCampaignTitle.trim() || !editingCampaignContent.trim()) {
+      setError("Campaign title and content are required.");
+      return;
+    }
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const headers = await getHeaders();
+      const response = await fetch(SUPABASE_URL + "/rest/v1/marketing_campaigns?id=eq." + encodeURIComponent(campaignId), {
+        method: "PATCH",
+        headers: { ...headers, Prefer: "return=minimal" },
+        body: JSON.stringify({
+          title: editingCampaignTitle.trim().slice(0, 100),
+          content: editingCampaignContent.trim().slice(0, 10000),
+          platform: editingCampaignPlatform,
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}));
+        throw new Error(detail.message ?? detail.msg ?? "Unable to update campaign.");
+      }
+      setEditingCampaignId(null);
+      setNotice("Campaign updated.");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to update campaign.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveDraft(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!activeSubscription) return;
@@ -380,7 +425,7 @@ export default function MarketingDashboardPage() {
         <h2 style={{ fontFamily: "Manrope,sans-serif", fontSize: 20, margin: 0 }}>Recent campaign drafts</h2>
         <button type="button" onClick={() => void load()} disabled={loading} style={{ border: "1px solid #DCE8F1", background: "#fff", borderRadius: 8, padding: "9px 13px", color: "#075477", fontWeight: 700, cursor: loading ? "wait" : "pointer" }}>{loading ? "Refreshing…" : "Refresh"}</button>
       </div>
-      {loading ? <p style={{ color: "#60758A", fontSize: 13 }}>Loading marketing workspace…</p> : campaigns.length ? <div style={{ overflowX: "auto", marginTop: 12 }}><table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 12 }}><thead><tr>{["Campaign","Platform","Status","Last updated"].map(label => <th key={label} style={{ padding: 10, color: "#60758A", borderBottom: "1px solid #DCE8F1" }}>{label}</th>)}</tr></thead><tbody>{campaigns.map(campaign => <tr key={campaign.id}><td style={{ padding: 10, borderBottom: "1px solid #EEF3F7", fontWeight: 700, verticalAlign: "top" }}>{campaign.title}<p style={{ color: "#71869A", fontWeight: 400, lineHeight: 1.5, maxWidth: 460, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{campaign.content ? campaign.content.slice(0, 220) + (campaign.content.length > 220 ? "…" : "") : campaign.objective ?? "No content attached."}</p></td><td style={{ padding: 10, borderBottom: "1px solid #EEF3F7", verticalAlign: "top" }}>{campaign.platform ? pretty(campaign.platform) : "—"}</td><td style={{ padding: 10, borderBottom: "1px solid #EEF3F7", verticalAlign: "top" }}>{pretty(campaign.status)}</td><td style={{ padding: 10, borderBottom: "1px solid #EEF3F7", verticalAlign: "top" }}>{date(campaign.updated_at)}{campaign.content && <p><button type="button" onClick={() => void navigator.clipboard.writeText(campaign.content ?? "").then(() => setNotice("Campaign content copied."), () => setError("Clipboard access unavailable."))} style={{ border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", padding: "6px 9px", color: "#075477", fontWeight: 700, cursor: "pointer" }}>Copy content</button></p>}</td></tr>)}</tbody></table></div> : <p style={{ color: "#60758A", fontSize: 13, lineHeight: 1.6, marginTop: 14 }}>No campaign drafts yet.</p>}
+      {loading ? <p style={{ color: "#60758A", fontSize: 13 }}>Loading marketing workspace…</p> : campaigns.length ? <div style={{ overflowX: "auto", marginTop: 12 }}><table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 12 }}><thead><tr>{["Campaign","Platform","Status","Last updated"].map(label => <th key={label} style={{ padding: 10, color: "#60758A", borderBottom: "1px solid #DCE8F1" }}>{label}</th>)}</tr></thead><tbody>{campaigns.map(campaign => <tr key={campaign.id}><td colSpan={4} style={{ padding: 12, borderBottom: "1px solid #EEF3F7" }}>{editingCampaignId === campaign.id ? <div style={{ display: "grid", gap: 9 }}><input aria-label="Campaign title" value={editingCampaignTitle} onChange={event => setEditingCampaignTitle(event.target.value)} maxLength={100} style={field}/><select aria-label="Campaign platform" value={editingCampaignPlatform} onChange={event => setEditingCampaignPlatform(event.target.value)} style={field}><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option><option value="other">Other</option></select><textarea aria-label="Campaign content" value={editingCampaignContent} onChange={event => setEditingCampaignContent(event.target.value)} maxLength={10000} rows={6} style={{ ...field, height: "auto", padding: 12, resize: "vertical" }}/><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button type="button" disabled={busy} onClick={() => void saveCampaignEdit(campaign.id)} style={{ padding: "8px 12px", border: 0, borderRadius: 7, background: "#079BD3", color: "#fff", fontWeight: 800 }}>{busy ? "SAVING…" : "SAVE CHANGES"}</button><button type="button" onClick={() => setEditingCampaignId(null)} style={{ padding: "8px 12px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>CANCEL</button></div></div> : <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(90px,.7fr) minmax(90px,.7fr) minmax(130px,.8fr)", gap: 12, alignItems: "start" }}><div><strong>{campaign.title}</strong><p style={{ color: "#71869A", fontWeight: 400, lineHeight: 1.5, maxWidth: 460, whiteSpace: "pre-wrap", overflowWrap: "anywhere", margin: "6px 0" }}>{campaign.content ? campaign.content.slice(0, 220) + (campaign.content.length > 220 ? "…" : "") : campaign.objective ?? "No content attached."}</p><div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>{campaign.content && <button type="button" onClick={() => void navigator.clipboard.writeText(campaign.content ?? "").then(() => setNotice("Campaign content copied."), () => setError("Clipboard access unavailable."))} style={{ border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", padding: "6px 9px", color: "#075477", fontWeight: 700, cursor: "pointer" }}>Copy content</button>}<button type="button" onClick={() => beginCampaignEdit(campaign)} style={{ border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", padding: "6px 9px", color: "#075477", fontWeight: 700, cursor: "pointer" }}>Edit draft</button></div></div><span>{campaign.platform ? pretty(campaign.platform) : "—"}</span><span>{pretty(campaign.status)}</span><span>{date(campaign.updated_at)}</span></div>}</td></tr>)}</tbody></table></div> : <p style={{ color: "#60758A", fontSize: 13, lineHeight: 1.6, marginTop: 14 }}>No campaign drafts yet.</p>}
     </section>
 
     <section style={{ maxWidth: 1180, margin: "22px auto 0", background: "#fff", border: "1px solid #DCE8F1", borderRadius: 14, padding: 24 }}>
