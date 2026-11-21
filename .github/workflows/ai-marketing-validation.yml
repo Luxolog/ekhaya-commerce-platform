@@ -32,7 +32,7 @@ jobs:
       - name: Run TypeScript checks
         run: npx tsc --noEmit
       - name: Run ESLint
-        run: npm run lint
+        run: npx eslint src
       - name: Build Next.js application
         run: npm run build
 
