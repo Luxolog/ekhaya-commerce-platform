@@ -106,7 +106,7 @@ export default function AccountPage() {
       .then((rows:Array<{id:string;partner_name:string;partner_slug:string;referral_code:string}>)=>{
         const partners=Array.isArray(rows)?rows:[];
         setReferralPartners(partners);
-        const storedCode=(referral || localStorage.getItem("ekhaya_referral_code") || "").toUpperCase();
+        const cookieReferral=document.cookie.split("; ").find(part=>part.startsWith("ekhaya_referral_code=")); const cookieCode=cookieReferral?decodeURIComponent(cookieReferral.slice("ekhaya_referral_code=".length)):""; const storedCode=(referral || localStorage.getItem("ekhaya_referral_code") || cookieCode || "").toUpperCase();
         const match=partners.find(partner=>partner.referral_code.toUpperCase()===storedCode);
         if(match){setSelectedPartnerId(match.id);}
       })
