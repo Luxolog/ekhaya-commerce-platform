@@ -18,6 +18,7 @@ const when = (v?: string | null) => v ? new Date(v).toLocaleString("en-ZA", { da
 const shell: React.CSSProperties = { minHeight: "100vh", background: "#F3F6FA", color: "#10243A", fontFamily: "Arial,sans-serif", padding: "26px clamp(16px,4vw,56px) 60px" };
 const panel: React.CSSProperties = { background: "#fff", border: "1px solid #DDE6EF", borderRadius: 14, padding: 20 };
 const small: React.CSSProperties = { color: "#64778A", fontSize: 12 };
+const OWNER_TABS = ["overview", "sellers", "searches", "platform activity", "partners", "referrals", "activity", "commissions", "api usage"] as const;
 const th: React.CSSProperties = { textAlign: "left", padding: "12px 10px", background: "#10243A", color: "#fff", whiteSpace: "nowrap" };
 const td: React.CSSProperties = { padding: "12px 10px", borderBottom: "1px solid #EDF1F5", verticalAlign: "top" };
 
@@ -26,7 +27,7 @@ export default function EkhayaOwnerDashboard() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"overview" | "sellers" | "searches" | "platform activity" | "partners" | "referrals" | "activity" | "commissions" | "api usage">("overview");
+  const [tab, setTab] = useState<(typeof OWNER_TABS)[number]>("overview");
 
   const load = useCallback(async () => {
     setBusy(true); setError("");
@@ -50,14 +51,12 @@ export default function EkhayaOwnerDashboard() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const tabs = ["overview", "sellers", "searches", "platform activity", "partners", "referrals", "activity", "commissions", "api usage"] as const;
-
   // Keep dashboard sections in the URL so browser Back/Forward works.
   useEffect(() => {
     const syncTabFromUrl = () => {
       const requested = window.location.hash.replace(/^#/, "").replace(/-/g, " ");
-      if (tabs.includes(requested as typeof tabs[number])) {
-        setTab(requested as typeof tabs[number]);
+      if (OWNER_TABS.includes(requested as typeof OWNER_TABS[number])) {
+        setTab(requested as typeof OWNER_TABS[number]);
       } else {
         setTab("overview");
       }
@@ -71,7 +70,7 @@ export default function EkhayaOwnerDashboard() {
     };
   }, []);
 
-  const navigateToTab = (next: typeof tabs[number]) => {
+  const navigateToTab = (next: typeof OWNER_TABS[number]) => {
     setTab(next);
     const nextUrl = window.location.pathname + window.location.search + (next === "overview" ? "" : "#" + next.replace(/\s+/g, "-"));
     window.history.pushState({ ownerDashboardTab: next }, "", nextUrl);
@@ -98,7 +97,7 @@ export default function EkhayaOwnerDashboard() {
           <div style={{ ...small, color: "#16835D", fontWeight: 700 }}>Owner-only data access</div>
         </div>
         <nav aria-label="Owner dashboard sections" style={{ position: "sticky", top: 0, zIndex: 30, display: "flex", flexWrap: "wrap", gap: 8, margin: "0 0 18px", padding: "12px 0", background: "#F3F6FA", borderBottom: "1px solid #DDE6EF" }}>
-          {tabs.map(x => <button key={x} aria-current={tab === x ? "page" : undefined} onClick={() => navigateToTab(x)} style={{ padding: "10px 15px", borderRadius: 8, border: tab === x ? "1px solid #10243A" : "1px solid #DDE6EF", background: tab === x ? "#10243A" : "#fff", color: tab === x ? "#fff" : "#3C5368", textTransform: "capitalize", fontWeight: 700, cursor: "pointer" }}>{x}</button>)}
+          {OWNER_TABS.map(x => <button key={x} aria-current={tab === x ? "page" : undefined} onClick={() => navigateToTab(x)} style={{ padding: "10px 15px", borderRadius: 8, border: tab === x ? "1px solid #10243A" : "1px solid #DDE6EF", background: tab === x ? "#10243A" : "#fff", color: tab === x ? "#fff" : "#3C5368", textTransform: "capitalize", fontWeight: 700, cursor: "pointer" }}>{x}</button>)}
         </nav>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(185px,1fr))", gap: 13, marginBottom: 20 }}>
           {[
