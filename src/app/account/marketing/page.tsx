@@ -19,7 +19,7 @@ type MarketingSubscription = {
   current_period_start?: string | null; current_period_end?: string | null; created_at: string;
 };
 type UsageEvent = { feature_code: string; quantity: number; created_at: string };
-type Campaign = { id: string; title: string; objective?: string | null; target_audience?: string | null; start_date?: string | null; end_date?: string | null; performance_notes?: string | null; platform?: string | null; content?: string | null; status: string; updated_at: string };
+type Campaign = { id: string; title: string; objective?: string | null; target_audience?: string | null; start_date?: string | null; end_date?: string | null; budget_zar?: number | null; posting_frequency?: string | null; review_date?: string | null; performance_notes?: string | null; platform?: string | null; content?: string | null; status: string; updated_at: string };
 type CalendarPost = { id: string; title: string; content: string; platform: string; scheduled_for: string; status: "draft" | "approved" | "archived" };
 type CampaignTemplate = { id: string; name: string; objective: string | null; target_audience: string | null; platform: string | null; content_prompt: string };
 type SavedProduct = { id: string; product_name: string; product_description: string; selling_price: number | null; product_category: string; product_benefits: string; verified_specifications: string; target_audience: string };
@@ -51,6 +51,16 @@ export default function MarketingDashboardPage() {
   const [targetAudience, setTargetAudience] = useState("");
   const [campaignStartDate, setCampaignStartDate] = useState("");
   const [campaignEndDate, setCampaignEndDate] = useState("");
+  const [plannerObjective, setPlannerObjective] = useState("");
+  const [plannerProduct, setPlannerProduct] = useState("");
+  const [plannerStart, setPlannerStart] = useState("");
+  const [plannerEnd, setPlannerEnd] = useState("");
+  const [plannerBudget, setPlannerBudget] = useState("");
+  const [plannerAudience, setPlannerAudience] = useState("");
+  const [plannerPlatform, setPlannerPlatform] = useState("instagram");
+  const [plannerFrequency, setPlannerFrequency] = useState("3 posts per week");
+  const [plannerResult, setPlannerResult] = useState("");
+  const [plannerBusy, setPlannerBusy] = useState(false);
   const [platform, setPlatform] = useState("instagram");
   const [generatorFeature, setGeneratorFeature] = useState("ai_post");
   const [contentFormat, setContentFormat] = useState("social_post");
@@ -120,7 +130,7 @@ export default function MarketingDashboardPage() {
       const [plans, subs, drafts, templates, products] = await Promise.all([
         get<MarketingPlan>("marketing_plans?select=code,name,price_zar,billing_interval,monthly_ai_posts,monthly_campaign_ideas,monthly_research_queries,monthly_trend_reports&is_active=eq.true&order=price_zar.asc"),
         get<MarketingSubscription>("seller_marketing_subscriptions?select=id,plan_code,status,billing_mode,current_period_start,current_period_end,created_at&order=created_at.desc&limit=10"),
-        get<Campaign>("marketing_campaigns?select=id,title,objective,target_audience,start_date,end_date,performance_notes,platform,content,status,updated_at&order=updated_at.desc&limit=20"),
+        get<Campaign>("marketing_campaigns?select=id,title,objective,target_audience,start_date,end_date,budget_zar,posting_frequency,review_date,performance_notes,platform,content,status,updated_at&order=updated_at.desc&limit=20"),
         get<CampaignTemplate>("marketing_campaign_templates?select=id,name,objective,target_audience,platform,content_prompt&order=updated_at.desc&limit=50"),
         get<SavedProduct>("seller_marketing_products?select=id,product_name,product_description,selling_price,product_category,product_benefits,verified_specifications,target_audience&is_active=eq.true&order=updated_at.desc&limit=100"),
       ]);
