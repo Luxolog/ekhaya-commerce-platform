@@ -71,7 +71,7 @@ export default function MarketingOverviewPage() {
       const active = subRows.find(s => s.status === "active");
       const periodStart = active?.current_period_start ?? new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
       const periodEnd = active?.current_period_end;
-      const usageRows = await get<Usage>("marketing_usage_events?select=feature_code,quantity,created_at&created_at=gte.${encodeURIComponent(periodStart)}&order=created_at.desc&limit=1000");
+      const usageRows = await get<Usage>("marketing_usage_events?select=feature_code,quantity,created_at&created_at=gte." + encodeURIComponent(periodStart) + "&order=created_at.desc&limit=1000");
       setSubscriptions(subRows); setPlans(planRows); setPayments(paymentRows); setCampaigns(campaignRows); setPosts(postRows); setReports(reportRows);
       setUsage(usageRows.filter(item => !periodEnd || item.created_at < periodEnd));
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to load your Marketing overview."); }
