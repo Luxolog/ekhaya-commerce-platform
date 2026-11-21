@@ -15,9 +15,9 @@ type Usage = { usage_date: string; product_searches: number; live_refreshes: num
 type Profile = { display_name?: string | null; plan_code?: string | null; account_status?: string | null };
 
 const plans = [
-  { code: "starter", name: "Starter", price: 99, credits: 50, description: "For sellers getting started with regular product research." },
+  { code: "starter", name: "Starter", price: 99, credits: 50, description: "For sellers getting started with regular product research.", featured: false },
   { code: "growth", name: "Growth", price: 149, credits: 100, description: "For active sellers comparing more products as their catalogue grows.", featured: true },
-  { code: "pro", name: "Pro", price: 199, credits: 250, description: "For high-volume sellers who need a larger monthly comparison allowance." },
+  { code: "pro", name: "Pro", price: 199, credits: 250, description: "For high-volume sellers who need a larger monthly comparison allowance.", featured: false },
 ] as const;
 const label = (value?: string | null) => value ? value.replaceAll("_", " ").replace(/\b\w/g, c => c.toUpperCase()) : "—";
 const zar = (value: number, currency = "ZAR") => new Intl.NumberFormat("en-ZA", { style: "currency", currency, maximumFractionDigits: 2 }).format(value);
@@ -119,6 +119,7 @@ export default function BillingDashboardPage() {
       <Link href="/"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={190} height={150} style={{ width: 150, height: "auto" }} priority /></Link>
       <nav style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap", fontSize: 13, fontWeight: 700 }}>
         <Link href="/price-checker/" style={{ color: "#60758A" }}>Price Checker</Link>
+        <Link href="/account/marketing/" style={{ color: "#079BD3" }}>AI Marketing</Link>
         <Link href="/pricing/" style={{ color: "#60758A" }}>Plans & pricing</Link>
         <Link href="/account/" style={{ color: "#079BD3" }}>My account</Link>
       </nav>
