@@ -69,7 +69,9 @@ Deno.serve(async (req: Request) => {
   const enabled = settings?.email_otp_enabled === true;
 
   if (body.action === "status") {
-    return json({ enabled, email: user.email ?? null, account_type: isOwner ? "admin" : "partner" });
+    const { data: verified } = await admin.from("email_otp_verified_sessions").select("session_id")
+      .eq("user_id", user.id).eq("session_id", sessionId).gt("expires_at", new Date().toISOString()).maybeSingle();
+    return json({ enabled, verified: Boolean(verified), email: user.email ?? null, account_type: isOwner ? "admin" : "partner" });
   }
 
   if (body.action === "start") {
