@@ -47,7 +47,7 @@ jobs:
         with:
           deno-version: v2.x
       - name: Type-check AI Marketing functions
-        run: deno check --no-lock --node-modules-dir=auto supabase/functions/ai-marketing-generate/index.ts supabase/functions/ai-marketing-weekly-plan/index.ts supabase/functions/paystack-marketing-billing/index.ts
+        run: deno check --no-lock --node-modules-dir=auto supabase/functions/ai-marketing-generate/index.ts supabase/functions/ai-marketing-weekly-plan/index.ts supabase/functions/paystack-marketing-billing/index.ts supabase/functions/marketing-automation-worker/index.ts
 
   migration-lint:
     name: Supabase local migration validation (manual)
