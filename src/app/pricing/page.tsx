@@ -30,6 +30,7 @@ export default function PricingPage() {
           <p style={{margin:"0 0 4px"}}><strong style={{fontFamily:"Manrope,sans-serif",fontSize:36}}>{plan.price}</strong><span style={{color:"#60758A",fontSize:13}}>/ month</span></p>
           <p style={{color:"#079BD3",fontSize:14,fontWeight:800,margin:"8px 0 12px"}}>{plan.searches}</p>
           <p style={{...muted,margin:0}}>{plan.description}</p>
+          <Link href={`/account/billing/?plan=${plan.name.toLowerCase()}`} style={{display:"inline-block",marginTop:18,padding:"11px 15px",background:plan.featured?"#079BD3":"#EAF7FC",color:plan.featured?"#fff":"#075477",borderRadius:8,textDecoration:"none",fontWeight:800,fontSize:12}}>VIEW PLAN & BILLING →</Link>
         </article>)}
         <article style={{...card,background:"#071B31",color:"#fff",borderColor:"#071B31"}}>
           <h3 style={{fontFamily:"Manrope,sans-serif",fontSize:23,margin:"0 0 8px"}}>Custom</h3>
