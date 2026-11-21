@@ -5,7 +5,7 @@ import Link from "next/link";
 type Session={access_token?:string;refresh_token?:string;expires_at?:number;[key:string]:unknown};
 type Contact={id:string;full_name:string;email:string|null;phone:string|null;lead_source:string;interest_category:string;lead_status:string;follow_up_at:string|null;notes:string;consent_status:string;consent_basis:string;consent_recorded_at:string|null;opted_out_at:string|null};
 type EmailDraft={id:string;campaign_name:string;subject:string;preview_text:string;body_content:string;selected_contact_ids:string[];status:string;created_at:string};
-const URL="https://itxxnhcjjiynrmivexcb.supabase.co",KEY=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY??"";
+const SUPABASE_URL="https://itxxnhcjjiynrmivexcb.supabase.co",KEY=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY??"";
 const field:React.CSSProperties={width:"100%",padding:10,border:"1px solid #D5E1EA",borderRadius:8,fontSize:12,boxSizing:"border-box"};
 const label:React.CSSProperties={display:"grid",gap:5,fontSize:12,fontWeight:700,color:"#40566B"};
 function parseCsv(text:string):string[][]{
@@ -24,11 +24,11 @@ export default function MarketingContactsPage(){
   let s:Session|null=null;try{const raw=localStorage.getItem("ekhaya_session");s=raw?JSON.parse(raw) as Session:null;}catch{localStorage.removeItem("ekhaya_session");}
   if(!s?.access_token||!s.refresh_token)throw new Error("Sign in to manage your marketing contacts.");
   if(Number(s.expires_at)>Date.now()/1000+60)return {apikey:KEY,Authorization:"Bearer "+s.access_token};
-  const res=await fetch(URL+"/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{"Content-Type":"application/json",apikey:KEY},body:JSON.stringify({refresh_token:s.refresh_token})});const d=await res.json().catch(()=>({}));
+  const res=await fetch(SUPABASE_URL+"/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{"Content-Type":"application/json",apikey:KEY},body:JSON.stringify({refresh_token:s.refresh_token})});const d=await res.json().catch(()=>({}));
   if(!res.ok||!d.access_token||!d.refresh_token){localStorage.removeItem("ekhaya_session");throw new Error("Your session expired. Please sign in again.");}
   localStorage.setItem("ekhaya_session",JSON.stringify({...s,...d,expires_at:Math.floor(Date.now()/1000)+Number(d.expires_in??3600)}));return {apikey:KEY,Authorization:"Bearer "+d.access_token};
  },[]);
- const api=useCallback(async(path:string,init:RequestInit={})=>{const h=await headers();const res=await fetch(URL+"/rest/v1/"+path,{...init,headers:{...h,"Content-Type":"application/json",Prefer:"return=representation",...(init.headers??{})},cache:"no-store"});const d=await res.json().catch(()=>[]);if(!res.ok)throw new Error(d.message??d.msg??"Request failed.");return d;},[headers]);
+ const api=useCallback(async(path:string,init:RequestInit={})=>{const h=await headers();const res=await fetch(SUPABASE_URL+"/rest/v1/"+path,{...init,headers:{...h,"Content-Type":"application/json",Prefer:"return=representation",...(init.headers??{})},cache:"no-store"});const d=await res.json().catch(()=>[]);if(!res.ok)throw new Error(d.message??d.msg??"Request failed.");return d;},[headers]);
  const load=useCallback(async()=>{setLoading(true);setError("");try{const [c,e]=await Promise.all([api("seller_marketing_contacts?select=*&order=updated_at.desc&limit=1000"),api("seller_marketing_email_campaigns?select=*&order=updated_at.desc&limit=100")]);setContacts(c);setDrafts(e);}catch(x){setError(x instanceof Error?x.message:"Could not load contacts.");}finally{setLoading(false);}},[api]);
  useEffect(()=>{void load();},[load]);
  const filtered=useMemo(()=>contacts.filter(c=>(status==="all"||c.lead_status===status)&&[c.full_name,c.email??"",c.phone??"",c.interest_category].join(" ").toLowerCase().includes(search.toLowerCase())),[contacts,status,search]);
