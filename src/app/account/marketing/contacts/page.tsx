@@ -5,7 +5,7 @@ import Link from "next/link";
 type Session={access_token?:string;refresh_token?:string;expires_at?:number;[key:string]:unknown};
 type Contact={id:string;full_name:string;email:string|null;phone:string|null;lead_source:string;interest_category:string;lead_status:string;follow_up_at:string|null;notes:string;consent_status:string;consent_basis:string;consent_recorded_at:string|null;opted_out_at:string|null};
 type EmailDraft={id:string;campaign_name:string;subject:string;preview_text:string;body_content:string;selected_contact_ids:string[];status:string;created_at:string};
-const SUPABASE_URL="https://itxxnhcjjiynrmivexcb.supabase.co",KEY=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY??"";
+const SUPABASE_URL=process.env.NEXT_PUBLIC_SUPABASE_URL??"",KEY=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY??"";
 const field:React.CSSProperties={width:"100%",padding:10,border:"1px solid #D5E1EA",borderRadius:8,fontSize:12,boxSizing:"border-box"};
 const label:React.CSSProperties={display:"grid",gap:5,fontSize:12,fontWeight:700,color:"#40566B"};
 function parseCsv(text:string):string[][]{
