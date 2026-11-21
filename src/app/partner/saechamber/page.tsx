@@ -36,7 +36,7 @@ export default function PartnerDashboardPage() {
   const [inviteMessage, setInviteMessage] = useState("");
   const [inviting, setInviting] = useState(false);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const referralUrl = typeof window !== "undefined" ? window.location.origin + "/account/?ref=" + (partner?.referral_code || "PARTNER") : "/account/?ref=" + (partner?.referral_code || "SAECHAMBER");
+  const referralUrl = typeof window !== "undefined" ? window.location.origin + "/account/?ref=" + (partner?.referral_code || "PARTNER") : "/account/?ref=" + (partner?.referral_code || "PARTNER");
 
   const api = useCallback(async (path: string) => {
     if (!session?.access_token) throw new Error("Please sign in first.");
