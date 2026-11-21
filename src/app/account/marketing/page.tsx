@@ -19,7 +19,7 @@ type MarketingSubscription = {
   current_period_start?: string | null; current_period_end?: string | null; created_at: string;
 };
 type UsageEvent = { feature_code: string; quantity: number; created_at: string };
-type Campaign = { id: string; title: string; objective?: string | null; platform?: string | null; content?: string | null; status: string; updated_at: string };
+type Campaign = { id: string; title: string; objective?: string | null; target_audience?: string | null; start_date?: string | null; end_date?: string | null; performance_notes?: string | null; platform?: string | null; content?: string | null; status: string; updated_at: string };
 type CalendarPost = { id: string; title: string; content: string; platform: string; scheduled_for: string; status: "draft" | "approved" | "archived" };
 
 const money = (amount: number) => new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 2 }).format(amount);
@@ -41,6 +41,9 @@ export default function MarketingDashboardPage() {
   const [notice, setNotice] = useState("");
   const [title, setTitle] = useState("");
   const [objective, setObjective] = useState("");
+  const [targetAudience, setTargetAudience] = useState("");
+  const [campaignStartDate, setCampaignStartDate] = useState("");
+  const [campaignEndDate, setCampaignEndDate] = useState("");
   const [platform, setPlatform] = useState("instagram");
   const [generatorFeature, setGeneratorFeature] = useState("ai_post");
   const [contentFormat, setContentFormat] = useState("social_post");
@@ -101,7 +104,7 @@ export default function MarketingDashboardPage() {
       const [plans, subs, drafts] = await Promise.all([
         get<MarketingPlan>("marketing_plans?select=code,name,price_zar,billing_interval,monthly_ai_posts,monthly_campaign_ideas,monthly_research_queries,monthly_trend_reports&is_active=eq.true&order=price_zar.asc"),
         get<MarketingSubscription>("seller_marketing_subscriptions?select=id,plan_code,status,billing_mode,current_period_start,current_period_end,created_at&order=created_at.desc&limit=10"),
-        get<Campaign>("marketing_campaigns?select=id,title,objective,platform,content,status,updated_at&order=updated_at.desc&limit=20"),
+        get<Campaign>("marketing_campaigns?select=id,title,objective,target_audience,start_date,end_date,performance_notes,platform,content,status,updated_at&order=updated_at.desc&limit=20"),
       ]);
       const active = subs.find(item => item.status === "active");
       const usageStart = active?.current_period_start ?? from;
@@ -312,11 +315,11 @@ export default function MarketingDashboardPage() {
       const response = await fetch(SUPABASE_URL + "/rest/v1/marketing_campaigns", {
         method: "POST",
         headers: { ...headers, Prefer: "return=representation" },
-        body: JSON.stringify({ title: title.trim(), objective: objective.trim() || null, platform, status: "draft" }),
+        body: JSON.stringify({ title: title.trim(), objective: objective.trim() || null, target_audience: targetAudience.trim() || null, start_date: campaignStartDate || null, end_date: campaignEndDate || null, platform, status: "draft" }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message ?? payload.msg ?? "Unable to save campaign draft.");
-      setTitle(""); setObjective("");
+      setTitle(""); setObjective(""); setTargetAudience(""); setCampaignStartDate(""); setCampaignEndDate("");
       setNotice("Campaign draft saved.");
       await load();
     } catch (e) {
@@ -438,7 +441,12 @@ export default function MarketingDashboardPage() {
         <p style={{ color: "#60758A", fontSize: 13, lineHeight: 1.6, marginTop: 0 }}>Save campaign briefs and keep drafts together. Publishing is not connected; content must be reviewed and approved before any future scheduling integration.</p>
         {activeSubscription ? <form onSubmit={saveDraft} style={{ display: "grid", gap: 10 }}>
           <input required maxLength={100} value={title} onChange={event => setTitle(event.target.value)} placeholder="Campaign title" style={field}/>
-          <textarea value={objective} onChange={event => setObjective(event.target.value)} maxLength={1000} rows={3} placeholder="What do you want this campaign to achieve?" style={{ ...field, height: "auto", padding: 12, resize: "vertical" }}/>
+          <textarea value={objective} onChange={event => setObjective(event.target.value)} maxLength={1000} rows={3} placeholder="Campaign objective: awareness, traffic, leads or sales?" style={{ ...field, height: "auto", padding: 12, resize: "vertical" }}/>
+          <textarea value={targetAudience} onChange={event => setTargetAudience(event.target.value)} maxLength={1000} rows={2} placeholder="Target audience (who should this campaign reach?)" style={{ ...field, height: "auto", padding: 12, resize: "vertical" }}/>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10 }}>
+            <label style={formLabel}>Start date<input type="date" value={campaignStartDate} onChange={event => setCampaignStartDate(event.target.value)} style={field}/></label>
+            <label style={formLabel}>End date<input type="date" min={campaignStartDate || undefined} value={campaignEndDate} onChange={event => setCampaignEndDate(event.target.value)} style={field}/></label>
+          </div>
           <select value={platform} onChange={event => setPlatform(event.target.value)} style={field}><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option><option value="other">Other</option></select>
           <button type="submit" disabled={busy || !title.trim()} style={{ padding: 12, border: 0, borderRadius: 8, background: "#079BD3", color: "#fff", fontWeight: 800, cursor: busy ? "wait" : "pointer" }}>{busy ? "Saving…" : "SAVE CAMPAIGN DRAFT"}</button>
         </form> : <div style={{ padding: 14, background: "#F4F8FC", borderRadius: 9, color: "#60758A", fontSize: 12, lineHeight: 1.6 }}>Campaign drafting will unlock with an active Marketing Mini subscription. Payment activation is currently disabled.</div>}
