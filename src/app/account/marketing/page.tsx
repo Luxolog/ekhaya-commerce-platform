@@ -43,6 +43,7 @@ export default function MarketingDashboardPage() {
   const [objective, setObjective] = useState("");
   const [platform, setPlatform] = useState("instagram");
   const [generatorFeature, setGeneratorFeature] = useState("ai_post");
+  const [contentFormat, setContentFormat] = useState("social_post");
   const [generatorTone, setGeneratorTone] = useState("friendly and professional");
   const [generatorContext, setGeneratorContext] = useState("");
   const [generatedContent, setGeneratedContent] = useState("");
@@ -160,6 +161,7 @@ export default function MarketingDashboardPage() {
         headers,
         body: JSON.stringify({
           feature: generatorFeature,
+          content_format: contentFormat,
           platform,
           tone: generatorTone,
           context: generatorContext.trim(),
@@ -170,7 +172,16 @@ export default function MarketingDashboardPage() {
         throw new Error(payload.error ?? "Content generation is not available yet.");
       }
       setGeneratedContent(payload.content);
-      setGeneratedTitle(generatorFeature === "ai_post" ? "AI social post" : generatorFeature === "campaign_idea" ? "AI campaign idea" : generatorFeature === "research_query" ? "Marketing research brief" : "Trend planning brief");
+      setGeneratedTitle(generatorFeature === "ai_post" ? ({
+        social_post: "AI social post",
+        tiktok_script: "TikTok video script",
+        product_description: "Product description",
+        promotional_message: "Promotional message",
+        email_copy: "Marketing email",
+        campaign_headline: "Campaign headlines",
+        call_to_action: "Call-to-action options",
+        hashtag_suggestions: "Hashtag suggestions",
+      } as Record<string, string>)[contentFormat] ?? "AI marketing content" : generatorFeature === "campaign_idea" ? "AI campaign idea" : generatorFeature === "research_query" ? "Marketing research brief" : "Trend planning brief");
       setGenerationUsage(payload.usage ?? null);
       setNotice("Your draft is ready. Review it carefully before publishing.");
     } catch (e) {
@@ -388,6 +399,18 @@ export default function MarketingDashboardPage() {
           </label>
           {generatorFeature === "ai_post" && <label style={formLabel}>Social platform
             <select value={platform} onChange={event => setPlatform(event.target.value)} style={field}><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option><option value="other">Other</option></select>
+          </label>}
+          {generatorFeature === "ai_post" && <label style={formLabel}>Content format
+            <select value={contentFormat} onChange={event => { setContentFormat(event.target.value); setGeneratedContent(""); }} style={field}>
+              <option value="social_post">Social post / Instagram caption</option>
+              <option value="tiktok_script">TikTok video script</option>
+              <option value="product_description">Product description</option>
+              <option value="promotional_message">Promotional message</option>
+              <option value="email_copy">Email marketing copy</option>
+              <option value="campaign_headline">Campaign headlines</option>
+              <option value="call_to_action">Calls to action</option>
+              <option value="hashtag_suggestions">Hashtag suggestions</option>
+            </select>
           </label>}
           <label style={formLabel}>Writing tone
             <select value={generatorTone} onChange={event => setGeneratorTone(event.target.value)} style={field}><option value="friendly and professional">Friendly and professional</option><option value="bold and persuasive">Bold and persuasive</option><option value="premium and sophisticated">Premium and sophisticated</option><option value="warm and community-focused">Warm and community-focused</option><option value="informative and educational">Informative and educational</option></select>
