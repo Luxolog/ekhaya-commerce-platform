@@ -330,6 +330,8 @@ Deno.serve(async (req: Request) => {
       "/rest/v1/partner_monthly_statements?select=id,partner_id,statement_month,active_referred_sellers,qualifying_revenue,commission_total,adjustment_total,payment_due_date,status,paid_at&order=statement_month.desc&limit=5000",
       "/rest/v1/seller_pilot_activity?select=user_id,marketplace,query,result_count,result_status,source,created_at&order=created_at.desc&limit=10000",
       "/rest/v1/profiles?select=id,display_name,plan_code,account_status,created_at",
+      "/rest/v1/plan_search_allowances?select=plan_code,monthly_search_credits",
+      "/rest/v1/user_monthly_search_usage?select=user_id,period_start,searches_used&order=period_start.desc&limit=20000",
       "/rest/v1/subscriptions?select=user_id,plan_code,status,current_period_start,current_period_end,created_at&order=created_at.desc&limit=10000",
       "/rest/v1/payment_transactions?select=user_id,amount,currency,status,payment_kind,paid_at,created_at&order=created_at.desc&limit=10000",
       "/rest/v1/api_usage_ledger?select=provider,action,marketplace,lookup_key,credits_charged,request_status,response_count,actor_id,created_at&order=created_at.desc&limit=20000"
@@ -346,7 +348,7 @@ Deno.serve(async (req: Request) => {
     }, 502);
     const authPayload = await authResponse.json();
     const authUsers = Array.isArray(authPayload) ? authPayload : authPayload.users ?? [];
-    const [partners, referrals, commissions, statements, allActivity, profiles, subscriptions, payments, apiUsage] =
+    const [partners, referrals, commissions, statements, allActivity, profiles, planAllowances, monthlyUsage, subscriptions, payments, apiUsage] =
       await Promise.all(responses.map(response => response.json()));
     const partnerById = new Map(partners.map((p: Record<string, unknown>) => [p.id, p]));
     const referralByUser = new Map(referrals.map((r: Record<string, unknown>) => [r.referred_user_id, r]));
@@ -368,6 +370,14 @@ Deno.serve(async (req: Request) => {
       if (!entry.last_search || String(item.created_at) > entry.last_search) entry.last_search = String(item.created_at);
       sellerSearchCounts.set(key, entry);
     }
+    const currentPeriodStart = `${new Date().toISOString().slice(0, 7)}-01`;
+    const allowanceByPlan = new Map(planAllowances.map((row: Record<string, any>) => [String(row.plan_code), Number(row.monthly_search_credits ?? 0)]));
+    const usageByUser = new Map<string, number>();
+    for (const row of monthlyUsage) {
+      if (String(row.period_start) === currentPeriodStart) usageByUser.set(String(row.user_id), Number(row.searches_used ?? 0));
+    }
+    const providerCallsByUser = new Map<string, number>();
+    for (const row of apiUsage) if (row.actor_id) providerCallsByUser.set(String(row.actor_id), (providerCallsByUser.get(String(row.actor_id)) ?? 0) + 1);
     const sellers = authUsers.map((u: Record<string, any>) => {
       const profile = profileById.get(u.id) as Record<string, unknown> | undefined;
       const referral = referralByUser.get(u.id) as Record<string, unknown> | undefined;
@@ -390,7 +400,11 @@ Deno.serve(async (req: Request) => {
         referral_code: referral?.referral_code ?? null,
         searches: searchStats.searches, search_failures: searchStats.failures, last_search: searchStats.last_search,
         payments_count: successfulPayments.length,
-        payments_total: successfulPayments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0)
+        payments_total: successfulPayments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0),
+        monthly_search_allowance: Number(allowanceByPlan.get(String(sub?.plan_code ?? profile?.plan_code ?? "free")) ?? 0),
+        monthly_searches_used: usageByUser.get(String(u.id)) ?? 0,
+        monthly_searches_remaining: Math.max(0, Number(allowanceByPlan.get(String(sub?.plan_code ?? profile?.plan_code ?? "free")) ?? 0) - (usageByUser.get(String(u.id)) ?? 0)),
+        provider_api_calls: providerCallsByUser.get(String(u.id)) ?? 0
       };
     });
     const partnerActivity = allActivity
@@ -436,7 +450,10 @@ Deno.serve(async (req: Request) => {
         pending_commission: commissions.filter((c: Record<string, unknown>) => c.status === "pending" || c.status === "approved").reduce((sum: number, c: Record<string, unknown>) => sum + Number(c.commission_amount ?? 0), 0),
         commission_paid: commissions.filter((c: Record<string, unknown>) => c.status === "paid").reduce((sum: number, c: Record<string, unknown>) => sum + Number(c.commission_amount ?? 0), 0),
         partner_searches: partnerActivity.length,
-        partner_search_failures: partnerActivity.filter((a: Record<string, unknown>) => a.result_status !== "success").length
+        partner_search_failures: partnerActivity.filter((a: Record<string, unknown>) => a.result_status !== "success").length,
+        monthly_search_allowance: sellers.filter((s: Record<string, unknown>) => s.role !== "owner").reduce((sum: number, s: Record<string, unknown>) => sum + Number(s.monthly_search_allowance ?? 0), 0),
+        monthly_searches_used: sellers.filter((s: Record<string, unknown>) => s.role !== "owner").reduce((sum: number, s: Record<string, unknown>) => sum + Number(s.monthly_searches_used ?? 0), 0),
+        monthly_searches_remaining: sellers.filter((s: Record<string, unknown>) => s.role !== "owner").reduce((sum: number, s: Record<string, unknown>) => sum + Number(s.monthly_searches_remaining ?? 0), 0)
       },
       sellers, all_activity: allPlatformActivity.slice(0, 20000), api_usage: apiUsage,
       partners, referrals: referrals.map((r: Record<string, unknown>) => {
