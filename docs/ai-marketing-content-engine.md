@@ -8,8 +8,18 @@ Set optional `OPENAI_MARKETING_MODEL` to select an approved model; the default i
 ## Quota protection
 The companion migration adds `consume_marketing_usage` and `release_marketing_usage` RPCs. They use a per-user transaction advisory lock to serialize quota consumption, enforce the active billing period and plan allowance, and support idempotency keys. Only the service role can execute them. The Edge Function reserves one unit before calling the model and releases the reservation if generation fails.
 
-## Initial features
-- AI social post: one generated post for the selected social platform.
+## Creative formats
+All creative formats use the existing `ai_post` allowance; no new quota category or paid API is introduced:
+- Social posts and Instagram captions for Facebook, Instagram, TikTok, LinkedIn and other.
+- TikTok short-form video scripts.
+- Product descriptions based only on supplied product facts.
+- Promotional messages, without invented prices or discounts.
+- Email marketing copy with subject and preview text.
+- Campaign headline options.
+- Calls to action.
+- Hashtag suggestions.
+
+The dashboard also retains the existing campaign idea, research brief and trend-planning generation features.
 - Campaign idea: one campaign concept with a hook and suggested call to action.
 - Research query: a concise seller-focused research brief based on the seller's supplied question; it does not claim live web research.
 - Trend report: a structured trend-planning brief based on the seller's supplied category and market context; it does not claim real-time trend data.
