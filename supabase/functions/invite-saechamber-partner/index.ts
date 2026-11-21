@@ -6,13 +6,19 @@ const allowedOrigins = new Set([
   "https://ekhaya-commerce-platform-8ewwsmmvz-luxolog.vercel.app",
   "https://ekhaya-commerce-platform-git-feature-sa-echamber-9c60e1-luxolog.vercel.app",
 ]);
-const corsFor = (req: Request) => ({
-  "Access-Control-Allow-Origin": allowedOrigins.has(req.headers.get("Origin") || "") ? (req.headers.get("Origin") || "") : "https://pricechecker.ekhayatech.co.za",
+const isAllowedOrigin = (origin: string) =>
+  allowedOrigins.has(origin) ||
+  /^https:\/\/ekhaya-commerce-platform-[a-z0-9-]+-luxolog\.vercel\.app$/.test(origin);
+const corsFor = (req: Request) => {
+  const origin = req.headers.get("Origin") || "";
+  return {
+  "Access-Control-Allow-Origin": isAllowedOrigin(origin) ? origin : "https://pricechecker.ekhayatech.co.za",
   "Vary": "Origin",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json",
-});
+  };
+};
 
 Deno.serve(async (req: Request) => {
   const cors = corsFor(req);
