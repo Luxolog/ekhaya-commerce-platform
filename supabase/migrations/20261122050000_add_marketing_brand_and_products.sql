@@ -48,9 +48,9 @@ create table if not exists public.seller_marketing_products (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint seller_marketing_products_price_nonnegative check (selling_price is null or selling_price >= 0),
-  constraint seller_marketing_products_user_brand_fk
-    foreign key (brand_profile_id, user_id)
-    references public.seller_marketing_brand_profiles(id, user_id)
+  constraint seller_marketing_products_brand_fk
+    foreign key (brand_profile_id)
+    references public.seller_marketing_brand_profiles(id)
     on delete set null
 );
 
