@@ -295,9 +295,9 @@ export default function MarketingDashboardPage() {
 
   function exportCalendarPlan() {
     const rows = [["Date", "Platform", "Title", "Status", "Content"], ...filteredCalendarPosts.map(post => [
-      new Date(post.scheduled_for).toISOString(), post.platform, post.title, post.status, post.content.replace(/\\s+/g, " "),
+      new Date(post.scheduled_for).toISOString(), post.platform, post.title, post.status, post.content.replace(/\s+/g, " "),
     ])];
-    const csv = rows.map(row => row.map(value => '"' + String(value).replace(/"/g, '""') + '"').join(",")).join("\\r\\n");
+    const csv = rows.map(row => row.map(value => '"' + String(value).replace(/"/g, '""') + '"').join(",")).join("\r\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const anchor = document.createElement("a"); anchor.href = url; anchor.download = "ekhaya-marketing-calendar.csv"; anchor.click(); URL.revokeObjectURL(url);
   }
