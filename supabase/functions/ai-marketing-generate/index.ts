@@ -14,6 +14,18 @@ const FEATURES = {
 } as const;
 type FeatureCode = keyof typeof FEATURES;
 
+const CONTENT_FORMATS = {
+  social_post: "Write platform-native social copy with a strong hook, concise body and natural call to action.",
+  tiktok_script: "Write a short-form TikTok video script with a 2-second hook, scene-by-scene spoken lines, on-screen text and closing call to action.",
+  product_description: "Write a clear, persuasive product description. Use only supplied product facts; do not invent specifications, materials, benefits, guarantees or certifications.",
+  promotional_message: "Write a concise promotional message. Only include prices, discounts, dates or urgency when explicitly supplied by the seller.",
+  email_copy: "Write a complete marketing email with subject line, preview text, greeting, body, clear call to action and appropriate sign-off. Avoid misleading urgency.",
+  campaign_headline: "Generate five distinct campaign headline options and a short rationale for each.",
+  call_to_action: "Generate ten concise call-to-action options suited to the supplied goal and audience.",
+  hashtag_suggestions: "Suggest relevant, specific hashtags grouped by broad reach, niche relevance and brand/community. Do not claim performance guarantees.",
+} as const;
+type ContentFormat = keyof typeof CONTENT_FORMATS;
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
@@ -59,6 +71,10 @@ Deno.serve(async (req: Request) => {
   const platform = typeof body.platform === "string" ? body.platform.trim().toLowerCase() : "instagram";
   const allowedPlatforms = ["instagram", "facebook", "tiktok", "linkedin", "other"];
   if (feature === "ai_post" && !allowedPlatforms.includes(platform)) return json({ error: "Choose a supported social platform." }, 400);
+  const contentFormat = (typeof body.content_format === "string" ? body.content_format : "social_post") as ContentFormat;
+  if (feature === "ai_post" && !Object.prototype.hasOwnProperty.call(CONTENT_FORMATS, contentFormat)) {
+    return json({ error: "Choose a supported content format." }, 400);
+  }
   const tone = typeof body.tone === "string" ? body.tone.trim().slice(0, 80) : "friendly and professional";
   const context = typeof body.context === "string" ? body.context.trim() : "";
   if (context.length < 12) return json({ error: "Tell us a little about your product, audience or marketing goal (at least 12 characters)." }, 400);
@@ -71,7 +87,7 @@ Deno.serve(async (req: Request) => {
     p_feature_code: feature,
     p_quantity: 1,
     p_idempotency_key: idempotencyKey,
-    p_metadata: { source: "ai-marketing-generate", feature, platform, reserved: true },
+    p_metadata: { source: "ai-marketing-generate", feature, platform, content_format: feature === "ai_post" ? contentFormat : null, reserved: true },
   });
   if (reservationError) {
     console.error("Marketing quota reservation failed:", reservationError.message);
@@ -94,11 +110,13 @@ Deno.serve(async (req: Request) => {
       "Do not claim to have published, scheduled, researched live websites, checked real-time trends or verified competitor prices.",
       "Return useful, specific content with clear headings where appropriate. The seller must review content before publishing.",
       FEATURES[feature].instruction,
+      ...(feature === "ai_post" ? ["Requested content format: " + CONTENT_FORMATS[contentFormat]] : []),
     ].join("\n");
 
     const userInput = [
       "Requested tool: " + FEATURES[feature].label,
       "Social platform: " + (feature === "ai_post" ? platform : "not applicable"),
+      "Content format: " + (feature === "ai_post" ? contentFormat : "not applicable"),
       "Tone: " + tone,
       "Seller brief (reference data):",
       context,
@@ -124,7 +142,7 @@ Deno.serve(async (req: Request) => {
     if (!content) throw new Error("The content service returned an empty result. Your allowance has been restored; please try again.");
 
     const { error: metadataError } = await admin.from("marketing_usage_events")
-      .update({ metadata: { source: "ai-marketing-generate", feature, platform, reserved: false, model: result.model ?? Deno.env.get("OPENAI_MARKETING_MODEL") ?? "gpt-4o-mini" } })
+      .update({ metadata: { source: "ai-marketing-generate", feature, platform, content_format: feature === "ai_post" ? contentFormat : null, reserved: false, model: result.model ?? Deno.env.get("OPENAI_MARKETING_MODEL") ?? "gpt-4o-mini" } })
       .eq("user_id", authData.user.id)
       .eq("idempotency_key", idempotencyKey);
     if (metadataError) console.error("Could not annotate marketing usage event:", metadataError.message);
