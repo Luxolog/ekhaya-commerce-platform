@@ -52,6 +52,9 @@ export default function MarketingDashboardPage() {
   const [generatorFeature, setGeneratorFeature] = useState("ai_post");
   const [contentFormat, setContentFormat] = useState("social_post");
   const [generatorTone, setGeneratorTone] = useState("friendly and professional");
+  const [generatorAudience, setGeneratorAudience] = useState("");
+  const [generatorProductFacts, setGeneratorProductFacts] = useState("");
+  const [generatorBrandVoice, setGeneratorBrandVoice] = useState("");
   const [generatorContext, setGeneratorContext] = useState("");
   const [generatedContent, setGeneratedContent] = useState("");
   const [generatedTitle, setGeneratedTitle] = useState("");
@@ -176,6 +179,9 @@ export default function MarketingDashboardPage() {
           content_format: contentFormat,
           platform,
           tone: generatorTone,
+          target_audience: generatorAudience.trim(),
+          product_facts: generatorProductFacts.trim(),
+          brand_voice: generatorBrandVoice.trim(),
           context: generatorContext.trim(),
         }),
       });
@@ -527,6 +533,15 @@ export default function MarketingDashboardPage() {
           </label>
           <label style={formLabel}>Tell us about your product, audience or goal
             <textarea value={generatorContext} onChange={event => setGeneratorContext(event.target.value)} maxLength={2500} rows={5} placeholder="Example: We sell handmade leather bags in South Africa. Our audience is working professionals looking for durable everyday bags. We want to introduce our new collection." style={{ ...field, height: "auto", padding: 12, resize: "vertical" }}/>
+          </label>
+          <label style={formLabel}>Target audience (optional)
+            <input value={generatorAudience} onChange={event => setGeneratorAudience(event.target.value)} maxLength={240} placeholder="e.g. South African working professionals" style={field}/>
+          </label>
+          <label style={formLabel}>Product facts (optional)
+            <textarea value={generatorProductFacts} onChange={event => setGeneratorProductFacts(event.target.value)} maxLength={1000} rows={3} placeholder="Verified features, sizes, ingredients, materials or benefits" style={{ ...field, height: "auto", padding: 12, resize: "vertical" }}/>
+          </label>
+          <label style={formLabel}>Brand voice (optional)
+            <input value={generatorBrandVoice} onChange={event => setGeneratorBrandVoice(event.target.value)} maxLength={160} placeholder="e.g. premium, proudly South African, warm and confident" style={field}/>
           </label>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, color: "#71869A", fontSize: 11 }}><span>Minimum 12 characters · Maximum 2,500</span><span>{generatorContext.length}/2,500</span></div>
           <button type="button" onClick={() => void generateContent()} disabled={generating || generatorContext.trim().length < 12} style={{ padding: 13, border: 0, borderRadius: 8, background: generating || generatorContext.trim().length < 12 ? "#9FB5C5" : "#079BD3", color: "#fff", fontWeight: 800, cursor: generating ? "wait" : "pointer" }}>{generating ? "GENERATING…" : "GENERATE CONTENT"}</button>
