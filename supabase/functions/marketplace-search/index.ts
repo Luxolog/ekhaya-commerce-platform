@@ -332,6 +332,7 @@ Deno.serve(async (req: Request) => {
       "/rest/v1/profiles?select=id,display_name,plan_code,account_status,created_at",
       "/rest/v1/plan_search_allowances?select=plan_code,monthly_search_credits",
       "/rest/v1/user_monthly_search_usage?select=user_id,period_start,searches_used&order=period_start.desc&limit=20000",
+      "/rest/v1/user_free_search_usage?select=user_id,searches_used&limit=20000",
       "/rest/v1/subscriptions?select=user_id,plan_code,status,current_period_start,current_period_end,created_at&order=created_at.desc&limit=10000",
       "/rest/v1/payment_transactions?select=user_id,amount,currency,status,payment_kind,paid_at,created_at&order=created_at.desc&limit=10000",
       "/rest/v1/api_usage_ledger?select=provider,action,marketplace,lookup_key,credits_charged,request_status,response_count,actor_id,created_at&order=created_at.desc&limit=20000"
@@ -348,7 +349,7 @@ Deno.serve(async (req: Request) => {
     }, 502);
     const authPayload = await authResponse.json();
     const authUsers = Array.isArray(authPayload) ? authPayload : authPayload.users ?? [];
-    const [partners, referrals, commissions, statements, allActivity, profiles, planAllowances, monthlyUsage, subscriptions, payments, apiUsage] =
+    const [partners, referrals, commissions, statements, allActivity, profiles, planAllowances, monthlyUsage, freeUsage, subscriptions, payments, apiUsage] =
       await Promise.all(responses.map(response => response.json()));
     const partnerById = new Map(partners.map((p: Record<string, unknown>) => [p.id, p]));
     const referralByUser = new Map(referrals.map((r: Record<string, unknown>) => [r.referred_user_id, r]));
@@ -372,6 +373,8 @@ Deno.serve(async (req: Request) => {
     }
     const currentPeriodStart = `${new Date().toISOString().slice(0, 7)}-01`;
     const allowanceByPlan = new Map(planAllowances.map((row: Record<string, any>) => [String(row.plan_code), Number(row.monthly_search_credits ?? 0)]));
+    allowanceByPlan.set("free", 5);
+    const freeUsageByUser = new Map<string, number>(freeUsage.map((row: Record<string, any>) => [String(row.user_id), Number(row.searches_used ?? 0)]));
     const usageByUser = new Map<string, number>();
     for (const row of monthlyUsage) {
       if (String(row.period_start) === currentPeriodStart) usageByUser.set(String(row.user_id), Number(row.searches_used ?? 0));
@@ -402,8 +405,8 @@ Deno.serve(async (req: Request) => {
         payments_count: successfulPayments.length,
         payments_total: successfulPayments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0),
         monthly_search_allowance: Number(allowanceByPlan.get(String(sub?.plan_code ?? profile?.plan_code ?? "free")) ?? 0),
-        monthly_searches_used: usageByUser.get(String(u.id)) ?? 0,
-        monthly_searches_remaining: Math.max(0, Number(allowanceByPlan.get(String(sub?.plan_code ?? profile?.plan_code ?? "free")) ?? 0) - (usageByUser.get(String(u.id)) ?? 0)),
+        monthly_searches_used: String(sub?.plan_code ?? profile?.plan_code ?? "free") === "free" ? (freeUsageByUser.get(String(u.id)) ?? 0) : (usageByUser.get(String(u.id)) ?? 0),
+        monthly_searches_remaining: Math.max(0, Number(allowanceByPlan.get(String(sub?.plan_code ?? profile?.plan_code ?? "free")) ?? 0) - (String(sub?.plan_code ?? profile?.plan_code ?? "free") === "free" ? (freeUsageByUser.get(String(u.id)) ?? 0) : (usageByUser.get(String(u.id)) ?? 0))),
         provider_api_calls: providerCallsByUser.get(String(u.id)) ?? 0
       };
     });
