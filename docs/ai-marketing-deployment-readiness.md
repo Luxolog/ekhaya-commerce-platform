@@ -35,6 +35,7 @@ Apply these files to an isolated non-production database in this order, after re
 13. 20261122100000_add_marketing_automation_worker_runtime.sql
 14. 20261122110000_advance_marketing_automation_schedules.sql
 15. 20261122120000_execute_marketing_automation_actions.sql
+16. 20261122130000_recover_stale_marketing_automation_runs.sql
 
 Do not apply this list directly to production. Confirm migration history and dependencies in the target environment first.
 
@@ -100,6 +101,6 @@ Do not add service-role, OpenAI or Paystack secrets to NEXT_PUBLIC variables. Th
 
 A repository Supabase CLI configuration is now present at supabase/config.toml. Its project_id is a local project label, not a production project reference. Link explicitly to the approved non-production project when authorised. Function JWT verification is enabled for the AI Marketing generation, weekly-plan and Paystack Marketing billing functions.
 
-The automation worker source is present but is not deployed or scheduled. It requires the runtime migrations, a long random MARKETING_AUTOMATION_WORKER_SECRET and an explicitly configured scheduler. The worker writes only internal seller action events; it does not send email, publish content or call external providers. Sellers cannot activate rules through the UI or authenticated database policy; activation must be performed by an authorised service-role release operation after non-production tests. Analytics performance metrics are seller-entered or provider-imported and must retain their source label.
+The automation worker source is present but is not deployed or scheduled. It requires the runtime migrations, a long random MARKETING_AUTOMATION_WORKER_SECRET and an explicitly configured scheduler. The worker rejects malformed, non-object and oversized request bodies, enforces a batch limit of 1–25, and returns HTTP 503 when retry-state persistence fails. The run-claim RPC recovers runs abandoned in the running state after a 15-minute lease; prove lease recovery and concurrent claims in non-production before scheduling. The worker writes only internal seller action events; it does not send email, publish content or call external providers. Sellers cannot activate rules through the UI or authenticated database policy; activation must be performed by an authorised service-role release operation after non-production tests. Analytics performance metrics are seller-entered or provider-imported and must retain their source label.
 
 Email provider selection and credentials remain outstanding. Email drafts and delivery-event schema do not imply outbound email capability.
