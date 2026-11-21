@@ -28,3 +28,12 @@ The dashboard also retains the existing campaign idea, research brief and trend-
 
 ## Release gates
 This is GitHub-only code. Apply migrations only to a non-production environment first. Configure `OPENAI_API_KEY` as a Supabase Edge Function secret. Deploy the function only after security review, build checks and quota tests. Marketing checkout remains hard-disabled until Paystack approval and acceptance tests are complete.
+
+
+## Saved brand and product context
+
+The seller can save one business brand profile and multiple product profiles in the Marketing workspace. The generation Edge Function loads the brand profile using the authenticated seller ID and, when a product ID is supplied, loads that product using both the product ID and seller ID. The resulting context is passed to the existing OpenAI request; it does not create additional provider calls or quota categories.
+
+New content formats include Facebook ad copy, WhatsApp Business messages, marketplace listings, product launch packs and three-variation output. Platform choices include WhatsApp Business and marketplace preparation. These are content-preparation tools only: they do not publish listings, launch advertisements or send WhatsApp messages.
+
+Product images are currently stored as optional references only; no upload pipeline is configured. Prices, stock and specifications are only included when the seller supplies them.
