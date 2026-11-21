@@ -927,7 +927,12 @@ Deno.serve(async (req: Request) => {
         charged = false;
       }
       if (marketplace === "takealot" && cache && Array.isArray(cache.source_payload?.products) && cache.source_payload.products.length > 0) {
-        return json({ source: "stale-cache", marketplace, fetched_at: cache.fetched_at, products: cache.source_payload.products, refresh_paused: false, warning: "Live Takealot refresh failed; showing the last successfully cached results instead. No seller search credit was used." });
+        const staleProducts = cache.source_payload.products
+          .map((product: Record<string, unknown>) => ({ ...product, relevance: classifyMarketplaceProduct(query, product) }))
+          .filter((product: Record<string, unknown>) => product.relevance !== null);
+        if (staleProducts.length > 0) {
+          return json({ source: "stale-cache", marketplace, fetched_at: cache.fetched_at, products: staleProducts, refresh_paused: false, warning: "Live Takealot refresh failed; showing the last successfully cached relevant results instead. No seller search credit was used." });
+        }
       }
       throw error;
     }
