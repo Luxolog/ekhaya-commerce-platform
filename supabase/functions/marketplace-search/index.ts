@@ -8,6 +8,16 @@ const cors = {
 };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: cors });
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+type ProviderResponse = {
+  ok?: boolean;
+  error?: { message?: string; detail?: string; retryable?: boolean } | null;
+  data?: { products?: Record<string, unknown>[]; results?: Record<string, unknown>[] } | null;
+  meta?: Record<string, unknown> | null;
+};
 const validMarketplaces = ["takealot", "amazon", "makro"]
 const testingMarketplaces: Record<string, string> = {
   bobshop: "Bob Shop is in testing and is not available for live searches yet.",
@@ -93,12 +103,12 @@ Deno.serve(async (req: Request) => {
     const authUsers = Array.isArray(usersPayload) ? usersPayload : usersPayload.users ?? [];
     const pilots = await pilotResponse.json();
     const profiles = await profilesResponse.json();
-    const pilotById = new Map(pilots.map((p: Record<string, unknown>) => [p.user_id, p]));
-    const profileById = new Map(profiles.map((p: Record<string, unknown>) => [p.id, p]));
-    return json({ ok: true, users: authUsers.map((u: Record<string, any>) => {
-      const meta = u.user_metadata ?? {};
-      const app = u.app_metadata ?? {};
-      const profile = profileById.get(u.id) ?? {};
+    const pilotById = new Map<string, Record<string, unknown>>(pilots.map((p: Record<string, unknown>) => [String(p.user_id), p]));
+    const profileById = new Map<string, Record<string, unknown>>(profiles.map((p: Record<string, unknown>) => [String(p.id), p]));
+    return json({ ok: true, users: authUsers.map((u: Record<string, unknown>) => {
+      const meta = asRecord(u.user_metadata);
+      const app = asRecord(u.app_metadata);
+      const profile = profileById.get(String(u.id)) ?? {};
       return {
         id: u.id,
         user_id: u.id,
@@ -110,7 +120,7 @@ Deno.serve(async (req: Request) => {
         role: app.role ?? (app.is_owner === true ? "owner" : "seller"),
         account_status: profile.account_status ?? "pending",
         plan_code: profile.plan_code ?? "free",
-        pilot: pilotById.get(u.id) ?? null
+        pilot: pilotById.get(String(u.id)) ?? null
       };
     }) });
   }
@@ -351,10 +361,9 @@ Deno.serve(async (req: Request) => {
     const authUsers = Array.isArray(authPayload) ? authPayload : authPayload.users ?? [];
     const [partners, referrals, commissions, statements, allActivity, profiles, planAllowances, monthlyUsage, freeUsage, subscriptions, payments, apiUsage] =
       await Promise.all(responses.map(response => response.json()));
-    const partnerById = new Map(partners.map((p: Record<string, unknown>) => [p.id, p]));
-    const referralByUser = new Map(referrals.map((r: Record<string, unknown>) => [r.referred_user_id, r]));
-    const profileById = new Map(profiles.map((p: Record<string, unknown>) => [p.id, p]));
-    const authById = new Map(authUsers.map((u: Record<string, unknown>) => [u.id, u]));
+    const partnerById = new Map<string, Record<string, unknown>>(partners.map((p: Record<string, unknown>) => [String(p.id), p]));
+    const referralByUser = new Map<string, Record<string, unknown>>(referrals.map((r: Record<string, unknown>) => [String(r.referred_user_id), r]));
+    const profileById = new Map<string, Record<string, unknown>>(profiles.map((p: Record<string, unknown>) => [String(p.id), p]));
     const latestSubscription = new Map<string, Record<string, unknown>>();
     for (const sub of subscriptions) if (!latestSubscription.has(String(sub.user_id))) latestSubscription.set(String(sub.user_id), sub);
     const userPayments = new Map<string, Record<string, unknown>[]>();
@@ -372,29 +381,29 @@ Deno.serve(async (req: Request) => {
       sellerSearchCounts.set(key, entry);
     }
     const currentPeriodStart = `${new Date().toISOString().slice(0, 7)}-01`;
-    const allowanceByPlan = new Map(planAllowances.map((row: Record<string, any>) => [String(row.plan_code), Number(row.monthly_search_credits ?? 0)]));
+    const allowanceByPlan = new Map<string, number>(planAllowances.map((row: Record<string, unknown>) => [String(row.plan_code), Number(row.monthly_search_credits ?? 0)]));
     allowanceByPlan.set("free", 5);
-    const freeUsageByUser = new Map<string, number>(freeUsage.map((row: Record<string, any>) => [String(row.user_id), Number(row.searches_used ?? 0)]));
+    const freeUsageByUser = new Map<string, number>(freeUsage.map((row: Record<string, unknown>) => [String(row.user_id), Number(row.searches_used ?? 0)]));
     const usageByUser = new Map<string, number>();
     for (const row of monthlyUsage) {
       if (String(row.period_start) === currentPeriodStart) usageByUser.set(String(row.user_id), Number(row.searches_used ?? 0));
     }
     const providerCallsByUser = new Map<string, number>();
     for (const row of apiUsage) if (row.actor_id) providerCallsByUser.set(String(row.actor_id), (providerCallsByUser.get(String(row.actor_id)) ?? 0) + 1);
-    const sellers = authUsers.map((u: Record<string, any>) => {
-      const profile = profileById.get(u.id) as Record<string, unknown> | undefined;
-      const referral = referralByUser.get(u.id) as Record<string, unknown> | undefined;
-      const partner = referral ? partnerById.get(referral.partner_id) as Record<string, unknown> | undefined : undefined;
-      const sellerPayments = userPayments.get(u.id) ?? [];
+    const sellers = authUsers.map((u: Record<string, unknown>) => {
+      const profile = profileById.get(String(u.id));
+      const referral = referralByUser.get(String(u.id));
+      const partner = referral ? partnerById.get(String(referral.partner_id)) : undefined;
+      const sellerPayments = userPayments.get(String(u.id)) ?? [];
       const successfulPayments = sellerPayments.filter(p => p.status === "paid" || p.status === "success");
-      const searchStats = sellerSearchCounts.get(u.id) ?? { searches: 0, failures: 0, last_search: null };
-      const sub = latestSubscription.get(u.id);
+      const searchStats = sellerSearchCounts.get(String(u.id)) ?? { searches: 0, failures: 0, last_search: null };
+      const sub = latestSubscription.get(String(u.id));
       return {
         id: u.id, email: u.email ?? null,
-        display_name: profile?.display_name ?? u.user_metadata?.display_name ?? u.user_metadata?.full_name ?? null,
+        display_name: profile?.display_name ?? asRecord(u.user_metadata).display_name ?? asRecord(u.user_metadata).full_name ?? null,
         created_at: u.created_at ?? null, last_sign_in_at: u.last_sign_in_at ?? null,
         email_confirmed_at: u.email_confirmed_at ?? null,
-        role: u.app_metadata?.role ?? (u.app_metadata?.is_owner === true ? "owner" : "seller"),
+        role: asRecord(u.app_metadata).role ?? (asRecord(u.app_metadata).is_owner === true ? "owner" : "seller"),
         account_status: profile?.account_status ?? "pending",
         plan_code: sub?.plan_code ?? profile?.plan_code ?? "free",
         subscription_status: sub?.status ?? "none",
@@ -411,18 +420,18 @@ Deno.serve(async (req: Request) => {
       };
     });
     const partnerActivity = allActivity
-      .filter((item: Record<string, unknown>) => referralByUser.has(item.user_id))
+      .filter((item: Record<string, unknown>) => referralByUser.has(String(item.user_id)))
       .map((item: Record<string, unknown>) => {
-        const referral = referralByUser.get(item.user_id) as Record<string, unknown>;
-        const partner = partnerById.get(referral.partner_id) as Record<string, unknown> | undefined;
-        const profile = profileById.get(item.user_id) as Record<string, unknown> | undefined;
+        const referral = referralByUser.get(String(item.user_id)) as Record<string, unknown>;
+        const partner = partnerById.get(String(referral.partner_id));
+        const profile = profileById.get(String(item.user_id));
         return { ...item, partner_id: referral.partner_id, partner_name: partner?.partner_name ?? "Unknown partner",
           referral_code: referral.referral_code, seller_display_name: profile?.display_name ?? null,
           seller_plan: profile?.plan_code ?? "free", seller_account_status: profile?.account_status ?? "unknown" };
       });
     const allSearchActivity = allActivity.map((item: Record<string, unknown>) => {
       const seller = sellers.find((s: Record<string, unknown>) => s.id === item.user_id) as Record<string, unknown> | undefined;
-      const referral = referralByUser.get(item.user_id) as Record<string, unknown> | undefined;
+      const referral = referralByUser.get(String(item.user_id));
       const partner = referral ? partnerById.get(referral.partner_id) as Record<string, unknown> | undefined : undefined;
       return { ...item, seller_email: seller?.email ?? null, seller_display_name: seller?.display_name ?? null,
         seller_plan: seller?.plan_code ?? "free", partner_name: partner?.partner_name ?? null, event_type: "seller_search" };
@@ -583,7 +592,7 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, settings: (await saved.json())[0] });
   }
 
-  const marketplace = body.marketplace;
+  const marketplace = typeof body.marketplace === "string" ? body.marketplace : "";
   const query = typeof body.query === "string" ? body.query.trim().slice(0, 160) : "";
   if (query.length < 2) {
     return json({ error: "Enter at least 2 search characters." }, 400);
@@ -709,10 +718,10 @@ Deno.serve(async (req: Request) => {
     }
 
     let providerAttempted = false;
-    let providerPayload: Record<string, any> | null = null;
+    let providerPayload: ProviderResponse | null = null;
     let providerUsageLogged = false;
     try {
-      let payload: Record<string, any>;
+      let payload: ProviderResponse;
       let raw: Record<string, unknown>[];
       if (marketplace === "makro") {
         if (!reefKey) throw new Error("Makro search is not configured. Add REEFAPI_KEY to Supabase Edge Function secrets.");
@@ -722,7 +731,7 @@ Deno.serve(async (req: Request) => {
           body: JSON.stringify({ query, page: 1, ...(postalCode ? { postal_code: postalCode } : {}) }),
           signal: AbortSignal.timeout(15000),
         });
-        payload = await upstream.json();
+        payload = await upstream.json() as ProviderResponse;
         providerPayload = payload;
         if (!upstream.ok || payload?.ok === false) throw new Error(payload?.error?.message ?? payload?.error?.detail ?? upstream.statusText ?? "ReefAPI Makro search failed");
         raw = payload?.data?.products ?? [];
@@ -737,7 +746,7 @@ Deno.serve(async (req: Request) => {
             body: JSON.stringify(searchParams),
             signal: AbortSignal.timeout(15000),
           });
-          const result = await upstream.json();
+          const result = await upstream.json() as ProviderResponse;
           providerPayload = result;
           if (!upstream.ok || result?.ok === false) {
             const providerError = result?.error ?? {};
@@ -835,7 +844,7 @@ Deno.serve(async (req: Request) => {
       });
       await recordProviderUsage({
         marketplace, lookupKey: `search:${lookupKey}`, credits: Number(payload.meta?.charged_credits ?? 0),
-        status: "success", responseCount: products.length, providerRequestId: payload.meta?.request_id ?? null,
+        status: "success", responseCount: products.length, providerRequestId: typeof payload.meta?.request_id === "string" ? payload.meta.request_id : null,
         actorId: charged ? userId : null,
       });
       providerUsageLogged = true;
@@ -884,7 +893,7 @@ Deno.serve(async (req: Request) => {
         await recordProviderUsage({
           marketplace, lookupKey: `search:${lookupKey}`,
           credits: Number(providerPayload?.meta?.charged_credits ?? 0), status: "failed",
-          responseCount: 0, providerRequestId: providerPayload?.meta?.request_id ?? null,
+          responseCount: 0, providerRequestId: typeof providerPayload?.meta?.request_id === "string" ? providerPayload.meta.request_id : null,
           actorId: charged ? userId : null,
         });
         providerUsageLogged = true;
