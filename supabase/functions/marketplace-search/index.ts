@@ -89,6 +89,37 @@ Deno.serve(async (req: Request) => {
     body.target_user_id = body.target_user_id ?? body.user_id;
   }
 
+  if (typeof body.action === "string" && body.action.startsWith("owner_")) {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    let sessionId = "";
+    try {
+      const jwtPart = accessToken.split(".")[1] ?? "";
+      const normalized = jwtPart.replace(/-/g, "+").replace(/_/g, "/");
+      const claims = JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")));
+      sessionId = typeof claims.session_id === "string" ? claims.session_id : "";
+    } catch { /* invalid claims fail closed below */ }
+    if (!sessionId) return json({ error: "A valid owner session is required." }, 401);
+    const securityUrl = new URL("/rest/v1/account_security_settings", supabaseUrl);
+    securityUrl.searchParams.set("user_id", "eq." + userId);
+    securityUrl.searchParams.set("select", "email_otp_enabled");
+    securityUrl.searchParams.set("limit", "1");
+    const securityResponse = await fetch(securityUrl, { headers: adminHeaders });
+    if (!securityResponse.ok) return json({ error: "Could not verify owner security settings." }, 503);
+    const securityRows = await securityResponse.json();
+    if (securityRows?.[0]?.email_otp_enabled === true) {
+      const verifiedUrl = new URL("/rest/v1/email_otp_verified_sessions", supabaseUrl);
+      verifiedUrl.searchParams.set("user_id", "eq." + userId);
+      verifiedUrl.searchParams.set("session_id", "eq." + sessionId);
+      verifiedUrl.searchParams.set("expires_at", "gt." + new Date().toISOString());
+      verifiedUrl.searchParams.set("select", "session_id");
+      verifiedUrl.searchParams.set("limit", "1");
+      const verifiedResponse = await fetch(verifiedUrl, { headers: adminHeaders });
+      if (!verifiedResponse.ok) return json({ error: "Could not verify owner OTP status." }, 503);
+      const verifiedRows = await verifiedResponse.json();
+      if (!verifiedRows?.length) return json({ error: "Email verification is required to access Admin controls.", code: "EMAIL_OTP_REQUIRED" }, 403);
+    }
+  }
+
   if (body.action === "owner_list_users") {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
     const [usersResponse, pilotResponse, profilesResponse] = await Promise.all([
