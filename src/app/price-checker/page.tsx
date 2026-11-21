@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { BrowserMultiFormatReader } from "@zxing/browser";
@@ -48,6 +48,27 @@ export default function PriceCheckerPage() {
   const [photoBusy,setPhotoBusy]=useState(false);
   const [barcodeProduct,setBarcodeProduct]=useState("");
   const [barcodeBusy,setBarcodeBusy]=useState(false);
+  const [photoSearchAllowed,setPhotoSearchAllowed]=useState(false);
+  const [photoEntitlementLoading,setPhotoEntitlementLoading]=useState(true);
+
+  useEffect(()=>{
+    let active=true;
+    async function loadPhotoEntitlement(){
+      try{
+        const raw=localStorage.getItem("ekhaya_session");
+        const session=raw?JSON.parse(raw) as {access_token?:string}:null;
+        if(!session?.access_token) return;
+        const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/rest/v1/profiles?select=plan_code&id=eq."+encodeURIComponent(String((session as {user?:{id?:string}}).user?.id??"")),{headers:{apikey:process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY??"","Authorization":"Bearer "+session.access_token},cache:"no-store"});
+        if(!response.ok) return;
+        const rows=await response.json();
+        const plan=String(rows?.[0]?.plan_code??"beginner").toLowerCase();
+        if(active) setPhotoSearchAllowed(plan!=="beginner" && plan!=="free");
+      }catch{ if(active) setPhotoSearchAllowed(false); }
+      finally{ if(active) setPhotoEntitlementLoading(false); }
+    }
+    void loadPhotoEntitlement();
+    return ()=>{active=false;};
+  },[]);
 
   type SellerSession = { access_token?: string; refresh_token?: string; expires_at?: number; expires_in?: number; [key: string]: unknown };
   const getSupabaseHeaders=async(forceRefresh=false)=>{
@@ -128,6 +149,7 @@ export default function PriceCheckerPage() {
   }
   async function readPhoto(file?:File) {
     if(!file)return;
+    if(!photoSearchAllowed){setError("Photograph search is not included in the Beginner plan. Upgrade to Starter or above.");return;}
     if(file.size>18*1024*1024){setError("Choose an image smaller than 18 MB.");return;}
     setPhotoName(file.name);setPhotoText("");setPhotoBusy(true);setError("");
     try {
@@ -182,7 +204,7 @@ export default function PriceCheckerPage() {
     <section className="hero"><p className="eyebrow">SELL SMARTER. PRICE WITH CONFIDENCE.</p><h1>Know your numbers<br/><em>before you buy.</em></h1><p>Find a product, enter your buying price and compare estimated profit after marketplace fulfilment fees.</p></section>
     <section className="panel">
       <div className="heading"><div><small>01 / FIND A PRODUCT</small><h2>How would you like to search?</h2></div><span className="connected">● MARKETPLACE DATA</span></div>
-      <div className="modes">{(["barcode","photo","name"] as Mode[]).map(m=><button key={m} className={mode===m?"active":""} onClick={()=>{setMode(m);setError("");}}>{m==="barcode"?"▦ Enter barcode":m==="photo"?"▧ Take a picture":"⌕ Search by name"}</button>)}</div>
+      <div className="modes">{(["barcode","photo","name"] as Mode[]).filter(m=>m!=="photo"||photoSearchAllowed).map(m=><button key={m} className={mode===m?"active":""} onClick={()=>{setMode(m);setError("");}}>{m==="barcode"?"▦ Enter barcode":m==="photo"?"▧ Take a picture":"⌕ Search by name"}</button>)}</div>{!photoSearchAllowed&&!photoEntitlementLoading&&<p className="hint" role="note">Photograph search is available on Starter, Growth and Pro plans. Upgrade your plan to unlock it.</p>}{photoEntitlementLoading&&<p className="hint">Checking photograph search access…</p>}
       {mode==="name"&&<input className="wide" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Product name, brand or model (e.g. Logitech M171)"/>}
       {mode==="barcode"&&<div className="stack"><input className="wide" inputMode="numeric" value={barcode} onChange={e=>{setBarcode(e.target.value.replace(/\D/g,"").slice(0,14));setBarcodeProduct("");setError("");}} placeholder="Enter barcode / EAN / UPC"/><button type="button" className="secondary" disabled={barcodeBusy||!barcode.trim()} onClick={()=>identifyBarcode(barcode)}>{barcodeBusy?"Looking up barcode…":"Identify barcode"}</button>{barcodeProduct&&<p className="hint">Identified product: <b>{barcodeProduct}</b></p>}<p className="hint">Enter the digits printed below the product barcode, or take a product photo and we’ll check it automatically.</p></div>}
       {mode==="photo"&&<div className="stack"><label className="upload"> <input type="file" accept="image/*" capture="environment" onChange={e=>readPhoto(e.target.files?.[0])}/>Take a product photo (barcode detection included)</label>{photoName&&<p className="hint">Selected: {photoName}</p>}{photoBusy&&<p className="hint">Checking image for barcode and product text…</p>}<textarea className="wide photo-text" value={photoText} onChange={e=>setPhotoText(e.target.value)} placeholder="If no barcode is found, recognised product text appears here. Edit it before searching by name."/></div>}
