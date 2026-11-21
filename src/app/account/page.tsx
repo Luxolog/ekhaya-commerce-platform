@@ -10,7 +10,7 @@ const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 export default function AccountPage() {
   const router = useRouter();
-  const [mode,setMode] = useState<"signin"|"signup"|"reset"|"new-password"|"accept-partner">("signup");
+  const [mode,setMode] = useState<"signin"|"signup"|"reset"|"new-password"|"accept-partner">("signin");
   const [email,setEmail] = useState("");
   const [password,setPassword] = useState("");
   const [name,setName] = useState("");
@@ -151,8 +151,8 @@ export default function AccountPage() {
     </header>
     <section style={{maxWidth:480,margin:"70px auto",background:"#fff",border:"1px solid #DCE8F1",borderRadius:14,padding:28,boxShadow:"0 8px 30px #071b3108"}}>
       <p style={{color:"#079BD3",fontSize:10,fontWeight:800,letterSpacing:2}}>EKHAYA ACCOUNT ACCESS</p>
-      <h1 style={{fontSize:30,fontWeight:700,margin:"8px 0 10px"}}>{signedIn?"Your Ekhaya accounts":mode==="signup"?"Create your seller account":mode==="reset"?"Reset your password":mode==="new-password"?"Choose a new password":mode==="accept-partner"?"Accept partner invitation":"Welcome back"}</h1>
-      <p style={{color:"#60758A",fontSize:13,lineHeight:1.6}}>Choose the Ekhaya workspace you are authorised to use. Each account type has its own dashboard and permissions.</p>
+      <h1 style={{fontSize:30,fontWeight:700,margin:"8px 0 10px"}}>{signedIn?"Your Ekhaya accounts":mode==="signup"?"Create your seller account":mode==="reset"?"Reset your password":mode==="new-password"?"Choose a new password":mode==="accept-partner"?"Accept partner invitation":"Sign in to your account"}</h1>
+      <p style={{color:"#60758A",fontSize:13,lineHeight:1.6}}>Sign in to continue to your Ekhaya workspace. New to Ekhaya? You can create a seller account below.</p>
       {!signedIn&&mode!=="accept-partner"&&mode!=="reset"&&mode!=="new-password"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(115px,1fr))",gap:9,margin:"18px 0"}}>
         {([{id:"seller",title:"Seller",desc:"Marketplace searches",icon:"🛍️"},{id:"partner",title:"Partner",desc:"Referrals & commissions",icon:"🤝"},{id:"owner",title:"Admin / Owner",desc:"Platform administration",icon:"🔐"}] as const).map(item=><button key={item.id} type="button" onClick={()=>{setAccountType(item.id);setMessage("");if(item.id!=="seller"&&mode==="signup")setMode("signin");}} style={{textAlign:"left",padding:12,borderRadius:10,border:accountType===item.id?"2px solid #079BD3":"1px solid #DCE8F1",background:accountType===item.id?"#EFF9FE":"#fff",color:"#071B31",cursor:"pointer"}}>
           <span style={{fontSize:21}}>{item.icon}</span><strong style={{display:"block",fontSize:13,marginTop:6}}>{item.title}</strong><span style={{display:"block",fontSize:10,color:"#60758A",lineHeight:1.4,marginTop:4}}>{item.desc}</span>
