@@ -19,7 +19,7 @@ type MarketingSubscription = {
   current_period_start?: string | null; current_period_end?: string | null; created_at: string;
 };
 type UsageEvent = { feature_code: string; quantity: number; created_at: string };
-type Campaign = { id: string; title: string; objective?: string | null; platform?: string | null; status: string; updated_at: string };
+type Campaign = { id: string; title: string; objective?: string | null; platform?: string | null; status: string; updated_at: string };\ntype CalendarPost = { id: string; title: string; content: string; platform: string; scheduled_for: string; status: "draft" | "approved" | "archived" };
 
 const money = (amount: number) => new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 2 }).format(amount);
 const pretty = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase());
@@ -43,7 +43,7 @@ export default function MarketingDashboardPage() {
   const [generatedContent, setGeneratedContent] = useState("");
   const [generatedTitle, setGeneratedTitle] = useState("");
   const [generating, setGenerating] = useState(false);
-  const [generationUsage, setGenerationUsage] = useState<{ used: number; limit: number; remaining: number } | null>(null);
+  const [generationUsage, setGenerationUsage] = useState<{ used: number; limit: number; remaining: number } | null>(null);\n  const [calendarPosts, setCalendarPosts] = useState<CalendarPost[]>([]);\n  const [weeklyContext, setWeeklyContext] = useState("");\n  const [weeklyPlatform, setWeeklyPlatform] = useState("instagram");\n  const [weeklyTone, setWeeklyTone] = useState("friendly and professional");\n  const [weeklyBusy, setWeeklyBusy] = useState(false);
 
   const getHeaders = useCallback(async () => {
     if (!ANON_KEY) throw new Error("Seller account services are not configured. Please contact Ekhaya support.");
@@ -98,7 +98,7 @@ export default function MarketingDashboardPage() {
       setPlan(plans.find(item => item.code === "marketing_mini") ?? plans[0] ?? null);
       setSubscriptions(subs);
       setUsage(events);
-      setCampaigns(drafts);
+      setCampaigns(drafts);\n      const calendar = await get<CalendarPost>("marketing_calendar_posts?select=id,title,content,platform,scheduled_for,status&order=scheduled_for.asc&limit=50");\n      setCalendarPosts(calendar);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load AI Marketing.");
     } finally {
@@ -193,6 +193,53 @@ export default function MarketingDashboardPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function generateWeeklyPlan() {
+    setWeeklyBusy(true); setError(""); setNotice("");
+    try {
+      const headers = await getHeaders();
+      const response = await fetch(SUPABASE_URL + "/functions/v1/ai-marketing-weekly-plan", {
+        method: "POST", headers,
+        body: JSON.stringify({ context: weeklyContext.trim(), platform: weeklyPlatform, tone: weeklyTone }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(payload.posts) || payload.posts.length !== 7) {
+        throw new Error(payload.error ?? "Unable to create your seven-day plan.");
+      }
+      const start = new Date(); start.setHours(9, 0, 0, 0);
+      const rows = payload.posts.map((post: { title: string; content: string }, index: number) => {
+        const scheduled = new Date(start); scheduled.setDate(start.getDate() + index);
+        return { title: post.title, content: post.content, platform: weeklyPlatform, scheduled_for: scheduled.toISOString(), status: "draft" };
+      });
+      const saved = await fetch(SUPABASE_URL + "/rest/v1/marketing_calendar_posts", {
+        method: "POST", headers: { ...headers, Prefer: "return=minimal" }, body: JSON.stringify(rows),
+      });
+      if (!saved.ok) {
+        const detail = await saved.json().catch(() => ({}));
+        throw new Error(detail.message ?? detail.msg ?? "The posts were generated but could not be saved. Contact support before retrying to avoid duplicate credit use.");
+      }
+      setNotice("Your seven-day plan has been saved as drafts. Review and approve each post before using it.");
+      setWeeklyContext("");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to generate weekly content.");
+    } finally { setWeeklyBusy(false); }
+  }
+
+  async function updateCalendarPost(post: CalendarPost, status: "approved" | "draft") {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const headers = await getHeaders();
+      const response = await fetch(SUPABASE_URL + "/rest/v1/marketing_calendar_posts?id=eq." + encodeURIComponent(post.id), {
+        method: "PATCH", headers: { ...headers, Prefer: "return=minimal" },
+        body: JSON.stringify({ status, approved_at: status === "approved" ? new Date().toISOString() : null, updated_at: new Date().toISOString() }),
+      });
+      if (!response.ok) { const detail = await response.json().catch(() => ({})); throw new Error(detail.message ?? "Unable to update post approval."); }
+      setNotice(status === "approved" ? "Post marked as seller-approved. It has not been published or sent to a platform." : "Post returned to draft.");
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to update post."); }
+    finally { setBusy(false); }
   }
 
   async function copyGeneratedContent() {
@@ -338,6 +385,32 @@ export default function MarketingDashboardPage() {
         <button type="button" onClick={() => void load()} disabled={loading} style={{ border: "1px solid #DCE8F1", background: "#fff", borderRadius: 8, padding: "9px 13px", color: "#075477", fontWeight: 700, cursor: loading ? "wait" : "pointer" }}>{loading ? "Refreshing…" : "Refresh"}</button>
       </div>
       {loading ? <p style={{ color: "#60758A", fontSize: 13 }}>Loading marketing workspace…</p> : campaigns.length ? <div style={{ overflowX: "auto", marginTop: 12 }}><table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 12 }}><thead><tr>{["Campaign","Platform","Status","Last updated"].map(label => <th key={label} style={{ padding: 10, color: "#60758A", borderBottom: "1px solid #DCE8F1" }}>{label}</th>)}</tr></thead><tbody>{campaigns.map(campaign => <tr key={campaign.id}><td style={{ padding: 10, borderBottom: "1px solid #EEF3F7", fontWeight: 700 }}>{campaign.title}</td><td style={{ padding: 10, borderBottom: "1px solid #EEF3F7" }}>{campaign.platform ? pretty(campaign.platform) : "—"}</td><td style={{ padding: 10, borderBottom: "1px solid #EEF3F7" }}>{pretty(campaign.status)}</td><td style={{ padding: 10, borderBottom: "1px solid #EEF3F7" }}>{date(campaign.updated_at)}</td></tr>)}</tbody></table></div> : <p style={{ color: "#60758A", fontSize: 13, lineHeight: 1.6, marginTop: 14 }}>No campaign drafts yet.</p>}
+    </section>
+
+    <section style={{ maxWidth: 1180, margin: "22px auto 0", background: "#fff", border: "1px solid #DCE8F1", borderRadius: 14, padding: 24 }}>
+      <h2 style={{ fontFamily: "Manrope,sans-serif", fontSize: 20, margin: "0 0 8px" }}>Seven-day content calendar</h2>
+      <p style={{ color: "#60758A", fontSize: 13, lineHeight: 1.6, marginTop: 0 }}>Create a week of platform-specific posts in one go. A complete plan uses seven AI social-post credits. Posts are saved as drafts; you review and approve them. Approval does not publish or schedule them externally.</p>
+      {!activeSubscription ? <p style={{ color: "#71869A", fontSize: 12 }}>An active Marketing subscription is required to generate a calendar.</p> : <div style={{ display: "grid", gap: 10, maxWidth: 760 }}>
+        <label style={formLabel}>Business, product, audience and weekly goal
+          <textarea value={weeklyContext} onChange={event => setWeeklyContext(event.target.value)} maxLength={2500} rows={4} placeholder="Describe what you sell, who you want to reach and what this week’s content should achieve." style={{ ...field, height: "auto", padding: 12, resize: "vertical" }}/>
+        </label>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
+          <label style={formLabel}>Platform<select value={weeklyPlatform} onChange={event => setWeeklyPlatform(event.target.value)} style={field}><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option><option value="other">Other</option></select></label>
+          <label style={formLabel}>Tone<select value={weeklyTone} onChange={event => setWeeklyTone(event.target.value)} style={field}><option value="friendly and professional">Friendly and professional</option><option value="bold and persuasive">Bold and persuasive</option><option value="premium and sophisticated">Premium and sophisticated</option><option value="warm and community-focused">Warm and community-focused</option><option value="informative and educational">Informative and educational</option></select></label>
+        </div>
+        <button type="button" onClick={() => void generateWeeklyPlan()} disabled={weeklyBusy || weeklyContext.trim().length < 12} style={{ padding: 13, border: 0, borderRadius: 8, background: weeklyBusy || weeklyContext.trim().length < 12 ? "#9FB5C5" : "#079BD3", color: "#fff", fontWeight: 800 }}>{weeklyBusy ? "BUILDING YOUR WEEK…" : "GENERATE 7-DAY CONTENT PLAN · 7 CREDITS"}</button>
+      </div>}
+      <div style={{ display: "grid", gap: 12, marginTop: 22 }}>
+        {calendarPosts.length ? calendarPosts.map(post => <article key={post.id} style={{ border: "1px solid #DCE8F1", borderRadius: 10, padding: 15 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><strong>{post.title}</strong><span style={{ fontSize: 11, color: post.status === "approved" ? "#147A46" : "#60758A", fontWeight: 800 }}>{pretty(post.status)}</span></div>
+          <p style={{ color: "#71869A", fontSize: 11, margin: "6px 0" }}>{pretty(post.platform)} · {date(post.scheduled_for)}</p>
+          <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: "#40566B", fontSize: 13, lineHeight: 1.65 }}>{post.content}</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" onClick={() => void navigator.clipboard.writeText(post.content).then(() => setNotice("Post copied."), () => setError("Clipboard access unavailable."))} style={{ padding: "8px 11px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Copy post</button>
+            {post.status === "draft" ? <button type="button" disabled={busy} onClick={() => void updateCalendarPost(post, "approved")} style={{ padding: "8px 11px", border: 0, borderRadius: 7, background: "#E8F6EE", color: "#147A46", fontWeight: 700 }}>Approve post</button> : <button type="button" disabled={busy} onClick={() => void updateCalendarPost(post, "draft")} style={{ padding: "8px 11px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Return to draft</button>}
+          </div>
+        </article>) : <p style={{ color: "#71869A", fontSize: 13 }}>Your generated weekly posts will appear here.</p>}
+      </div>
     </section>
 
     <footer style={{ maxWidth: 1180, margin: "30px auto 0", display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", color: "#71869A", fontSize: 12 }}>
