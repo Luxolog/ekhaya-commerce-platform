@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 const STORAGE_KEY = "ekhaya_referral_code";
 const COOKIE_KEY = "ekhaya_referral_code";
@@ -20,16 +21,10 @@ function readCookie() {
 
 function persistCode(code: string) {
   if (!code) return;
-  try {
-    localStorage.setItem(STORAGE_KEY, code);
-  } catch {
-    // Continue with the first-party cookie if localStorage is unavailable.
-  }
+  try { localStorage.setItem(STORAGE_KEY, code); } catch {}
   try {
     document.cookie = COOKIE_KEY + "=" + encodeURIComponent(code) + "; Max-Age=7776000; Path=/; SameSite=Lax; Secure";
-  } catch {
-    // Referral can still be carried in the URL.
-  }
+  } catch {}
 }
 
 function currentCode() {
@@ -44,55 +39,49 @@ function isPrivateRoute(pathname: string) {
   return /^\/(partner|admin|owner)(\/|$)/i.test(pathname);
 }
 
-function carryReferralToLink(anchor: HTMLAnchorElement, code: string) {
-  if (!code || anchor.dataset.noReferralCarry === "true") return;
-  const rawHref = anchor.getAttribute("href");
-  if (!rawHref || rawHref.startsWith("#") || rawHref.startsWith("mailto:") || rawHref.startsWith("tel:") || rawHref.startsWith("javascript:")) return;
-  try {
-    const target = new URL(rawHref, window.location.origin);
-    if (target.origin !== window.location.origin || isPrivateRoute(target.pathname)) return;
-    if (!target.searchParams.has("ref")) {
-      target.searchParams.set("ref", code);
-      anchor.setAttribute("href", target.pathname + target.search + target.hash);
-    }
-  } catch {
-    // Ignore malformed or non-navigation hrefs.
-  }
-}
-
 export default function EkhayaReferralAttribution() {
+  const router = useRouter();
+
   useEffect(() => {
+    // Capture a partner code on the first landing page and retain it for 90 days.
     const params = new URLSearchParams(window.location.search);
     const incoming = cleanCode(params.get("ref") || params.get("referral") || params.get("partner"));
     if (incoming) persistCode(incoming);
 
-    // A cookie provides a first-party fallback if localStorage is cleared or unavailable.
-    const code = incoming || currentCode();
-    if (!code) return;
-    persistCode(code);
+    const onDocumentClick = (event: MouseEvent) => {
+      // Only take over an ordinary left-click. Preserve new-tab, download and modified clicks.
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const element = event.target as Element | null;
+      const anchor = element?.closest("a[href]") as HTMLAnchorElement | null;
+      if (!anchor || anchor.dataset.noReferralCarry === "true" || anchor.hasAttribute("download")) return;
+      if (anchor.target && anchor.target.toLowerCase() !== "_self") return;
 
-    const updateLinks = () => {
-      document.querySelectorAll<HTMLAnchorElement>("a[href]").forEach((anchor) => carryReferralToLink(anchor, code));
+      const rawHref = anchor.getAttribute("href");
+      if (!rawHref || rawHref.startsWith("#") || rawHref.startsWith("mailto:") || rawHref.startsWith("tel:") || rawHref.startsWith("javascript:")) return;
+
+      const code = currentCode() || incoming;
+      if (!code) return;
+
+      let destination: URL;
+      try { destination = new URL(rawHref, window.location.href); } catch { return; }
+      if (destination.origin !== window.location.origin || isPrivateRoute(destination.pathname)) return;
+
+      // The previous approach only rewrote the rendered <a href>. Next.js Link can
+      // navigate using its original React href, bypassing that DOM mutation.
+      // Intercept the click before Next Link and route with the referral in the URL.
+      if (!destination.searchParams.has("ref")) destination.searchParams.set("ref", code);
+      const nextUrl = destination.pathname + destination.search + destination.hash;
+      if (nextUrl === window.location.pathname + window.location.search + window.location.hash) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      router.push(nextUrl);
     };
-    updateLinks();
 
-    // Re-apply attribution to links rendered later by client-side navigation/components.
-    const observer = new MutationObserver(updateLinks);
-    observer.observe(document.documentElement, { childList: true, subtree: true });
-
-    // Ensure the latest code is carried at the moment a visitor clicks a link.
-    const handleClick = (event: MouseEvent) => {
-      const target = event.target as Element | null;
-      const anchor = target?.closest("a[href]") as HTMLAnchorElement | null;
-      if (anchor) carryReferralToLink(anchor, currentCode() || code);
-    };
-    document.addEventListener("click", handleClick, true);
-
-    return () => {
-      observer.disconnect();
-      document.removeEventListener("click", handleClick, true);
-    };
-  }, []);
+    document.addEventListener("click", onDocumentClick, true);
+    return () => document.removeEventListener("click", onDocumentClick, true);
+  }, [router]);
 
   return null;
 }
