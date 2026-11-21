@@ -50,8 +50,7 @@ jobs:
         run: deno check --no-lock --node-modules-dir=auto supabase/functions/ai-marketing-generate/index.ts supabase/functions/ai-marketing-weekly-plan/index.ts supabase/functions/paystack-marketing-billing/index.ts supabase/functions/marketing-automation-worker/index.ts
 
   migration-lint:
-    name: Supabase local migration validation (manual)
-    if: github.event_name == 'workflow_dispatch'
+    name: Supabase local migration apply and lint
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -62,5 +61,10 @@ jobs:
           version: latest
       - name: Start isolated local Supabase stack
         run: supabase start -x studio,inbucket,imgproxy,edge-runtime,logflare,vector
-      - name: Lint complete migration history
+      - name: Apply the complete migration history to the local database
+        run: supabase db reset --local
+      - name: Lint the resulting local database
         run: supabase db lint --local
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop --no-backup
