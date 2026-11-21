@@ -37,8 +37,17 @@ This runbook is preparatory. No migration is applied by GitHub CI or by this rep
 9. 20261122060000_add_marketing_contacts_and_email_drafts.sql
 10. 20261122070000_add_campaign_planning_metadata.sql
 11. 20261122080000_add_marketing_automation_analytics_and_email_events.sql
+12. 20261122090000_lock_automation_activation_until_worker.sql
+13. 20261122100000_add_marketing_automation_worker_runtime.sql
+14. 20261122110000_advance_marketing_automation_schedules.sql
+15. 20261122120000_execute_marketing_automation_actions.sql
+16. 20261122130000_recover_stale_marketing_automation_runs.sql
 
 The preceding core Price Checker migrations must already be present in the target database. Confirm the full migration history; do not apply this AI Marketing subset in isolation.
+
+## Worker lease recovery
+
+The final migration redefines the service-role-only run-claim RPC. A run left in `running` for more than 15 minutes is treated as abandoned: it is requeued if attempts remain or marked failed if the attempt budget is exhausted. The worker claim increments attempts and refreshes `last_attempt_at`. Test this behaviour under concurrent worker invocations in an isolated database before scheduling the worker. The lease is a recovery mechanism, not proof that a long-running worker cannot overlap; keep internal actions bounded and idempotent.
 
 ## Rollback and recovery
 
