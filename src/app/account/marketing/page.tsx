@@ -41,6 +41,7 @@ export default function MarketingDashboardPage() {
   const [generatorTone, setGeneratorTone] = useState("friendly and professional");
   const [generatorContext, setGeneratorContext] = useState("");
   const [generatedContent, setGeneratedContent] = useState("");
+  const [generatedTitle, setGeneratedTitle] = useState("");
   const [generating, setGenerating] = useState(false);
   const [generationUsage, setGenerationUsage] = useState<{ used: number; limit: number; remaining: number } | null>(null);
 
@@ -157,12 +158,40 @@ export default function MarketingDashboardPage() {
         throw new Error(payload.error ?? "Content generation is not available yet.");
       }
       setGeneratedContent(payload.content);
+      setGeneratedTitle(generatorFeature === "ai_post" ? "AI social post" : generatorFeature === "campaign_idea" ? "AI campaign idea" : generatorFeature === "research_query" ? "Marketing research brief" : "Trend planning brief");
       setGenerationUsage(payload.usage ?? null);
       setNotice("Your draft is ready. Review it carefully before publishing.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to generate marketing content.");
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function saveGeneratedDraft() {
+    if (!generatedContent || !generatedTitle.trim()) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const headers = await getHeaders();
+      const response = await fetch(SUPABASE_URL + "/rest/v1/marketing_campaigns", {
+        method: "POST",
+        headers: { ...headers, Prefer: "return=representation" },
+        body: JSON.stringify({
+          title: generatedTitle.trim().slice(0, 100),
+          objective: generatorContext.trim().slice(0, 1000),
+          platform: generatorFeature === "ai_post" ? platform : null,
+          content: generatedContent,
+          status: "draft",
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message ?? payload.msg ?? "Unable to save this generated draft.");
+      setNotice("Generated content saved to your campaign workspace.");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save this generated draft.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -280,7 +309,11 @@ export default function MarketingDashboardPage() {
           <button type="button" onClick={() => void generateContent()} disabled={generating || generatorContext.trim().length < 12} style={{ padding: 13, border: 0, borderRadius: 8, background: generating || generatorContext.trim().length < 12 ? "#9FB5C5" : "#079BD3", color: "#fff", fontWeight: 800, cursor: generating ? "wait" : "pointer" }}>{generating ? "GENERATING…" : "GENERATE CONTENT"}</button>
           {generatedContent && <div style={{ marginTop: 8, border: "1px solid #DCE8F1", borderRadius: 10, padding: 15, background: "#F8FBFD" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}><strong style={{ fontSize: 13 }}>Your generated draft</strong><button type="button" onClick={() => void copyGeneratedContent()} style={{ border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", padding: "7px 10px", color: "#075477", fontWeight: 700, cursor: "pointer" }}>Copy draft</button></div>
-            <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontFamily: "inherit", fontSize: 13, lineHeight: 1.7, color: "#304B63", margin: 0 }}>{generatedContent}</pre>
+            <label style={formLabel}>Draft title
+              <input value={generatedTitle} onChange={event => setGeneratedTitle(event.target.value)} maxLength={100} style={field}/>
+            </label>
+            <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontFamily: "inherit", fontSize: 13, lineHeight: 1.7, color: "#304B63", margin: "12px 0 0" }}>{generatedContent}</pre>
+            <button type="button" onClick={() => void saveGeneratedDraft()} disabled={busy || !generatedTitle.trim()} style={{ width: "100%", padding: 11, marginTop: 12, border: "1px solid #079BD3", borderRadius: 8, background: "#fff", color: "#075477", fontWeight: 800, cursor: busy ? "wait" : "pointer" }}>{busy ? "SAVING…" : "SAVE TO CAMPAIGN WORKSPACE"}</button>
             {generationUsage && <p style={{ color: "#71869A", fontSize: 11, margin: "12px 0 0" }}>This month: {generationUsage.used}/{generationUsage.limit} used · {generationUsage.remaining} remaining for this tool.</p>}
             <p style={{ color: "#71869A", fontSize: 11, lineHeight: 1.5, margin: "12px 0 0" }}>AI-generated content is a draft. Check product details, prices and claims before publishing.</p>
           </div>}
