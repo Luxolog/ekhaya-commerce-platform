@@ -18,9 +18,11 @@ const date = (value?: string | null) => value ? new Intl.DateTimeFormat("en-ZA",
 const card: React.CSSProperties = { background: "#fff", border: "1px solid #DCE8F1", borderRadius: 14, padding: 20 };
 const muted: React.CSSProperties = { color: "#60758A", fontSize: 12 };
 
-export default function SAeChamberPartnerPage() {
+export default function PartnerDashboardPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [partner, setPartner] = useState<Partner | null>(null);
+  const [partnerOptions, setPartnerOptions] = useState<Partner[]>([]);
+  const [selectedPartnerId, setSelectedPartnerId] = useState("");
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [commissions, setCommissions] = useState<Commission[]>([]);
   const [statements, setStatements] = useState<Statement[]>([]);
@@ -34,7 +36,7 @@ export default function SAeChamberPartnerPage() {
   const [inviteMessage, setInviteMessage] = useState("");
   const [inviting, setInviting] = useState(false);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const referralUrl = typeof window !== "undefined" ? window.location.origin + "/account/?ref=" + (partner?.referral_code || "SAECHAMBER") : "/account/?ref=" + (partner?.referral_code || "SAECHAMBER");
+  const referralUrl = typeof window !== "undefined" ? window.location.origin + "/account/?ref=" + (partner?.referral_code || "PARTNER") : "/account/?ref=" + (partner?.referral_code || "SAECHAMBER");
 
   const api = useCallback(async (path: string) => {
     if (!session?.access_token) throw new Error("Please sign in first.");
@@ -69,11 +71,20 @@ export default function SAeChamberPartnerPage() {
         const ownerMode = (ownerRows as {user_id:string}[]).length > 0;
         if (!live) return;
         setIsOwner(ownerMode);
-        const partners = ownerMode
-          ? await api("partner_programs?select=id,partner_name,partner_slug,referral_code,status,program_live_at&partner_slug=eq.saechamber&limit=1")
-          : await api(`partner_programs?select=id,partner_name,partner_slug,referral_code,status,program_live_at&partner_user_id=eq.${user.id}&limit=1`);
+        let current: Partner | null = null;
+        if (ownerMode) {
+          const allPartners = await api("partner_programs?select=id,partner_name,partner_slug,referral_code,status,program_live_at&order=partner_name.asc");
+          if (!live) return;
+          const options = allPartners as Partner[];
+          setPartnerOptions(options);
+          current = options.find(item => item.id === selectedPartnerId) ?? options[0] ?? null;
+          if (current && !selectedPartnerId) setSelectedPartnerId(current.id);
+        } else {
+          const linkedPartners = await api(`partner_programs?select=id,partner_name,partner_slug,referral_code,status,program_live_at&partner_user_id=eq.${user.id}&limit=1`);
+          if (!live) return;
+          current = (linkedPartners as Partner[])[0] ?? null;
+        }
         if (!live) return;
-        const current = (partners as Partner[])[0] ?? null;
         setPartner(current);
         if (!current) return;
         const [r, c, s, inv] = await Promise.all([
@@ -88,7 +99,7 @@ export default function SAeChamberPartnerPage() {
       finally { if (live) setLoading(false); }
     })();
     return () => { live = false; };
-  }, [session, api]);
+  }, [session, api, selectedPartnerId]);
 
   const totals = useMemo(() => ({
     registered: referrals.length,
@@ -118,19 +129,26 @@ export default function SAeChamberPartnerPage() {
     window.setTimeout(() => setCopied(false), 1800);
   }
 
-  if (loading) return <main style={{ minHeight: "100vh", padding: 32, color: "#071B31" }}>Loading SA eChamber partner portal…</main>;
+  if (loading) return <main style={{ minHeight: "100vh", padding: 32, color: "#071B31" }}>Loading partner portal…</main>;
 
   return <main style={{ minHeight: "100vh", background: "#F4F8FC", color: "#071B31", padding: "28px clamp(16px,4vw,56px) 60px" }}>
     <header style={{ maxWidth: 1240, margin: "0 auto 34px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", borderBottom: "1px solid #DCE8F1", paddingBottom: 18 }}>
-      <div><Link href="/" style={{ color: "#079BD3", fontWeight: 800, fontSize: 12, letterSpacing: 1 }}>EKHAYA TECHNOLOGIES</Link><div style={{ fontSize: 25, fontWeight: 800, marginTop: 7 }}>SA eChamber Partner Portal</div><div style={muted}>Referral performance · Commission transparency</div></div>
+      <div><Link href="/" style={{ color: "#079BD3", fontWeight: 800, fontSize: 12, letterSpacing: 1 }}>EKHAYA TECHNOLOGIES</Link><div style={{ fontSize: 25, fontWeight: 800, marginTop: 7 }}>Partner Portal</div><div style={muted}>Referral performance · Commission transparency</div></div>
       <div style={{ display: "flex", gap: 16, alignItems: "center" }}><Link href="/account/security/" style={{ color: "#079BD3", fontWeight: 700, fontSize: 13 }}>Security settings</Link><Link href="/account/" style={{ color: "#079BD3", fontWeight: 700, fontSize: 13 }}>Seller account</Link><button onClick={() => { localStorage.removeItem("ekhaya_session"); window.location.href = "/account/"; }} style={{ border: "1px solid #DCE8F1", background: "#fff", borderRadius: 8, padding: "10px 14px", cursor: "pointer" }}>Sign out</button></div>
     </header>
     <section style={{ maxWidth: 1240, margin: "0 auto" }}>
       {error && <div role="alert" style={{ ...card, borderColor: "#E6B7B7", color: "#8A2525", marginBottom: 18 }}>{error}</div>}
-      {!session && <div style={{ ...card, maxWidth: 560, margin: "50px auto", textAlign: "center" }}><h1 style={{ marginTop: 0 }}>Partner sign-in required</h1><p style={muted}>Sign in using the SA eChamber partner account authorised by Ekhaya Technologies.</p><Link href="/account/" style={{ display: "inline-block", background: "#079BD3", color: "#fff", padding: "12px 20px", borderRadius: 8, fontWeight: 700 }}>Go to sign in</Link></div>}
-      {session && !partner && <div style={{ ...card, maxWidth: 720, margin: "50px auto" }}><p style={{ color: "#079BD3", fontWeight: 800, letterSpacing: 1, fontSize: 11 }}>PARTNER ACCESS SETUP</p><h1 style={{ marginTop: 0 }}>Your partner account is not linked yet</h1><p style={{ color: "#60758A", lineHeight: 1.7 }}>Your login is valid, but it has not yet been assigned to the SA eChamber partner record. Ekhaya must verify the authorised Chamber contact and link this account before referral and commission information becomes visible. This is the permanent partner portal; this address will remain the dedicated access point for SA eChamber.</p><p style={{ ...muted, marginBottom: 4 }}>Partner referral code</p><strong>SAECHAMBER</strong><p style={{ ...muted, marginTop: 18 }}>For security, referral and commission data will appear once the authorised Chamber login is linked to this partner record.</p><Link href="/account/" style={{ color: "#079BD3", fontWeight: 700 }}>Return to account →</Link></div>}
+      {!session && <div style={{ ...card, maxWidth: 560, margin: "50px auto", textAlign: "center" }}><h1 style={{ marginTop: 0 }}>Partner sign-in required</h1><p style={muted}>Sign in using the partner account authorised by Ekhaya Technologies.</p><Link href="/account/" style={{ display: "inline-block", background: "#079BD3", color: "#fff", padding: "12px 20px", borderRadius: 8, fontWeight: 700 }}>Go to sign in</Link></div>}
+      {session && !partner && <div style={{ ...card, maxWidth: 720, margin: "50px auto" }}><p style={{ color: "#079BD3", fontWeight: 800, letterSpacing: 1, fontSize: 11 }}>PARTNER ACCESS SETUP</p><h1 style={{ marginTop: 0 }}>Your partner account is not linked yet</h1><p style={{ color: "#60758A", lineHeight: 1.7 }}>Your login is valid, but it has not yet been linked to a partner programme. Ekhaya must verify your organisation’s authorised representative and link this account before referral and commission information becomes visible.</p><p style={{ ...muted, marginBottom: 4 }}>Partner referral code</p><strong>To be assigned by Ekhaya</strong><p style={{ ...muted, marginTop: 18 }}>For security, referral and commission data will appear once the authorised Chamber login is linked to this partner record.</p><Link href="/account/" style={{ color: "#079BD3", fontWeight: 700 }}>Return to account →</Link></div>}
       {session && partner && <>
-        {isOwner && <div style={{ ...card, borderColor: "#079BD3", marginBottom: 18 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}><div><strong style={{ color: "#079BD3" }}>EKHAYA OWNER VIEW</strong><p style={{ ...muted, margin: "6px 0 0" }}>You are viewing the partner dashboard with the same figures and tabs the SA eChamber owner will see. Administrative controls are shown separately below.</p></div><span style={{ fontSize: 12, fontWeight: 700 }}>Read-only partner preview</span></div><div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #DCE8F1" }}><strong>Invite SA eChamber owner</strong><p style={muted}>They will receive a secure email invitation, accept it, create their own sign-in and choose their referral link code.</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><input value={inviteContactName} onChange={e => setInviteContactName(e.target.value)} placeholder="Contact person full name" style={{ flex: "1 1 190px", minWidth: 0, padding: 11, border: "1px solid #DCE8F1", borderRadius: 8 }} /><input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="Chamber owner email address" style={{ flex: "1 1 250px", minWidth: 0, padding: 11, border: "1px solid #DCE8F1", borderRadius: 8 }} /><button onClick={sendInvitation} disabled={inviting || !inviteContactName.trim() || !inviteEmail.includes("@")} style={{ background: "#079BD3", color: "#fff", border: 0, borderRadius: 8, padding: "10px 16px", fontWeight: 700, cursor: "pointer" }}>{inviting ? "Sending…" : "Send invitation"}</button></div>{inviteMessage && <p role="status" style={{ ...muted, marginTop: 8 }}>{inviteMessage}</p>}{invitations.length > 0 && <div style={{ marginTop: 12, overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}><thead><tr>{["Contact","Invited email","Sent","Expires","Status"].map(v=><th key={v} style={{ textAlign: "left", padding: 8, background: "#F4F8FC" }}>{v}</th>)}</tr></thead><tbody>{invitations.map(i=><tr key={i.id}>{[i.contact_name || "—",i.invited_email,date(i.invited_at),date(i.expires_at),i.status].map((v,n)=><td key={n} style={{ padding: 8, borderBottom: "1px solid #DCE8F1" }}>{v}</td>)}</tr>)}</tbody></table></div>}</div></div>}
+        {isOwner && <div style={{ ...card, borderColor: "#079BD3", marginBottom: 18 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}><div><strong style={{ color: "#079BD3" }}>EKHAYA OWNER VIEW</strong><p style={{ ...muted, margin: "6px 0 0" }}>You are viewing a selected partner’s dashboard. Choose any onboarded partner programme to inspect its figures and activity. Administrative controls are shown separately below.</p></div><span style={{ fontSize: 12, fontWeight: 700 }}>Read-only partner preview</span></div><div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #DCE8F1" }}><strong>Invite partner representative</strong><p style={muted}>They will receive a secure email invitation, accept it, create their own sign-in and choose their referral link code.</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><input value={inviteContactName} onChange={e => setInviteContactName(e.target.value)} placeholder="Contact person full name" style={{ flex: "1 1 190px", minWidth: 0, padding: 11, border: "1px solid #DCE8F1", borderRadius: 8 }} /><input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="Partner representative email address" style={{ flex: "1 1 250px", minWidth: 0, padding: 11, border: "1px solid #DCE8F1", borderRadius: 8 }} /><button onClick={sendInvitation} disabled={inviting || !inviteContactName.trim() || !inviteEmail.includes("@")} style={{ background: "#079BD3", color: "#fff", border: 0, borderRadius: 8, padding: "10px 16px", fontWeight: 700, cursor: "pointer" }}>{inviting ? "Sending…" : "Send invitation"}</button></div>{inviteMessage && <p role="status" style={{ ...muted, marginTop: 8 }}>{inviteMessage}</p>}{invitations.length > 0 && <div style={{ marginTop: 12, overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}><thead><tr>{["Contact","Invited email","Sent","Expires","Status"].map(v=><th key={v} style={{ textAlign: "left", padding: 8, background: "#F4F8FC" }}>{v}</th>)}</tr></thead><tbody>{invitations.map(i=><tr key={i.id}>{[i.contact_name || "—",i.invited_email,date(i.invited_at),date(i.expires_at),i.status].map((v,n)=><td key={n} style={{ padding: 8, borderBottom: "1px solid #DCE8F1" }}>{v}</td>)}</tr>)}</tbody></table></div>}</div></div>}
+        {isOwner && partnerOptions.length > 0 && <div style={{ ...card, marginBottom: 18 }}>
+          <label htmlFor="partner-program-select" style={{ display: "block", fontSize: 12, fontWeight: 800, marginBottom: 8 }}>VIEW ONBOARDED PARTNER</label>
+          <select id="partner-program-select" value={selectedPartnerId || partner.id} onChange={e => setSelectedPartnerId(e.target.value)} style={{ width: "100%", maxWidth: 520, padding: 12, border: "1px solid #DCE8F1", borderRadius: 8, background: "#fff", color: "#071B31" }}>
+            {partnerOptions.map(item => <option key={item.id} value={item.id}>{item.partner_name} · {item.status}</option>)}
+          </select>
+          <p style={{ ...muted, marginBottom: 0 }}>Each onboarded organisation has its own partner record, referral code, dashboard figures and statements.</p>
+        </div>}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
           <div><p style={{ color: "#079BD3", fontSize: 11, fontWeight: 800, letterSpacing: 1, margin: "0 0 6px" }}>PARTNER OVERVIEW</p><h1 style={{ fontSize: 32, margin: 0 }}>{partner.partner_name}</h1><p style={muted}>Programme status: {partner.status} · Launch date: {date(partner.program_live_at)}</p></div>
           <div style={{ ...card, minWidth: 320, flex: "0 1 430px" }}><div style={{ fontWeight: 800, marginBottom: 7 }}>Your unique seller onboarding link</div><div style={{ background: "#F4F8FC", border: "1px solid #DCE8F1", padding: 11, borderRadius: 8, fontSize: 12, overflowWrap: "anywhere" }}>{referralUrl}</div>{partner.status === "active" ? <button onClick={copyLink} style={{ marginTop: 10, background: "#079BD3", color: "#fff", border: 0, borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}>{copied ? "Copied" : "Copy referral link"}</button> : <p style={{ ...muted, marginBottom: 0 }}>The permanent referral link will be enabled once the authorised partner account is activated.</p>}</div>
@@ -147,7 +165,7 @@ export default function SAeChamberPartnerPage() {
         {tab === "commissions" && <div style={card}><h2 style={{ marginTop: 0 }}>Commission ledger</h2><CommissionTable rows={commissions} /></div>}
         {tab === "statements" && <div style={card}><h2 style={{ marginTop: 0 }}>Monthly statements</h2>{statements.length === 0 ? <p style={muted}>Monthly statements will appear here after reconciliation.</p> : <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Month","Active sellers","Qualifying revenue","Commission","Due on","Status"].map(x=><th key={x} style={{ textAlign: "left", padding: 10, background: "#071B31", color: "#fff" }}>{x}</th>)}</tr></thead><tbody>{statements.map(s=><tr key={s.id}>{[date(s.statement_month),String(s.active_referred_sellers),money(Number(s.qualifying_revenue)),money(Number(s.commission_total)+Number(s.adjustment_total)),date(s.payment_due_date),s.status].map((v,i)=><td key={i} style={{ padding: 11, borderBottom: "1px solid #DCE8F1" }}>{v}</td>)}</tr>)}</tbody></table></div>}</div>}
       </>}
-      <footer style={{ ...muted, marginTop: 28, textAlign: "center" }}>SA eChamber can raise statement reconciliation queries within 60 days. Monthly payment date: 7th of the month.</footer>
+      <footer style={{ ...muted, marginTop: 28, textAlign: "center" }}>Partner representatives can raise statement reconciliation queries within 60 days. Monthly payment date: 7th of the month.</footer>
     </section>
   </main>;
 }
