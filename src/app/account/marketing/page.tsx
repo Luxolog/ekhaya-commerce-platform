@@ -660,6 +660,22 @@ export default function MarketingDashboardPage() {
         </div>}
       </article>
 
+      <article style={{background:"#fff",border:"1px solid #DCE8F1",borderRadius:14,padding:24,gridColumn:"1/-1"}}>
+        <h2 style={{fontFamily:"Manrope,sans-serif",fontSize:20,margin:"0 0 8px"}}>AI campaign planner</h2>
+        <p style={{color:"#60758A",fontSize:13,lineHeight:1.6,marginTop:0}}>Prepare a structured campaign brief from your objective, product, dates and posting preferences. Generation uses the existing campaign-idea allowance. Any budget is planning information only; Ekhaya does not purchase ads or spend it.</p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10}}>
+          <label style={formLabel}>Campaign objective<input value={plannerObjective} onChange={e=>setPlannerObjective(e.target.value)} maxLength={500} placeholder="e.g. Launch a new product range" style={field}/></label>
+          <label style={formLabel}>Product or service<input value={plannerProduct} onChange={e=>setPlannerProduct(e.target.value)} maxLength={160} placeholder="What are you promoting?" style={field}/></label>
+          <label style={formLabel}>Start date<input type="date" value={plannerStart} onChange={e=>setPlannerStart(e.target.value)} style={field}/></label>
+          <label style={formLabel}>End date<input type="date" min={plannerStart||undefined} value={plannerEnd} onChange={e=>setPlannerEnd(e.target.value)} style={field}/></label>
+          <label style={formLabel}>Budget (optional, ZAR)<input type="number" min="0" step="0.01" value={plannerBudget} onChange={e=>setPlannerBudget(e.target.value)} placeholder="Planning only" style={field}/></label>
+          <label style={formLabel}>Target audience<input value={plannerAudience} onChange={e=>setPlannerAudience(e.target.value)} maxLength={500} style={field}/></label>
+          <label style={formLabel}>Platform<select value={plannerPlatform} onChange={e=>setPlannerPlatform(e.target.value)} style={field}><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option><option value="other">Other</option></select></label>
+          <label style={formLabel}>Posting frequency<select value={plannerFrequency} onChange={e=>setPlannerFrequency(e.target.value)} style={field}><option>1 post per week</option><option>2 posts per week</option><option>3 posts per week</option><option>5 posts per week</option><option>Daily</option></select></label>
+        </div>
+        <button type="button" disabled={!activeSubscription||generating} onClick={prepareCampaignBrief} style={{padding:12,border:0,borderRadius:8,background:"#079BD3",color:"#fff",fontWeight:800,marginTop:12}}>PREPARE CAMPAIGN BRIEF IN CONTENT STUDIO</button>
+        {plannerMode&&<p style={{fontSize:12,color:"#147A46",marginBottom:0}}>Campaign planner mode is active. Generate and save the campaign in Content Studio.</p>}
+      </article>
       <article style={{ background: "#fff", border: "1px solid #DCE8F1", borderRadius: 14, padding: 24 }}>
         <h2 style={{ fontFamily: "Manrope,sans-serif", fontSize: 20, margin: "0 0 8px" }}>Campaign workspace</h2>
         <p style={{ color: "#60758A", fontSize: 13, lineHeight: 1.6, marginTop: 0 }}>Save campaign briefs and keep drafts together. Publishing is not connected; content must be reviewed and approved before any future scheduling integration.</p>
