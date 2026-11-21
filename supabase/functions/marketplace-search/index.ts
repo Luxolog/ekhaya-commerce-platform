@@ -8,6 +8,16 @@ const cors = {
 };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: cors });
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+type ProviderResponse = {
+  ok?: boolean;
+  error?: { message?: string; detail?: string; retryable?: boolean } | null;
+  data?: { products?: Record<string, unknown>[]; results?: Record<string, unknown>[] } | null;
+  meta?: Record<string, unknown> | null;
+};
 const validMarketplaces = ["takealot", "amazon", "makro"]
 const testingMarketplaces: Record<string, string> = {
   bobshop: "Bob Shop is in testing and is not available for live searches yet.",
@@ -93,12 +103,12 @@ Deno.serve(async (req: Request) => {
     const authUsers = Array.isArray(usersPayload) ? usersPayload : usersPayload.users ?? [];
     const pilots = await pilotResponse.json();
     const profiles = await profilesResponse.json();
-    const pilotById = new Map(pilots.map((p: Record<string, unknown>) => [p.user_id, p]));
-    const profileById = new Map(profiles.map((p: Record<string, unknown>) => [p.id, p]));
-    return json({ ok: true, users: authUsers.map((u: Record<string, any>) => {
-      const meta = u.user_metadata ?? {};
-      const app = u.app_metadata ?? {};
-      const profile = profileById.get(u.id) ?? {};
+    const pilotById = new Map<string, Record<string, unknown>>(pilots.map((p: Record<string, unknown>) => [String(p.user_id), p]));
+    const profileById = new Map<string, Record<string, unknown>>(profiles.map((p: Record<string, unknown>) => [String(p.id), p]));
+    return json({ ok: true, users: authUsers.map((u: Record<string, unknown>) => {
+      const meta = asRecord(u.user_metadata);
+      const app = asRecord(u.app_metadata);
+      const profile = profileById.get(String(u.id)) ?? {};
       return {
         id: u.id,
         user_id: u.id,
@@ -110,7 +120,7 @@ Deno.serve(async (req: Request) => {
         role: app.role ?? (app.is_owner === true ? "owner" : "seller"),
         account_status: profile.account_status ?? "pending",
         plan_code: profile.plan_code ?? "free",
-        pilot: pilotById.get(u.id) ?? null
+        pilot: pilotById.get(String(u.id)) ?? null
       };
     }) });
   }
@@ -319,6 +329,154 @@ Deno.serve(async (req: Request) => {
     }
     return json({ok:true,totals:{searches:activity.length,failures:activity.filter((x:Record<string,unknown>)=>x.result_status!=="success").length,feedback:feedback.length,open_feedback:feedback.filter((x:Record<string,unknown>)=>x.status==="open").length},by_seller:bySeller,popular_queries:Object.entries(popular).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([query,count])=>({query,count})),feedback,activity:activity.slice(0,200)});
   }
+  if (body.action === "owner_partner_analytics") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    // This is the central owner view: all registered users, all seller searches,
+    // provider usage, subscriptions, payments and partner programme records.
+    const paths = [
+      "/rest/v1/partner_programs?select=id,partner_name,partner_slug,referral_code,partner_user_id,status,program_live_at,created_at&order=created_at.desc",
+      "/rest/v1/partner_referrals?select=id,partner_id,referred_user_id,referral_code,registered_at,first_paid_at&order=registered_at.desc&limit=10000",
+      "/rest/v1/partner_commission_ledger?select=id,partner_id,referral_id,referred_user_id,payment_month,plan_code,qualifying_amount,active_referred_sellers,commission_band,commission_rate,commission_amount,status,paid_at,created_at&order=created_at.desc&limit=10000",
+      "/rest/v1/partner_monthly_statements?select=id,partner_id,statement_month,active_referred_sellers,qualifying_revenue,commission_total,adjustment_total,payment_due_date,status,paid_at&order=statement_month.desc&limit=5000",
+      "/rest/v1/seller_pilot_activity?select=user_id,marketplace,query,result_count,result_status,source,created_at&order=created_at.desc&limit=10000",
+      "/rest/v1/profiles?select=id,display_name,plan_code,account_status,created_at",
+      "/rest/v1/plan_search_allowances?select=plan_code,monthly_search_credits",
+      "/rest/v1/user_monthly_search_usage?select=user_id,period_start,searches_used&order=period_start.desc&limit=20000",
+      "/rest/v1/user_free_search_usage?select=user_id,searches_used&limit=20000",
+      "/rest/v1/subscriptions?select=user_id,plan_code,status,current_period_start,current_period_end,created_at&order=created_at.desc&limit=10000",
+      "/rest/v1/payment_transactions?select=user_id,amount,currency,status,payment_kind,paid_at,created_at&order=created_at.desc&limit=10000",
+      "/rest/v1/api_usage_ledger?select=provider,action,marketplace,lookup_key,credits_charged,request_status,response_count,actor_id,created_at&order=created_at.desc&limit=20000"
+    ];
+    const [authResponse, ...responses] = await Promise.all([
+      fetch(new URL("/auth/v1/admin/users?page=1&per_page=1000", supabaseUrl), { headers: adminHeaders }),
+      ...paths.map(path => fetch(new URL(path, supabaseUrl), { headers: adminHeaders }))
+    ]);
+    const failed = responses.findIndex(response => !response.ok);
+    if (!authResponse.ok || failed >= 0) return json({
+      error: "Could not load the complete owner dashboard data.",
+      source: failed >= 0 ? paths[failed] : "auth users",
+      status: failed >= 0 ? responses[failed].status : authResponse.status
+    }, 502);
+    const authPayload = await authResponse.json();
+    const authUsers = Array.isArray(authPayload) ? authPayload : authPayload.users ?? [];
+    const [partners, referrals, commissions, statements, allActivity, profiles, planAllowances, monthlyUsage, freeUsage, subscriptions, payments, apiUsage] =
+      await Promise.all(responses.map(response => response.json()));
+    const partnerById = new Map<string, Record<string, unknown>>(partners.map((p: Record<string, unknown>) => [String(p.id), p]));
+    const referralByUser = new Map<string, Record<string, unknown>>(referrals.map((r: Record<string, unknown>) => [String(r.referred_user_id), r]));
+    const profileById = new Map<string, Record<string, unknown>>(profiles.map((p: Record<string, unknown>) => [String(p.id), p]));
+    const latestSubscription = new Map<string, Record<string, unknown>>();
+    for (const sub of subscriptions) if (!latestSubscription.has(String(sub.user_id))) latestSubscription.set(String(sub.user_id), sub);
+    const userPayments = new Map<string, Record<string, unknown>[]>();
+    for (const payment of payments) {
+      const key = String(payment.user_id);
+      userPayments.set(key, [...(userPayments.get(key) ?? []), payment]);
+    }
+    const sellerSearchCounts = new Map<string, { searches: number; failures: number; last_search: string | null }>();
+    for (const item of allActivity) {
+      const key = String(item.user_id);
+      const entry = sellerSearchCounts.get(key) ?? { searches: 0, failures: 0, last_search: null };
+      entry.searches++;
+      if (item.result_status !== "success") entry.failures++;
+      if (!entry.last_search || String(item.created_at) > entry.last_search) entry.last_search = String(item.created_at);
+      sellerSearchCounts.set(key, entry);
+    }
+    const currentPeriodStart = `${new Date().toISOString().slice(0, 7)}-01`;
+    const allowanceByPlan = new Map<string, number>(planAllowances.map((row: Record<string, unknown>) => [String(row.plan_code), Number(row.monthly_search_credits ?? 0)]));
+    allowanceByPlan.set("free", 5);
+    const freeUsageByUser = new Map<string, number>(freeUsage.map((row: Record<string, unknown>) => [String(row.user_id), Number(row.searches_used ?? 0)]));
+    const usageByUser = new Map<string, number>();
+    for (const row of monthlyUsage) {
+      if (String(row.period_start) === currentPeriodStart) usageByUser.set(String(row.user_id), Number(row.searches_used ?? 0));
+    }
+    const providerCallsByUser = new Map<string, number>();
+    for (const row of apiUsage) if (row.actor_id) providerCallsByUser.set(String(row.actor_id), (providerCallsByUser.get(String(row.actor_id)) ?? 0) + 1);
+    const sellers = authUsers.map((u: Record<string, unknown>) => {
+      const profile = profileById.get(String(u.id));
+      const referral = referralByUser.get(String(u.id));
+      const partner = referral ? partnerById.get(String(referral.partner_id)) : undefined;
+      const sellerPayments = userPayments.get(String(u.id)) ?? [];
+      const successfulPayments = sellerPayments.filter(p => p.status === "paid" || p.status === "success");
+      const searchStats = sellerSearchCounts.get(String(u.id)) ?? { searches: 0, failures: 0, last_search: null };
+      const sub = latestSubscription.get(String(u.id));
+      return {
+        id: u.id, email: u.email ?? null,
+        display_name: profile?.display_name ?? asRecord(u.user_metadata).display_name ?? asRecord(u.user_metadata).full_name ?? null,
+        created_at: u.created_at ?? null, last_sign_in_at: u.last_sign_in_at ?? null,
+        email_confirmed_at: u.email_confirmed_at ?? null,
+        role: asRecord(u.app_metadata).role ?? (asRecord(u.app_metadata).is_owner === true ? "owner" : "seller"),
+        account_status: profile?.account_status ?? "pending",
+        plan_code: sub?.plan_code ?? profile?.plan_code ?? "free",
+        subscription_status: sub?.status ?? "none",
+        subscription_period_end: sub?.current_period_end ?? null,
+        partner_name: partner?.partner_name ?? null,
+        referral_code: referral?.referral_code ?? null,
+        searches: searchStats.searches, search_failures: searchStats.failures, last_search: searchStats.last_search,
+        payments_count: successfulPayments.length,
+        payments_total: successfulPayments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0),
+        monthly_search_allowance: Number(allowanceByPlan.get(String(sub?.plan_code ?? profile?.plan_code ?? "free")) ?? 0),
+        monthly_searches_used: String(sub?.plan_code ?? profile?.plan_code ?? "free") === "free" ? (freeUsageByUser.get(String(u.id)) ?? 0) : (usageByUser.get(String(u.id)) ?? 0),
+        monthly_searches_remaining: Math.max(0, Number(allowanceByPlan.get(String(sub?.plan_code ?? profile?.plan_code ?? "free")) ?? 0) - (String(sub?.plan_code ?? profile?.plan_code ?? "free") === "free" ? (freeUsageByUser.get(String(u.id)) ?? 0) : (usageByUser.get(String(u.id)) ?? 0))),
+        provider_api_calls: providerCallsByUser.get(String(u.id)) ?? 0
+      };
+    });
+    const partnerActivity = allActivity
+      .filter((item: Record<string, unknown>) => referralByUser.has(String(item.user_id)))
+      .map((item: Record<string, unknown>) => {
+        const referral = referralByUser.get(String(item.user_id)) as Record<string, unknown>;
+        const partner = partnerById.get(String(referral.partner_id));
+        const profile = profileById.get(String(item.user_id));
+        return { ...item, partner_id: referral.partner_id, partner_name: partner?.partner_name ?? "Unknown partner",
+          referral_code: referral.referral_code, seller_display_name: profile?.display_name ?? null,
+          seller_plan: profile?.plan_code ?? "free", seller_account_status: profile?.account_status ?? "unknown" };
+      });
+    const allSearchActivity = allActivity.map((item: Record<string, unknown>) => {
+      const seller = sellers.find((s: Record<string, unknown>) => s.id === item.user_id) as Record<string, unknown> | undefined;
+      const referral = referralByUser.get(String(item.user_id));
+      const partner = referral ? partnerById.get(String(referral.partner_id)) as Record<string, unknown> | undefined : undefined;
+      return { ...item, seller_email: seller?.email ?? null, seller_display_name: seller?.display_name ?? null,
+        seller_plan: seller?.plan_code ?? "free", partner_name: partner?.partner_name ?? null, event_type: "seller_search" };
+    });
+    const providerActivity = apiUsage.map((item: Record<string, unknown>) => {
+      const seller = item.actor_id ? sellers.find((s: Record<string, unknown>) => s.id === item.actor_id) as Record<string, unknown> | undefined : undefined;
+      return { ...item, user_id: item.actor_id ?? null, seller_email: seller?.email ?? null,
+        seller_display_name: seller?.display_name ?? null, seller_plan: seller?.plan_code ?? "unknown",
+        query: item.lookup_key ?? "", result_count: item.response_count ?? 0, result_status: item.request_status ?? "unknown",
+        event_type: "provider_usage" };
+    });
+    const allPlatformActivity = [...allSearchActivity, ...providerActivity]
+      .sort((a: Record<string, unknown>, b: Record<string, unknown>) => String(b.created_at).localeCompare(String(a.created_at)));
+    const totalCommission = (rows: Record<string, unknown>[]) => rows
+      .filter(row => row.status !== "reversed")
+      .reduce((sum, row) => sum + Number(row.commission_amount ?? 0), 0);
+    return json({
+      ok: true, generated_at: new Date().toISOString(),
+      totals: {
+        users: authUsers.length, sellers: sellers.filter((s: Record<string, unknown>) => s.role !== "owner").length,
+        active_sellers: sellers.filter((s: Record<string, unknown>) => s.role !== "owner" && s.account_status === "active").length,
+        paying_sellers: sellers.filter((s: Record<string, unknown>) => s.role !== "owner" && ["active","trialing"].includes(String(s.subscription_status))).length,
+        total_searches: allActivity.length, total_search_failures: allActivity.filter((a: Record<string, unknown>) => a.result_status !== "success").length,
+        provider_api_events: apiUsage.length, total_payments: payments.filter((p: Record<string, unknown>) => p.status === "paid" || p.status === "success").length,
+        partners: partners.length, active_partners: partners.filter((p: Record<string, unknown>) => p.status === "active").length,
+        registered_referred_sellers: referrals.length, paying_referred_sellers: referrals.filter((r: Record<string, unknown>) => Boolean(r.first_paid_at)).length,
+        total_commission_recorded: totalCommission(commissions),
+        pending_commission: commissions.filter((c: Record<string, unknown>) => c.status === "pending" || c.status === "approved").reduce((sum: number, c: Record<string, unknown>) => sum + Number(c.commission_amount ?? 0), 0),
+        commission_paid: commissions.filter((c: Record<string, unknown>) => c.status === "paid").reduce((sum: number, c: Record<string, unknown>) => sum + Number(c.commission_amount ?? 0), 0),
+        partner_searches: partnerActivity.length,
+        partner_search_failures: partnerActivity.filter((a: Record<string, unknown>) => a.result_status !== "success").length,
+        monthly_search_allowance: sellers.filter((s: Record<string, unknown>) => s.role !== "owner").reduce((sum: number, s: Record<string, unknown>) => sum + Number(s.monthly_search_allowance ?? 0), 0),
+        monthly_searches_used: sellers.filter((s: Record<string, unknown>) => s.role !== "owner").reduce((sum: number, s: Record<string, unknown>) => sum + Number(s.monthly_searches_used ?? 0), 0),
+        monthly_searches_remaining: sellers.filter((s: Record<string, unknown>) => s.role !== "owner").reduce((sum: number, s: Record<string, unknown>) => sum + Number(s.monthly_searches_remaining ?? 0), 0)
+      },
+      sellers, all_activity: allPlatformActivity.slice(0, 20000), api_usage: apiUsage,
+      partners, referrals: referrals.map((r: Record<string, unknown>) => {
+        const partner = partnerById.get(String(r.partner_id)) as Record<string, unknown> | undefined;
+        const profile = profileById.get(String(r.referred_user_id)) as Record<string, unknown> | undefined;
+        return { ...r, partner_name: partner?.partner_name ?? "Unknown partner", seller_display_name: profile?.display_name ?? null,
+          seller_plan: profile?.plan_code ?? "free", seller_account_status: profile?.account_status ?? "unknown" };
+      }),
+      commissions, statements, activity: partnerActivity.slice(0, 500)
+    });
+  }
   if (body.action === "owner_financial_analytics") {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
     const paths = [
@@ -434,7 +592,7 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, settings: (await saved.json())[0] });
   }
 
-  const marketplace = body.marketplace;
+  const marketplace = typeof body.marketplace === "string" ? body.marketplace : "";
   const query = typeof body.query === "string" ? body.query.trim().slice(0, 160) : "";
   if (query.length < 2) {
     return json({ error: "Enter at least 2 search characters." }, 400);
@@ -560,10 +718,10 @@ Deno.serve(async (req: Request) => {
     }
 
     let providerAttempted = false;
-    let providerPayload: Record<string, any> | null = null;
+    let providerPayload: ProviderResponse | null = null;
     let providerUsageLogged = false;
     try {
-      let payload: Record<string, any>;
+      let payload: ProviderResponse;
       let raw: Record<string, unknown>[];
       if (marketplace === "makro") {
         if (!reefKey) throw new Error("Makro search is not configured. Add REEFAPI_KEY to Supabase Edge Function secrets.");
@@ -573,7 +731,7 @@ Deno.serve(async (req: Request) => {
           body: JSON.stringify({ query, page: 1, ...(postalCode ? { postal_code: postalCode } : {}) }),
           signal: AbortSignal.timeout(15000),
         });
-        payload = await upstream.json();
+        payload = await upstream.json() as ProviderResponse;
         providerPayload = payload;
         if (!upstream.ok || payload?.ok === false) throw new Error(payload?.error?.message ?? payload?.error?.detail ?? upstream.statusText ?? "ReefAPI Makro search failed");
         raw = payload?.data?.products ?? [];
@@ -588,7 +746,7 @@ Deno.serve(async (req: Request) => {
             body: JSON.stringify(searchParams),
             signal: AbortSignal.timeout(15000),
           });
-          const result = await upstream.json();
+          const result = await upstream.json() as ProviderResponse;
           providerPayload = result;
           if (!upstream.ok || result?.ok === false) {
             const providerError = result?.error ?? {};
@@ -686,7 +844,7 @@ Deno.serve(async (req: Request) => {
       });
       await recordProviderUsage({
         marketplace, lookupKey: `search:${lookupKey}`, credits: Number(payload.meta?.charged_credits ?? 0),
-        status: "success", responseCount: products.length, providerRequestId: payload.meta?.request_id ?? null,
+        status: "success", responseCount: products.length, providerRequestId: typeof payload.meta?.request_id === "string" ? payload.meta.request_id : null,
         actorId: charged ? userId : null,
       });
       providerUsageLogged = true;
@@ -735,7 +893,7 @@ Deno.serve(async (req: Request) => {
         await recordProviderUsage({
           marketplace, lookupKey: `search:${lookupKey}`,
           credits: Number(providerPayload?.meta?.charged_credits ?? 0), status: "failed",
-          responseCount: 0, providerRequestId: providerPayload?.meta?.request_id ?? null,
+          responseCount: 0, providerRequestId: typeof providerPayload?.meta?.request_id === "string" ? providerPayload.meta.request_id : null,
           actorId: charged ? userId : null,
         });
         providerUsageLogged = true;
