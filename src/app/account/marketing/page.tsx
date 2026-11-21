@@ -44,7 +44,12 @@ export default function MarketingDashboardPage() {
   const [generatedContent, setGeneratedContent] = useState("");
   const [generatedTitle, setGeneratedTitle] = useState("");
   const [generating, setGenerating] = useState(false);
-  const [generationUsage, setGenerationUsage] = useState<{ used: number; limit: number; remaining: number } | null>(null);\n  const [calendarPosts, setCalendarPosts] = useState<CalendarPost[]>([]);\n  const [weeklyContext, setWeeklyContext] = useState("");\n  const [weeklyPlatform, setWeeklyPlatform] = useState("instagram");\n  const [weeklyTone, setWeeklyTone] = useState("friendly and professional");\n  const [weeklyBusy, setWeeklyBusy] = useState(false);
+  const [generationUsage, setGenerationUsage] = useState<{ used: number; limit: number; remaining: number } | null>(null);
+  const [calendarPosts, setCalendarPosts] = useState<CalendarPost[]>([]);
+  const [weeklyContext, setWeeklyContext] = useState("");
+  const [weeklyPlatform, setWeeklyPlatform] = useState("instagram");
+  const [weeklyTone, setWeeklyTone] = useState("friendly and professional");
+  const [weeklyBusy, setWeeklyBusy] = useState(false);
 
   const getHeaders = useCallback(async () => {
     if (!ANON_KEY) throw new Error("Seller account services are not configured. Please contact Ekhaya support.");
@@ -99,7 +104,9 @@ export default function MarketingDashboardPage() {
       setPlan(plans.find(item => item.code === "marketing_mini") ?? plans[0] ?? null);
       setSubscriptions(subs);
       setUsage(events);
-      setCampaigns(drafts);\n      const calendar = await get<CalendarPost>("marketing_calendar_posts?select=id,title,content,platform,scheduled_for,status&order=scheduled_for.asc&limit=50");\n      setCalendarPosts(calendar);
+      setCampaigns(drafts);
+      const calendar = await get<CalendarPost>("marketing_calendar_posts?select=id,title,content,platform,scheduled_for,status&order=scheduled_for.asc&limit=50");
+      setCalendarPosts(calendar);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load AI Marketing.");
     } finally {
