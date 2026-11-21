@@ -29,7 +29,8 @@ export default function SAeChamberPartnerPage() {
   const [copied, setCopied] = useState(false);
   const [tab, setTab] = useState<"overview" | "referrals" | "commissions" | "statements">("overview");
   const [isOwner, setIsOwner] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");\n  const [inviteContactName, setInviteContactName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteContactName, setInviteContactName] = useState("");
   const [inviteMessage, setInviteMessage] = useState("");
   const [inviting, setInviting] = useState(false);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
