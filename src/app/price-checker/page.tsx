@@ -53,10 +53,7 @@ export default function PriceCheckerPage() {
   const [width,setWidth]=useState("15");
   const [height,setHeight]=useState("10");
   const [takealotMode,setTakealotMode]=useState<"marketplace"|"seller">("marketplace");
-  const [amazonMode,setAmazonMode]=useState<"fba"|"easy"|"self">("fba");
   const [sellerDelivery,setSellerDelivery]=useState("0");
-  const [makroFulfilment,setMakroFulfilment]=useState<"fbs"|"fbm">("fbs");
-  const [makroCommission,setMakroCommission]=useState("12");
   const [products,setProducts]=useState<MarketplaceProduct[]>([]);
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
@@ -176,24 +173,11 @@ export default function PriceCheckerPage() {
       const success=price*(takealotRates[category]??12)/100;
       const talFulfilment=takealotMode==="marketplace"?tal.fee:(Number(sellerDelivery)||0);
       const talFees=(success+talFulfilment)*1.15;
-      const amazonReferral=price*.05;
-      const amazonFba=category==="clothing"? (kg<=.25?27:kg<=.5?28:kg<=1?29:kg<=2?31:kg<=5?34:kg<=10?41:kg<=20?46:87):0;
-      const amzFulfilment=amazonMode==="fba"?amazonFba:amazonMode==="easy"?Number(sellerDelivery)||0:Number(sellerDelivery)||0;
-      const amzFees=(amazonReferral+amzFulfilment)*1.15;
-      if(p.marketplace==="makro") {
-        const rate=Math.max(0,Math.min(30,Number(makroCommission)||12))/100;
-        const commission=price*rate*1.15;
-        const transportBase=makroFulfilment==="fbs"?(volume<=15000?(kg<=4.99?41:kg<=14.99?53:120):volume<=30000?(kg<=4.99?54:kg<=14.99?72:120):volume<=60000?(kg<=4.99?62:kg<=14.99?77:132):84):(volume<=15000?(kg<=4.99?34:kg<=14.99?44:100):volume<=30000?(kg<=4.99?45:kg<=14.99?60:100):volume<=60000?(kg<=4.99?52:kg<=14.99?64:110):70);
-        const transport=transportBase*1.15;
-        const fee=commission+transport;
-        const profit=price-buying-fee;
-        return {id:p.id,fee,profit,margin:price?profit/price*100:0,fulfilment:transport,success:commission,size:"Makro estimate"};
-      }
-      const fee=p.marketplace==="takealot"?talFees:amzFees;
+      const fee=talFees;
       const profit=price-buying-fee;
       return {id:p.id,fee,profit,margin:price?profit/price*100:0,fulfilment:talFulfilment,success, size:tal.size,feeKnown:true};
     });
-  },[products,buying,category,volume,kg,takealotMode,amazonMode,sellerDelivery,makroFulfilment,makroCommission]);
+  },[products,buying,category,volume,kg,takealotMode,sellerDelivery]);
   return <main className="page">
     <header className="top"><Link href="/" aria-label="Ekhaya Technologies home"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={230} height={190} className="logo" priority/></Link><span className="pill">PRICE INTELLIGENCE · LIVE RESEARCH</span><Link href="/account/" className="pill">SELLER ACCOUNT</Link></header>
     <section className="hero"><p className="eyebrow">SELL SMARTER. PRICE WITH CONFIDENCE.</p><h1>Know your numbers<br/><em>before you buy.</em></h1><p>Find a product, enter your buying price and compare estimated profit after marketplace fulfilment fees.</p></section>
@@ -206,8 +190,8 @@ export default function PriceCheckerPage() {
       <div className="buying"><label htmlFor="buying">Your buying price <b>Required</b></label><div className="money-input"><span>R</span><input id="buying" type="number" min="0.01" step="0.01" value={cost} onChange={e=>setCost(e.target.value)} placeholder="Enter supplier / purchase price"/></div></div>
       <div className="market-choice"><label id="marketplace-label">Compare marketplaces</label><details className="market-dropdown"><summary aria-labelledby="marketplace-label">{marketplaces.length ? marketplaces.map(m=>m==="takealot"?"Takealot":m==="amazon"?"Amazon South Africa":"Makro").join(", ") : "Select marketplaces"}<span>▾</span></summary><div className="market-options"><label><input type="checkbox" checked={marketplaces.includes("takealot")} onChange={e=>setMarketplaces(e.target.checked?[...marketplaces.filter(m=>m!=="takealot"),"takealot"]:marketplaces.filter(m=>m!=="takealot"))}/><span>Takealot</span><small className="available-status">Live</small></label><label><input type="checkbox" checked={marketplaces.includes("amazon")} onChange={e=>setMarketplaces(e.target.checked?[...marketplaces.filter(m=>m!=="amazon"),"amazon"]:marketplaces.filter(m=>m!=="amazon"))}/><span>Amazon South Africa</span><small className="available-status">Live</small></label><label><input type="checkbox" checked={marketplaces.includes("makro")} onChange={e=>setMarketplaces(e.target.checked?[...marketplaces.filter(m=>m!=="makro"),"makro"]:marketplaces.filter(m=>m!=="makro"))}/><span>Makro Marketplace</span><small className="available-status">Live testing</small></label><label className="disabled-option"><input type="checkbox" disabled/><span>Bobshop</span><small>Coming soon</small></label><label className="disabled-option"><input type="checkbox" disabled/><span>Leroy Merlin</span><small>Coming soon</small></label></div></details><p className="hint">Takealot, Amazon South Africa and Makro are live. Each selected marketplace uses one Ekhaya search credit. Makro prices can be compared, but profitability is withheld until its fee schedule and fulfilment assumptions are verified.</p>{marketplaces.includes("makro")&&<div style={{marginTop:12,maxWidth:260}}><label htmlFor="makro-postcode" className="hint">Makro delivery postal code (optional)</label><input id="makro-postcode" className="wide" inputMode="numeric" maxLength={4} value={postalCode} onChange={e=>setPostalCode(e.target.value.replace(/\D/g,"").slice(0,4))} placeholder="e.g. 0001"/></div>}</div>
       <div className="details"><div><label>Product category</label><select value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></div><div><label>Packed weight (kg)</label><input type="number" min="0" step=".01" value={weight} onChange={e=>setWeight(e.target.value)}/></div><div><label>Length (cm)</label><input type="number" min="0" value={length} onChange={e=>setLength(e.target.value)}/></div><div><label>Width (cm)</label><input type="number" min="0" value={width} onChange={e=>setWidth(e.target.value)}/></div><div><label>Height (cm)</label><input type="number" min="0" value={height} onChange={e=>setHeight(e.target.value)}/></div></div>
-      {marketplaces.includes("makro")&&<div className="details" style={{marginTop:14}}><div><label>Makro fulfilment</label><select value={makroFulfilment} onChange={e=>setMakroFulfilment(e.target.value as "fbs"|"fbm")}><option value="fbs">Fulfilled by Seller (FBS)</option><option value="fbm">Fulfilled by Makro (FBM)</option></select></div><div><label>Makro commission estimate (%)</label><input type="number" min="0" max="30" step=".5" value={makroCommission} onChange={e=>setMakroCommission(e.target.value)}/></div></div>}
-      <div className="details" style={{marginTop:14}}><div><label>Takealot fulfilment</label><select value={takealotMode} onChange={e=>setTakealotMode(e.target.value as "marketplace"|"seller")}><option value="marketplace">Fulfilled by Takealot</option><option value="seller">Seller fulfilled</option></select></div><div><label>Amazon fulfilment</label><select value={amazonMode} onChange={e=>setAmazonMode(e.target.value as "fba"|"easy"|"self")}><option value="fba">FBA</option><option value="easy">Easy Ship</option><option value="self">Self Ship</option></select></div><div><label>Delivery cost (R/order)</label><input type="number" min="0" step=".01" value={sellerDelivery} onChange={e=>setSellerDelivery(e.target.value)}/></div></div><p className="hint">Fulfilment is selected separately for each marketplace. For Easy Ship and Self Ship, enter your own estimated delivery/handling cost per order. Takealot seller-fulfilled orders exclude Takealot fulfilment charges; enter your own delivery or handling cost above to include it in estimated profit.</p>
+      
+      <div className="details" style={{marginTop:14}}><div><label>Takealot fulfilment</label><select value={takealotMode} onChange={e=>setTakealotMode(e.target.value as "marketplace"|"seller")}><option value="marketplace">Fulfilled by Takealot</option><option value="seller">Seller fulfilled</option></select></div><div><label>Delivery cost (R/order)</label><input type="number" min="0" step=".01" value={sellerDelivery} onChange={e=>setSellerDelivery(e.target.value)}/></div></div><p className="hint">Fulfilment is selected separately for each marketplace. For Easy Ship and Self Ship, enter your own estimated delivery/handling cost per order. Takealot seller-fulfilled orders exclude Takealot fulfilment charges; enter your own delivery or handling cost above to include it in estimated profit.</p>
       <button className="search" disabled={loading||!validCost||!marketplaces.length||(mode==="barcode"&&!barcodeProduct)} onClick={search}>{loading?"Searching marketplaces…":"Find product & calculate profit →"}</button>
       {!validCost&&<p className="hint">Enter a buying price greater than R0 to unlock product search.</p>}
       {error&&<p className="error" role="status">{error}</p>}{source&&<p className="hint">{source} · Listing prices may change.</p>}
