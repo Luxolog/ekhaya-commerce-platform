@@ -21,6 +21,7 @@ type MarketingSubscription = {
 type UsageEvent = { feature_code: string; quantity: number; created_at: string };
 type Campaign = { id: string; title: string; objective?: string | null; target_audience?: string | null; start_date?: string | null; end_date?: string | null; performance_notes?: string | null; platform?: string | null; content?: string | null; status: string; updated_at: string };
 type CalendarPost = { id: string; title: string; content: string; platform: string; scheduled_for: string; status: "draft" | "approved" | "archived" };
+type CampaignTemplate = { id: string; name: string; objective: string | null; target_audience: string | null; platform: string | null; content_prompt: string };
 
 const money = (amount: number) => new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 2 }).format(amount);
 const pretty = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase());
@@ -31,6 +32,8 @@ export default function MarketingDashboardPage() {
   const [subscriptions, setSubscriptions] = useState<MarketingSubscription[]>([]);
   const [usage, setUsage] = useState<UsageEvent[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [campaignTemplates, setCampaignTemplates] = useState<CampaignTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [editingCampaignTitle, setEditingCampaignTitle] = useState("");
   const [editingCampaignContent, setEditingCampaignContent] = useState("");
@@ -104,10 +107,11 @@ export default function MarketingDashboardPage() {
       const monthStart = new Date();
       monthStart.setDate(1);
       const from = monthStart.toISOString();
-      const [plans, subs, drafts] = await Promise.all([
+      const [plans, subs, drafts, templates] = await Promise.all([
         get<MarketingPlan>("marketing_plans?select=code,name,price_zar,billing_interval,monthly_ai_posts,monthly_campaign_ideas,monthly_research_queries,monthly_trend_reports&is_active=eq.true&order=price_zar.asc"),
         get<MarketingSubscription>("seller_marketing_subscriptions?select=id,plan_code,status,billing_mode,current_period_start,current_period_end,created_at&order=created_at.desc&limit=10"),
         get<Campaign>("marketing_campaigns?select=id,title,objective,target_audience,start_date,end_date,performance_notes,platform,content,status,updated_at&order=updated_at.desc&limit=20"),
+        get<CampaignTemplate>("marketing_campaign_templates?select=id,name,objective,target_audience,platform,content_prompt&order=updated_at.desc&limit=50"),
       ]);
       const active = subs.find(item => item.status === "active");
       const usageStart = active?.current_period_start ?? from;
@@ -116,6 +120,7 @@ export default function MarketingDashboardPage() {
       setSubscriptions(subs);
       setUsage(events);
       setCampaigns(drafts);
+      setCampaignTemplates(templates);
       const calendar = await get<CalendarPost>("marketing_calendar_posts?select=id,title,content,platform,scheduled_for,status&order=scheduled_for.asc&limit=50");
       setCalendarPosts(calendar);
     } catch (e) {
@@ -347,6 +352,40 @@ export default function MarketingDashboardPage() {
     }
   }
 
+  function applyCampaignTemplate() {
+    const template = campaignTemplates.find(item => item.id === selectedTemplateId);
+    if (!template) return;
+    setTitle(template.name);
+    setObjective(template.objective ?? "");
+    setTargetAudience(template.target_audience ?? "");
+    setPlatform(template.platform ?? "instagram");
+    setNotice("Template applied. Adjust the title and details for this campaign before saving.");
+  }
+
+  async function saveCampaignTemplate() {
+    if (!title.trim() || !objective.trim()) {
+      setError("Add a campaign title and objective before saving a reusable template.");
+      return;
+    }
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const headers = await getHeaders();
+      const response = await fetch(SUPABASE_URL + "/rest/v1/marketing_campaign_templates", {
+        method: "POST", headers: { ...headers, Prefer: "return=representation" },
+        body: JSON.stringify({
+          name: title.trim().slice(0, 120), objective: objective.trim().slice(0, 1000),
+          target_audience: targetAudience.trim().slice(0, 1000) || null,
+          platform, content_prompt: objective.trim().slice(0, 5000),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message ?? "Unable to save campaign template.");
+      setNotice("Reusable campaign template saved.");
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to save template."); }
+    finally { setBusy(false); }
+  }
+
   async function saveDraft(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!activeSubscription) return;
@@ -486,6 +525,7 @@ export default function MarketingDashboardPage() {
         <h2 style={{ fontFamily: "Manrope,sans-serif", fontSize: 20, margin: "0 0 8px" }}>Campaign workspace</h2>
         <p style={{ color: "#60758A", fontSize: 13, lineHeight: 1.6, marginTop: 0 }}>Save campaign briefs and keep drafts together. Publishing is not connected; content must be reviewed and approved before any future scheduling integration.</p>
         {activeSubscription ? <form onSubmit={saveDraft} style={{ display: "grid", gap: 10 }}>
+          {campaignTemplates.length > 0 && <div style={{ display: "flex", gap: 8 }}><select value={selectedTemplateId} onChange={event => setSelectedTemplateId(event.target.value)} style={field}><option value="">Start from a saved template…</option>{campaignTemplates.map(template => <option key={template.id} value={template.id}>{template.name}</option>)}</select><button type="button" onClick={applyCampaignTemplate} disabled={!selectedTemplateId} style={{ padding: "8px 12px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Apply</button></div>}
           <input required maxLength={100} value={title} onChange={event => setTitle(event.target.value)} placeholder="Campaign title" style={field}/>
           <textarea value={objective} onChange={event => setObjective(event.target.value)} maxLength={1000} rows={3} placeholder="Campaign objective: awareness, traffic, leads or sales?" style={{ ...field, height: "auto", padding: 12, resize: "vertical" }}/>
           <textarea value={targetAudience} onChange={event => setTargetAudience(event.target.value)} maxLength={1000} rows={2} placeholder="Target audience (who should this campaign reach?)" style={{ ...field, height: "auto", padding: 12, resize: "vertical" }}/>
@@ -495,6 +535,7 @@ export default function MarketingDashboardPage() {
           </div>
           <select value={platform} onChange={event => setPlatform(event.target.value)} style={field}><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option><option value="other">Other</option></select>
           <button type="submit" disabled={busy || !title.trim()} style={{ padding: 12, border: 0, borderRadius: 8, background: "#079BD3", color: "#fff", fontWeight: 800, cursor: busy ? "wait" : "pointer" }}>{busy ? "Saving…" : "SAVE CAMPAIGN DRAFT"}</button>
+          <button type="button" onClick={() => void saveCampaignTemplate()} disabled={busy || !title.trim() || !objective.trim()} style={{ padding: 10, border: "1px solid #DCE8F1", borderRadius: 8, background: "#fff", color: "#075477", fontWeight: 700 }}>SAVE AS REUSABLE TEMPLATE</button>
         </form> : <div style={{ padding: 14, background: "#F4F8FC", borderRadius: 9, color: "#60758A", fontSize: 12, lineHeight: 1.6 }}>Campaign drafting will unlock with an active Marketing Mini subscription. Payment activation is currently disabled.</div>}
       </article>
     </section>
