@@ -98,6 +98,7 @@ Deno.serve(async (req: Request) => {
   let retried = 0;
   let failed = 0;
   let skipped = 0;
+  let retryPersistenceFailed = false;
 
   for (const run of (runs ?? []) as Run[]) {
     const { data: result, error: executeError } = await admin.rpc("execute_marketing_automation_action", {
@@ -122,7 +123,10 @@ Deno.serve(async (req: Request) => {
           ? "The action failed after the maximum retry attempts."
           : "The action failed and was queued for a delayed retry.",
       }).eq("id", run.id).eq("user_id", run.user_id);
-      if (retryError) console.error("Unable to persist automation retry:", retryError.message);
+      if (retryError) {
+        retryPersistenceFailed = true;
+        console.error("Unable to persist automation retry:", retryError.message);
+      }
       if (isFinal) failed++;
       else retried++;
       console.error("Automation action execution failed:", executeError.message);
@@ -136,6 +140,13 @@ Deno.serve(async (req: Request) => {
       failed++;
       console.error("Automation executor returned an unexpected result for run:", run.id);
     }
+  }
+
+  if (retryPersistenceFailed) {
+    return json({
+      error: "One or more automation retry states could not be persisted. Expired worker leases will be recovered by the next worker run.",
+      claimed: (runs ?? []).length, succeeded, retried, failed, skipped,
+    }, 503);
   }
 
   return json({ claimed: (runs ?? []).length, succeeded, retried, failed, skipped });
