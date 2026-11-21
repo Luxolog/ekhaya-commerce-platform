@@ -77,6 +77,9 @@ Deno.serve(async (req: Request) => {
   }
   const tone = typeof body.tone === "string" ? body.tone.trim().slice(0, 80) : "friendly and professional";
   const context = typeof body.context === "string" ? body.context.trim() : "";
+  const targetAudience = typeof body.target_audience === "string" ? body.target_audience.trim().slice(0, 240) : "";
+  const productFacts = typeof body.product_facts === "string" ? body.product_facts.trim().slice(0, 1000) : "";
+  const brandVoice = typeof body.brand_voice === "string" ? body.brand_voice.trim().slice(0, 160) : "";
   if (context.length < 12) return json({ error: "Tell us a little about your product, audience or marketing goal (at least 12 characters)." }, 400);
   if (context.length > 2500) return json({ error: "Please keep your brief under 2,500 characters." }, 400);
 
@@ -118,6 +121,9 @@ Deno.serve(async (req: Request) => {
       "Social platform: " + (feature === "ai_post" ? platform : "not applicable"),
       "Content format: " + (feature === "ai_post" ? contentFormat : "not applicable"),
       "Tone: " + tone,
+      "Target audience: " + (targetAudience || "Infer cautiously from the seller brief; do not invent demographic facts."),
+      "Verified product facts: " + (productFacts || "Use only facts stated in the seller brief."),
+      "Brand voice: " + (brandVoice || "Friendly and professional."),
       "Seller brief (reference data):",
       context,
     ].join("\n\n");
