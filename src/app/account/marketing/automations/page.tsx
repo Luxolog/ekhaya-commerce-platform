@@ -38,14 +38,15 @@ export default function MarketingAutomationsPage(){
    setName("");setNotice("Automation saved as paused. Scheduling will remain inactive until the approved worker is deployed.");await load();
   }catch(e){setError(e instanceof Error?e.message:"Unable to save automation.");}finally{setBusy(false);}
  }
- async function setStatus(rule:Rule,status:string){
+ async function setStatus(rule:Rule,status:"paused"|"cancelled"){
+  if(status!=="paused"&&status!=="cancelled")return;
   setBusy(true);setError("");try{await request("marketing_automations?id=eq."+encodeURIComponent(rule.id),{method:"PATCH",body:JSON.stringify({status})});await load();}catch(e){setError(e instanceof Error?e.message:"Unable to update automation.");}finally{setBusy(false);}
  }
  return <main style={{maxWidth:1120,margin:"0 auto",padding:"28px 18px 64px",color:"#17364D"}}>
   <Link href="/account/marketing/" style={{color:"#0789BE",textDecoration:"none",fontWeight:800,fontSize:13}}>← AI Marketing</Link>
   <h1 style={{fontSize:28,margin:"14px 0 6px"}}>Marketing automations</h1>
   <p style={{color:"#60758A",fontSize:14,lineHeight:1.6}}>Create reusable marketing rules with a schedule, trigger and action. New rules are saved paused; no background worker or external publishing is active yet.</p>
-  <div role="note" style={{padding:14,border:"1px solid #E8C98B",background:"#FFFBF2",borderRadius:10,fontSize:13,color:"#76501A",margin:"18px 0"}}><strong>Deployment boundary:</strong> the database-backed rule and run-history foundation is being prepared. Do not activate rules until the Supabase worker/scheduler has been configured and tested.</div>
+  <div role="note" style={{padding:14,border:"1px solid #E8C98B",background:"#FFFBF2",borderRadius:10,fontSize:13,color:"#76501A",margin:"18px 0"}}><strong>Deployment boundary:</strong> the database-backed rule and run-history foundation is being prepared. Seller activation is disabled at both the interface and database-policy levels until the Supabase worker/scheduler has been configured and tested.</div>
   {error&&<p role="alert" style={{background:"#FFF0ED",padding:12,borderRadius:8,color:"#A43B2B"}}>{error}</p>}
   {notice&&<p role="status" style={{background:"#EDF8F2",padding:12,borderRadius:8,color:"#216644"}}>{notice}</p>}
   <form onSubmit={create} style={{background:"#fff",border:"1px solid #DCE6EE",borderRadius:12,padding:18,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:12}}>
@@ -60,10 +61,10 @@ export default function MarketingAutomationsPage(){
    <h2 style={{fontSize:18}}>Your rules</h2>
    {loading?<p style={{color:"#60758A"}}>Loading…</p>:rules.length===0?<p style={{color:"#60758A"}}>No automations created yet.</p>:<div style={{display:"grid",gap:10}}>{rules.map(rule=><article key={rule.id} style={{border:"1px solid #DCE6EE",borderRadius:10,padding:14,display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
     <div><strong>{rule.name}</strong><p style={{fontSize:12,color:"#60758A",margin:"5px 0"}}>{rule.trigger_type.replaceAll("_"," ")} · {rule.action_type.replaceAll("_"," ")} · {rule.schedule_timezone}</p><small style={{color:"#60758A"}}>Next run: {rule.next_run_at?new Date(rule.next_run_at).toLocaleString():"Not scheduled"}</small></div>
-    <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:12,fontWeight:800,color:rule.status==="active"?"#21734A":"#60758A"}}>{rule.status}</span>{rule.status!=="cancelled"&&<button disabled={busy} onClick={()=>void setStatus(rule,rule.status==="paused"?"active":"paused")} style={smallButton}>{rule.status==="paused"?"Activate":"Pause"}</button>}<button disabled={busy||rule.status==="cancelled"} onClick={()=>void setStatus(rule,"cancelled")} style={smallButton}>Cancel</button></div>
+    <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:12,fontWeight:800,color:rule.status==="active"?"#21734A":"#60758A"}}>{rule.status}</span>{rule.status==="active"&&<button disabled={busy} onClick={()=>void setStatus(rule,"paused")} style={smallButton}>Pause</button>}{rule.status!=="cancelled"&&<button disabled={busy} onClick={()=>void setStatus(rule,"cancelled")} style={smallButton}>Cancel</button>}</div>
    </article>)}</div>}
   </section>
-  <p style={{fontSize:12,color:"#71869A",marginTop:22}}>Execution history is stored separately and will populate when a reviewed worker is deployed. Activating a rule before that point does not cause it to run.</p>
+  <p style={{fontSize:12,color:"#71869A",marginTop:22}}>Execution history is stored separately and will populate only after a reviewed worker is deployed. Sellers can pause or cancel rules; activation is reserved for the trusted worker after release approval.</p>
  </main>;
 }
 const input:React.CSSProperties={padding:10,border:"1px solid #D5E1EA",borderRadius:8,fontSize:13,minWidth:0};
