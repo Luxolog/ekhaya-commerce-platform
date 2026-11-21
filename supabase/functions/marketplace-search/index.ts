@@ -79,18 +79,6 @@ Deno.serve(async (req: Request) => {
     body.target_user_id = body.target_user_id ?? body.user_id;
   }
 
-  if (body.action === "account_access") {
-    const partnerResponse = await fetch(
-      new URL("/rest/v1/partner_programs?select=id,status&partner_user_id=eq." + encodeURIComponent(userId) + "&limit=1", supabaseUrl),
-      { headers: adminHeaders }
-    );
-    if (!partnerResponse.ok) return json({ error: "Could not verify partner account access." }, 502);
-    const partnerRows = await partnerResponse.json();
-    const roles = ["seller"];
-    if (Array.isArray(partnerRows) && partnerRows.length > 0) roles.push("partner");
-    if (isOwner) roles.push("owner");
-    return json({ ok: true, roles });
-  }
   if (body.action === "owner_list_users") {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
     const [usersResponse, pilotResponse, profilesResponse] = await Promise.all([
