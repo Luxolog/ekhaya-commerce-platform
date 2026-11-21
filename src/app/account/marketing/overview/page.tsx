@@ -11,9 +11,9 @@ type Plan = { code: string; name: string; price_zar: number; billing_interval: s
 type Subscription = { id: string; plan_code: string; status: string; billing_mode: string; current_period_start: string | null; current_period_end: string | null; created_at: string };
 type Usage = { feature_code: string; quantity: number; created_at: string };
 type Payment = { id: string; merchant_reference: string; amount: number; currency: string; status: string; payment_provider: string; paid_at: string | null; created_at: string };
-type Campaign = { id: string; status: string; performance_notes: string | null; updated_at: string };
-type CalendarPost = { id: string; status: string; scheduled_for: string };
-type ResearchReport = { id: string; report_type: string; created_at: string };
+type Campaign = { id: string; title: string; status: string; performance_notes: string | null; updated_at: string };
+type CalendarPost = { id: string; title: string; platform: string; status: string; scheduled_for: string };
+type ResearchReport = { id: string; title: string; report_type: string; created_at: string };
 
 const money = (value: number) => new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(value);
 const fmtDate = (value?: string | null) => value ? new Intl.DateTimeFormat("en-ZA", { dateStyle: "medium" }).format(new Date(value)) : "—";
@@ -64,9 +64,9 @@ export default function MarketingOverviewPage() {
         get<Subscription>("seller_marketing_subscriptions?select=id,plan_code,status,billing_mode,current_period_start,current_period_end,created_at&order=created_at.desc&limit=20"),
         get<Plan>("marketing_plans?select=code,name,price_zar,billing_interval,monthly_ai_posts,monthly_campaign_ideas,monthly_research_queries,monthly_trend_reports&is_active=eq.true"),
         get<Payment>("marketing_payment_transactions?select=id,merchant_reference,amount,currency,status,payment_provider,paid_at,created_at&order=created_at.desc&limit=20"),
-        get<Campaign>("marketing_campaigns?select=id,status,performance_notes,updated_at&order=updated_at.desc&limit=100"),
-        get<CalendarPost>("marketing_calendar_posts?select=id,status,scheduled_for&order=scheduled_for.desc&limit=200"),
-        get<ResearchReport>("marketing_research_reports?select=id,report_type,created_at&order=created_at.desc&limit=100")
+        get<Campaign>("marketing_campaigns?select=id,title,status,performance_notes,updated_at&order=updated_at.desc&limit=100"),
+        get<CalendarPost>("marketing_calendar_posts?select=id,title,platform,status,scheduled_for&order=scheduled_for.asc&limit=200"),
+        get<ResearchReport>("marketing_research_reports?select=id,title,report_type,created_at&order=created_at.desc&limit=100")
       ]);
       const active = subRows.find(s => s.status === "active");
       const periodStart = active?.current_period_start ?? new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
@@ -92,10 +92,18 @@ export default function MarketingOverviewPage() {
   const campaignNotes = campaigns.filter(c => c.performance_notes?.trim());
   const now = new Date();
   const monthPosts = posts.filter(p => { const d = new Date(p.scheduled_for); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); });
+  const upcomingPosts = posts.filter(p => new Date(p.scheduled_for).getTime() >= now.getTime() && p.status !== "archived").slice(0, 8);
+  const draftPosts = posts.filter(p => p.status === "draft");
+  const campaignStatuses = ["draft", "pending_approval", "approved", "archived"].map(status => ({ status, count: campaigns.filter(c => c.status === status).length }));
+  const quotaWarnings = allowances.filter(item => item.limit > 0 && (totals[item.code] ?? 0) / item.limit >= 0.8);
+  const timeline = [
+    ...campaigns.slice(0, 8).map(item => ({ key: "campaign-" + item.id, title: "Campaign updated: " + item.title, date: item.updated_at, kind: "Campaign" })),
+    ...reports.slice(0, 8).map(item => ({ key: "report-" + item.id, title: "Research report saved: " + item.title, date: item.created_at, kind: "Research" }))
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 10);
   const metrics = [
     ["Campaigns created", campaigns.length],
-    ["Seller-approved campaigns", campaigns.filter(c => c.status === "approved").length],
-    ["Calendar posts this month", monthPosts.length],
+    ["Draft posts to review", draftPosts.length],
+    ["Upcoming content", upcomingPosts.length],
     ["Research reports saved", reports.length]
   ];
 
@@ -110,6 +118,10 @@ export default function MarketingOverviewPage() {
         <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 12, marginTop: 22 }}>
           {metrics.map(([title, value]) => <article key={title} style={card}><p style={muted}>{title}</p><strong style={{ fontSize: 28 }}>{value}</strong></article>)}
         </section>
+        {quotaWarnings.length > 0 && <section style={{ ...card, marginTop: 14, borderColor: "#E8C98B", background: "#FFFBF2" }}><h2 style={h2}>Quota reminders</h2><p style={muted}>You have used at least 80% of these monthly allowances.</p>{quotaWarnings.map(item => <p key={item.code} style={{ fontSize: 13, margin: "8px 0" }}><strong>{item.title}:</strong> {totals[item.code] ?? 0} of {item.limit} used.</p>)}</section>}
+        <section style={{ ...card, marginTop: 14 }}><h2 style={h2}>Campaign status</h2><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginTop:12}}>{campaignStatuses.map(item=><div key={item.status} style={{background:"#F5F8FB",borderRadius:9,padding:12}}><p style={muted}>{label(item.status)}</p><strong style={{fontSize:22}}>{item.count}</strong></div>)}</div></section>
+        <section style={{ ...card, marginTop: 14 }}><h2 style={h2}>Upcoming content</h2><p style={muted}>Locally planned posts only. These are not published or externally scheduled.</p>{upcomingPosts.length ? upcomingPosts.map(post=><div key={post.id} style={{padding:"10px 0",borderBottom:"1px solid #EEF2F6",display:"flex",justifyContent:"space-between",gap:12}}><div><strong style={{fontSize:13}}>{post.title}</strong><p style={muted}>{label(post.platform)} · {label(post.status)}</p></div><span style={{fontSize:12,color:"#60758A",whiteSpace:"nowrap"}}>{fmtDate(post.scheduled_for)}</span></div>) : <p style={muted}>No upcoming calendar posts.</p>}</section>
+        <section style={{ ...card, marginTop: 14 }}><h2 style={h2}>Recent activity</h2>{timeline.length ? timeline.map(item=><div key={item.key} style={{padding:"9px 0",borderBottom:"1px solid #EEF2F6",display:"flex",justifyContent:"space-between",gap:12}}><div><strong style={{fontSize:12}}>{item.title}</strong><p style={muted}>{item.kind}</p></div><span style={{fontSize:11,color:"#60758A",whiteSpace:"nowrap"}}>{fmtDate(item.date)}</span></div>) : <p style={muted}>No recent marketing activity recorded.</p>}</section>
         <section style={{ ...card, marginTop: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}><div><h2 style={h2}>Subscription</h2><p style={muted}>AI Marketing is billed separately from your Price Checker subscription.</p></div><span style={statusStyle(active?.status ?? subscriptions[0]?.status ?? "not_subscribed")}>{label(active?.status ?? subscriptions[0]?.status ?? "not subscribed")}</span></div>
           {active && activePlan ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 12, marginTop: 14 }}>
