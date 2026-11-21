@@ -19,7 +19,8 @@ type MarketingSubscription = {
   current_period_start?: string | null; current_period_end?: string | null; created_at: string;
 };
 type UsageEvent = { feature_code: string; quantity: number; created_at: string };
-type Campaign = { id: string; title: string; objective?: string | null; platform?: string | null; status: string; updated_at: string };\ntype CalendarPost = { id: string; title: string; content: string; platform: string; scheduled_for: string; status: "draft" | "approved" | "archived" };
+type Campaign = { id: string; title: string; objective?: string | null; platform?: string | null; status: string; updated_at: string };
+type CalendarPost = { id: string; title: string; content: string; platform: string; scheduled_for: string; status: "draft" | "approved" | "archived" };
 
 const money = (amount: number) => new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 2 }).format(amount);
 const pretty = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase());
