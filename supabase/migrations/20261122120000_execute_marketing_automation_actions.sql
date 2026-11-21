@@ -59,7 +59,7 @@ begin
   v_content := left(coalesce(nullif(trim(v_rule.action_config->>'content'),''),nullif(trim(v_rule.action_config->>'message'),''),v_rule.description),10000);
   v_platform := coalesce(nullif(lower(trim(v_rule.action_config->>'platform')),''),'other');
 
-  if v_content = '' then
+  if nullif(trim(coalesce(v_content, '')), '') is null then
     update public.marketing_automation_runs
       set status = 'skipped', completed_at = now(),
           error_code = 'action_content_missing',
