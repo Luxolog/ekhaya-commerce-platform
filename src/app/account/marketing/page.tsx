@@ -22,6 +22,7 @@ type UsageEvent = { feature_code: string; quantity: number; created_at: string }
 type Campaign = { id: string; title: string; objective?: string | null; target_audience?: string | null; start_date?: string | null; end_date?: string | null; performance_notes?: string | null; platform?: string | null; content?: string | null; status: string; updated_at: string };
 type CalendarPost = { id: string; title: string; content: string; platform: string; scheduled_for: string; status: "draft" | "approved" | "archived" };
 type CampaignTemplate = { id: string; name: string; objective: string | null; target_audience: string | null; platform: string | null; content_prompt: string };
+type SavedProduct = { id: string; product_name: string; product_description: string; selling_price: number | null; product_category: string; product_benefits: string; verified_specifications: string; target_audience: string };
 
 const money = (amount: number) => new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 2 }).format(amount);
 const pretty = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase());
@@ -33,6 +34,8 @@ export default function MarketingDashboardPage() {
   const [usage, setUsage] = useState<UsageEvent[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [campaignTemplates, setCampaignTemplates] = useState<CampaignTemplate[]>([]);
+  const [savedProducts, setSavedProducts] = useState<SavedProduct[]>([]);
+  const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [editingCampaignTitle, setEditingCampaignTitle] = useState("");
@@ -111,11 +114,12 @@ export default function MarketingDashboardPage() {
       const monthStart = new Date();
       monthStart.setDate(1);
       const from = monthStart.toISOString();
-      const [plans, subs, drafts, templates] = await Promise.all([
+      const [plans, subs, drafts, templates, products] = await Promise.all([
         get<MarketingPlan>("marketing_plans?select=code,name,price_zar,billing_interval,monthly_ai_posts,monthly_campaign_ideas,monthly_research_queries,monthly_trend_reports&is_active=eq.true&order=price_zar.asc"),
         get<MarketingSubscription>("seller_marketing_subscriptions?select=id,plan_code,status,billing_mode,current_period_start,current_period_end,created_at&order=created_at.desc&limit=10"),
         get<Campaign>("marketing_campaigns?select=id,title,objective,target_audience,start_date,end_date,performance_notes,platform,content,status,updated_at&order=updated_at.desc&limit=20"),
         get<CampaignTemplate>("marketing_campaign_templates?select=id,name,objective,target_audience,platform,content_prompt&order=updated_at.desc&limit=50"),
+        get<SavedProduct>("seller_marketing_products?select=id,product_name,product_description,selling_price,product_category,product_benefits,verified_specifications,target_audience&is_active=eq.true&order=updated_at.desc&limit=100"),
       ]);
       const active = subs.find(item => item.status === "active");
       const usageStart = active?.current_period_start ?? from;
@@ -125,6 +129,7 @@ export default function MarketingDashboardPage() {
       setUsage(events);
       setCampaigns(drafts);
       setCampaignTemplates(templates);
+      setSavedProducts(products);
       const calendar = await get<CalendarPost>("marketing_calendar_posts?select=id,title,content,platform,scheduled_for,status&order=scheduled_for.asc&limit=50");
       setCalendarPosts(calendar);
     } catch (e) {
@@ -182,6 +187,7 @@ export default function MarketingDashboardPage() {
           target_audience: generatorAudience.trim(),
           product_facts: generatorProductFacts.trim(),
           brand_voice: generatorBrandVoice.trim(),
+          product_id: selectedProductId || undefined,
           context: generatorContext.trim(),
         }),
       });
@@ -515,7 +521,7 @@ export default function MarketingDashboardPage() {
             </select>
           </label>
           {generatorFeature === "ai_post" && <label style={formLabel}>Social platform
-            <select value={platform} onChange={event => setPlatform(event.target.value)} style={field}><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option><option value="other">Other</option></select>
+            <select value={platform} onChange={event => setPlatform(event.target.value)} style={field}><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option><option value="whatsapp">WhatsApp Business</option><option value="marketplace">Marketplace listing</option><option value="other">Other</option></select>
           </label>}
           {generatorFeature === "ai_post" && <label style={formLabel}>Content format
             <select value={contentFormat} onChange={event => { setContentFormat(event.target.value); setGeneratedContent(""); }} style={field}>
@@ -526,11 +532,18 @@ export default function MarketingDashboardPage() {
               <option value="email_copy">Email marketing copy</option>
               <option value="campaign_headline">Campaign headlines</option>
               <option value="call_to_action">Calls to action</option>
-              <option value="hashtag_suggestions">Hashtag suggestions</option>
+              <option value="hashtag_suggestions">Hashtag suggestions</option><option value="facebook_ad">Facebook ad copy</option><option value="whatsapp_message">WhatsApp Business message</option><option value="marketplace_listing">Marketplace listing</option><option value="product_launch">Product launch content pack</option><option value="multiple_variations">Three content variations</option>
             </select>
           </label>}
           <label style={formLabel}>Writing tone
             <select value={generatorTone} onChange={event => setGeneratorTone(event.target.value)} style={field}><option value="friendly and professional">Friendly and professional</option><option value="bold and persuasive">Bold and persuasive</option><option value="premium and sophisticated">Premium and sophisticated</option><option value="warm and community-focused">Warm and community-focused</option><option value="informative and educational">Informative and educational</option></select>
+          </label>
+          <label style={formLabel}>Use saved product (optional)
+            <select value={selectedProductId} onChange={event => { setSelectedProductId(event.target.value); const p = savedProducts.find(item => item.id === event.target.value); if (p) { setGeneratorProductFacts([p.product_description,p.product_benefits,p.verified_specifications,p.selling_price !== null ? "Seller supplied price: R" + Number(p.selling_price).toFixed(2) : ""].filter(Boolean).join("\n")); if (p.target_audience) setGeneratorAudience(p.target_audience); } }} style={field}>
+              <option value="">No saved product selected</option>
+              {savedProducts.map(item => <option key={item.id} value={item.id}>{item.product_name}</option>)}
+            </select>
+            <span style={{fontSize:11,color:"#71869A"}}>Saved brand profile and selected product facts are securely loaded server-side for generation.</span>
           </label>
           <label style={formLabel}>Tell us about your product, audience or goal
             <textarea value={generatorContext} onChange={event => setGeneratorContext(event.target.value)} maxLength={2500} rows={5} placeholder="Example: We sell handmade leather bags in South Africa. Our audience is working professionals looking for durable everyday bags. We want to introduce our new collection." style={{ ...field, height: "auto", padding: 12, resize: "vertical" }}/>
