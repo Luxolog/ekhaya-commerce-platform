@@ -8,7 +8,8 @@ This document is the execution ledger. A skipped CI job, unavailable environment
 
 ## Current baseline
 
-- Latest inspected baseline before this ledger: `4b77c7c155d4f53077d01ab65108f6d606a8c57c`.
+- Latest inspected baseline before the current CI hardening commit: `f5fb2ef79fe7f2476c86e2c2465c0ccb08a88385`.
+- CI hardening commit: `3c8ba48f8791ac303e009c69f4dbd42236566422` (automatic local migration apply/lint; its run is pending at the time of this edit).
 - The Next.js TypeScript, ESLint and production build job passed on that SHA.
 - AI Marketing Edge Function Deno type-check passed on that SHA.
 - Repository secret-history scan passed on that SHA.
@@ -21,7 +22,7 @@ This document is the execution ledger. A skipped CI job, unavailable environment
 | # | Milestone | Status | Evidence / remaining acceptance work |
 |---|---|---|---|
 | 1 | Establish current state | COMPLETE | Re-fetched branch, PR #35, changed-file list, migration/function sources and latest Actions. Keep this ledger current with each follow-up commit. |
-| 2 | Database migration validation | BLOCKED | Reviewed the AI Marketing migration sequence and key constraints/RPCs. Must run the full repository migration history against a clean local Supabase database, `supabase db lint --local`, and SQL dependency checks. The manual CI job was skipped; no production migration was applied. |
+| 2 | Database migration validation | BLOCKED | Reviewed the AI Marketing migration sequence and key constraints/RPCs. Must run the full repository migration history against a clean local Supabase database, `supabase db lint --local`, and SQL dependency checks. The previous manual CI job was skipped; the workflow now starts an isolated local Supabase stack, applies the complete migration history with `supabase db reset --local`, runs `supabase db lint --local`, and stops the stack. The new automated run must pass before database validation is marked complete. No production migration was applied. |
 | 3 | Seller isolation and security | BLOCKED | RLS and ownership constraints are present in migrations and security notes. Still requires two real non-production seller JWTs and direct API/RPC tests across every seller-owned table, including UUID substitution, writes, deletes, activation denial, anonymous access and worker secret rejection/rotation. |
 | 4 | Automation engine | IN PROGRESS | Durable queue, SKIP LOCKED claims, schedule advancement, timezone arithmetic, invalid-timezone pausing, idempotent action events, transactional calendar drafts and exponential retry code exist. Worker now rejects malformed/non-object/oversized payloads and limits batch size to 1–25. A new migration recovers `running` jobs whose 15-minute worker lease expired, requeues within the retry budget and marks exhausted runs failed. Retry-state persistence failures now produce an HTTP 503 instead of a misleading successful worker response. Still needs executable DB tests for concurrency, DST, missed schedules, retry persistence, maximum attempts, duplicate execution and lease-expiry recovery. No worker is deployed. |
 | 5 | AI content quality | IN PROGRESS | Generation code uses seller brand/product context and explicitly prohibits invented product facts and claims; weekly plan validates seven structured posts. Add automated adversarial tests for conflicting/prohibited claims, missing context, malformed model responses, timeout, rate limits and quota rollback. Provider credentials/runtime are not configured or tested here. |
@@ -31,7 +32,7 @@ This document is the execution ledger. A skipped CI job, unavailable environment
 | 9 | Billing and usage isolation | IN PROGRESS | AI Marketing has separate plan, subscription, usage and payment tables/RPCs; usage reservation is service-role-only and idempotent. Verify all generation endpoints, concurrent quota use, failed-generation release, duplicate requests, webhook idempotency and that Price Checker credits/subscriptions are unchanged. Paystack remains disabled pending approval. |
 | 10 | Performance and reliability | IN PROGRESS | Core user/date indexes and bounded worker batches exist. Review query plans, unbounded client queries, pagination, CSV size, repeated requests, loading/error states and recovery of abandoned worker jobs. No paid infrastructure changes. |
 | 11 | Documentation and release preparation | IN PROGRESS | Existing add-on, content-engine, security, provider, migration and testing docs remain in place; this ledger now records acceptance evidence and blockers. Update deployment/rollback instructions after local migration validation and test results. |
-| 12 | GitHub Actions | IN PROGRESS | Existing workflow runs TypeScript, ESLint, Next build and Deno type-check. Secret-history scan passed on baseline. Local Supabase lint is manual and was skipped. Ensure the new worker-hardening commit has fresh green CI; add automated SQL/worker/security tests where practical. |
+| 12 | GitHub Actions | IN PROGRESS | Existing workflow runs TypeScript, ESLint, Next build and Deno type-check. Secret-history scan passed on the previous baseline. Supabase local migration application and lint now run automatically on every workflow invocation; the first result on the updated workflow is pending. Add executable SQL/worker/security tests where practical. |
 | 13 | Final acceptance | BLOCKED | Do not mark ready until all release gates below are supported by executed evidence. |
 
 ## Findings to resolve before release
