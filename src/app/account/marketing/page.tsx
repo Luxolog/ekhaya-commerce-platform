@@ -186,6 +186,28 @@ export default function MarketingDashboardPage() {
     }
   }
 
+  function prepareCampaignBrief() {
+    if (plannerObjective.trim().length < 5 || plannerProduct.trim().length < 2 || !plannerStart || !plannerEnd || plannerEnd < plannerStart) {
+      setError("Complete the campaign objective, product or service and valid start/end dates.");
+      return;
+    }
+    const context = [
+      "Campaign objective: " + plannerObjective.trim(),
+      "Product or service: " + plannerProduct.trim(),
+      "Campaign dates: " + plannerStart + " to " + plannerEnd,
+      "Budget supplied by seller (planning only): " + (plannerBudget ? "R" + plannerBudget : "Not supplied"),
+      "Target audience: " + (plannerAudience.trim() || "Not supplied"),
+      "Target platform: " + plannerPlatform,
+      "Desired posting frequency: " + plannerFrequency,
+      "Create a practical campaign strategy, weekly objectives, daily content recommendations, suggested posting frequency, campaign messages, calendar content ideas, calls to action and a suggested review date. Keep all recommendations within the supplied dates. Do not claim to spend the budget or publish content."
+    ].join("\n");
+    setGeneratorFeature("campaign_idea");
+    setPlatform(plannerPlatform);
+    setGeneratorAudience(plannerAudience);
+    setGeneratorContext(context);
+    setPlannerMode(true);
+    setNotice("Campaign brief prepared. Generate it in Content Studio below, review the result and save it as a campaign draft.");
+  }
   async function generateContent() {
     setGenerating(true); setError(""); setNotice(""); setGeneratedContent(""); setGenerationUsage(null);
     try {
