@@ -99,7 +99,14 @@ export default function EkhayaOwnerDashboard() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(185px,1fr))", gap: 13, marginBottom: 20 }}>
           {[
-            ["Registered sellers", String(total.sellers)],\n            ["Active sellers", String(total.active_sellers)],\n            ["Paying sellers", String(total.paying_sellers)],\n            ["Total marketplace searches", String(total.total_searches)],\n            ["Search failures", String(total.total_search_failures)],\n            ["Provider API events", String(total.provider_api_events)],\n            ["Successful payments", String(total.total_payments)],\n            ["Total partners", String(total.partners)],
+            ["Registered sellers", String(total.sellers)],
+            ["Active sellers", String(total.active_sellers)],
+            ["Paying sellers", String(total.paying_sellers)],
+            ["Total marketplace searches", String(total.total_searches)],
+            ["Search failures", String(total.total_search_failures)],
+            ["Provider API events", String(total.provider_api_events)],
+            ["Successful payments", String(total.total_payments)],
+            ["Total partners", String(total.partners)],
             ["Active partners", String(total.active_partners)],
             ["Referred sellers", String(total.registered_referred_sellers)],
             ["Paying referred sellers", String(total.paying_referred_sellers)],
