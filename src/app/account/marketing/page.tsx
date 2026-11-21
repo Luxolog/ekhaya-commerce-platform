@@ -61,6 +61,7 @@ export default function MarketingDashboardPage() {
   const [plannerFrequency, setPlannerFrequency] = useState("3 posts per week");
   const [plannerResult, setPlannerResult] = useState("");
   const [plannerBusy, setPlannerBusy] = useState(false);
+  const [plannerMode, setPlannerMode] = useState(false);
   const [platform, setPlatform] = useState("instagram");
   const [generatorFeature, setGeneratorFeature] = useState("ai_post");
   const [contentFormat, setContentFormat] = useState("social_post");
@@ -239,7 +240,13 @@ export default function MarketingDashboardPage() {
         body: JSON.stringify({
           title: generatedTitle.trim().slice(0, 100),
           objective: generatorContext.trim().slice(0, 1000),
-          platform: generatorFeature === "ai_post" ? platform : null,
+          target_audience: plannerMode ? plannerAudience.trim() || null : generatorAudience.trim() || null,
+          start_date: plannerMode ? plannerStart : null,
+          end_date: plannerMode ? plannerEnd : null,
+          budget_zar: plannerMode && plannerBudget ? Number(plannerBudget) : null,
+          posting_frequency: plannerMode ? plannerFrequency : null,
+          review_date: plannerMode ? plannerEnd : null,
+          platform: generatorFeature === "ai_post" ? platform : plannerMode ? plannerPlatform : null,
           content: generatedContent,
           status: "draft",
         }),
@@ -247,6 +254,7 @@ export default function MarketingDashboardPage() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message ?? payload.msg ?? "Unable to save this generated draft.");
       setNotice("Generated content saved to your campaign workspace.");
+      if (plannerMode) setPlannerMode(false);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to save this generated draft.");
