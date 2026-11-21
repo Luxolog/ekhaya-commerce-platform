@@ -76,6 +76,10 @@ export default function EkhayaOwnerDashboard() {
 
   useEffect(() => { void load(); }, [load]);
 
+  useEffect(() => {
+    if (tab === "partners" && data) void loadPartnerInvitations();
+  }, [tab, data]);
+
   // Keep dashboard sections in the URL so browser Back/Forward works.
   useEffect(() => {
     const syncTabFromUrl = () => {
@@ -106,6 +110,7 @@ export default function EkhayaOwnerDashboard() {
     <header style={{ maxWidth: 1440, margin: "0 auto 28px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", borderBottom: "1px solid #DDE6EF", paddingBottom: 18 }}>
       <div><div style={{ color: "#078FC4", fontWeight: 800, fontSize: 11, letterSpacing: 2 }}>EKHAYA TECHNOLOGIES</div><h1 style={{ fontSize: 30, margin: "7px 0 4px" }}>Owner Dashboard</h1><div style={small}>Central administration · Partners · Sellers · Activity · Commissions</div></div>
       <nav style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", fontSize: 13 }}>
+        <Link href="/account/security/" style={{ color: "#078FC4", fontWeight: 700 }}>Security settings</Link>
         <Link href="/owner/users/" style={{ color: "#078FC4", fontWeight: 700 }}>Users</Link>
         <Link href="/owner/cache/" style={{ color: "#078FC4", fontWeight: 700 }}>Cache controls</Link>
         <Link href="/price-checker/" style={{ color: "#078FC4", fontWeight: 700 }}>Price Checker</Link>

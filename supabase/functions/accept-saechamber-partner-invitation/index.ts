@@ -1,0 +1,55 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const isAllowedOrigin = (origin: string) =>
+  origin === "https://pricechecker.ekhayatech.co.za" ||
+  /^https:\/\/ekhaya-commerce-platform-[a-z0-9-]+-luxolog\.vercel\.app$/.test(origin);
+const corsFor = (req: Request) => {
+  const origin = req.headers.get("Origin") || "";
+  return {
+    "Access-Control-Allow-Origin": isAllowedOrigin(origin) ? origin : "https://pricechecker.ekhayatech.co.za",
+    "Vary": "Origin",
+    "Access-Control-Allow-Headers": "authorization, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Content-Type": "application/json",
+  };
+};
+
+Deno.serve(async (req: Request) => {
+  const cors = corsFor(req);
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: cors });
+  const url = Deno.env.get("SUPABASE_URL")!;
+  const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const authHeader = req.headers.get("Authorization") || "";
+  if (!authHeader.startsWith("Bearer ")) return new Response(JSON.stringify({ error: "Sign-in required" }), { status: 401, headers: cors });
+  const client = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
+  const { data: { user }, error: authError } = await client.auth.getUser();
+  if (authError || !user || !user.email) return new Response(JSON.stringify({ error: "Invalid invitation session" }), { status: 401, headers: cors });
+  let body: { invitation_id?: string; referral_code?: string };
+  try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid request body" }), { status: 400, headers: cors }); }
+  const invitationId = body.invitation_id || "";
+  const code = (body.referral_code || "").trim().toUpperCase();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(invitationId))
+    return new Response(JSON.stringify({ error: "Invalid invitation reference" }), { status: 400, headers: cors });
+  if (!/^[A-Z0-9]{5,20}$/.test(code)) return new Response(JSON.stringify({ error: "Choose a link code using 5–20 letters or numbers" }), { status: 400, headers: cors });
+  const admin = createClient(url, service);
+  const { data: invitation, error: inviteError } = await admin.from("partner_invitations")
+    .select("id,partner_id,invited_email,status,expires_at").eq("id", invitationId).single();
+  if (inviteError || !invitation || invitation.status !== "pending" || new Date(invitation.expires_at) < new Date())
+    return new Response(JSON.stringify({ error: "This invitation is invalid, expired or already used" }), { status: 410, headers: cors });
+  if (user.email.toLowerCase() !== invitation.invited_email.toLowerCase())
+    return new Response(JSON.stringify({ error: "Please sign in using the email address that received this partner invitation" }), { status: 403, headers: cors });
+  const { data: duplicate } = await admin.from("partner_programs").select("id").eq("referral_code", code).neq("id", invitation.partner_id).maybeSingle();
+  if (duplicate) return new Response(JSON.stringify({ error: "That referral code is already in use. Choose another." }), { status: 409, headers: cors });
+  const { data: linked, error: linkError } = await admin.from("partner_programs")
+    .update({ partner_user_id: user.id, referral_code: code, updated_at: new Date().toISOString() })
+    .eq("id", invitation.partner_id).is("partner_user_id", null)
+    .select("id,partner_name,partner_slug,referral_code,status").maybeSingle();
+  if (linkError || !linked) return new Response(JSON.stringify({ error: "This partner programme has already been linked. Contact Ekhaya support if you need help." }), { status: 409, headers: cors });
+  const { error: acceptedError } = await admin.from("partner_invitations")
+    .update({ status: "accepted", accepted_at: new Date().toISOString() }).eq("id", invitationId).eq("status", "pending");
+  if (acceptedError) return new Response(JSON.stringify({ error: "Partner access was linked, but the invitation status could not be updated. Contact Ekhaya support." }), { status: 500, headers: cors });
+  return new Response(JSON.stringify({ success: true, partner: linked, user_id: user.id }), { status: 200, headers: cors });
+});
