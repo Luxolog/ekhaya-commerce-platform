@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
-const URL = "https://itxxnhcjjiynrmivexcb.supabase.co";
+const URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 type Session = { access_token?: string; refresh_token?: string; expires_at?: number; [key: string]: unknown };
 type Brand = { id?: string; business_name: string; business_description: string; industry: string; website_url: string; product_categories: string; target_customers: string; target_markets: string; brand_personality: string; brand_voice: string; preferred_writing_style: string; preferred_languages: string; business_objectives: string; competitor_names: string; approved_product_facts: string; prohibited_claims: string };
