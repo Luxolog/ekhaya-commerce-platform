@@ -9,8 +9,7 @@ type MarketplaceProduct = { relevance?: ProductRelevance; marketplace?: string; 
 type Mode = "name" | "barcode" | "photo";
 
 type ProductRelevance = "exact" | "related" | "accessory";
-const ACCESSORY_TERMS = /\\b(battery|keyboard|charger|adapter|backplate|top cover|screen|display|case|cover|cable|replacement|spare part|fan|hinge|memory|ram upgrade|ssd upgrade)\\b/i;
-const PRODUCT_TYPE_TERMS = /\\b(laptop|notebook|phone|smartphone|tablet|monitor|printer|television|tv|camera|headphones|earbuds|speaker|router|keyboard|mouse|battery|charger)\\b/i;
+const ACCESSORY_TERMS = /\b(battery|keyboard|charger|adapter|backplate|top cover|screen|display|case|cover|cable|replacement|spare part|fan|hinge|memory|ram upgrade|ssd upgrade)\b/i;
 function classifyProduct(query: string, product: { title?: string; brand?: string | null; key_specs?: string[] }): ProductRelevance | null {
   const source = `${product.brand ?? ""} ${product.title ?? ""} ${(product.key_specs ?? []).join(" ")}`.toLowerCase();
   const tokens = query.toLowerCase().match(/[a-z0-9]+/g)?.filter((token) => token.length > 1) ?? [];
