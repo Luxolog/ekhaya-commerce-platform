@@ -102,6 +102,35 @@ Deno.serve(async (req: Request) => {
   if (insertError || !invitation) return new Response(JSON.stringify({ error: "Could not create invitation record" }), { status: 500, headers: cors });
 
   const redirectTo = "https://pricechecker.ekhayatech.co.za/account/?partner_invite=" + invitation.id;
+  // Existing Ekhaya users keep their current account and password. Send a
+  // magic sign-in link that returns them to the partner invitation acceptance.
+  const { data: authUsers, error: usersError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (usersError) {
+    await admin.from("partner_invitations").update({ status: "revoked" }).eq("id", invitation.id);
+    return new Response(JSON.stringify({ error: "Could not verify whether this email already has an Ekhaya account." }), { status: 500, headers: cors });
+  }
+  const existingUser = authUsers.users.find(item => item.email?.toLowerCase() === email);
+  if (existingUser) {
+    const mailClient = createClient(url, anon);
+    const { error: magicLinkError } = await mailClient.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
+    });
+    if (magicLinkError) {
+      await admin.from("partner_invitations").update({ status: "revoked" }).eq("id", invitation.id);
+      return new Response(JSON.stringify({ error: magicLinkError.message }), { status: 400, headers: cors });
+    }
+    return new Response(JSON.stringify({
+      success: true,
+      invitation_id: invitation.id,
+      partner_name: partner.partner_name,
+      invited_email: email,
+      expires_in_days: 14,
+      existing_account: true,
+      message: "Partner invitation sign-in link sent. The recipient will keep their existing Ekhaya account and password.",
+    }), { status: 200, headers: cors });
+  }
+
   const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
     redirectTo,
     data: {
