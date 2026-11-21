@@ -137,13 +137,13 @@ export default function EkhayaOwnerDashboard() {
               ["Monthly search allowance", total.monthly_search_allowance],
               ["Search credits used this month", total.monthly_searches_used],
               ["Search credits remaining", total.monthly_searches_remaining],
-              ["Provider API calls logged", total.provider_api_events]
+              ["Provider API calls logged (all time)", total.provider_api_events]
             ].map(([label,value]) => <article key={String(label)} style={panel}><div style={small}>{label}</div><div style={{ fontSize: 25, fontWeight: 800, marginTop: 10 }}>{value}</div></article>)}
           </div>
           <div style={{ ...panel, overflowX: "auto" }}>
             <h2 style={{ marginTop: 0, fontSize: 18 }}>Seller API and search-credit usage</h2>
             <p style={small}>Monthly marketplace search credits are calculated from the active plan allowance and this month’s recorded usage. Provider API calls are counted separately from seller search credits.</p>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Seller","Email","Plan","Monthly allowance","Used this month","Remaining","Provider API calls"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.sellers.filter(s=>s.role!=="owner").map(s=><tr key={s.id}><td style={td}><b>{s.display_name || "Seller"}</b></td><td style={td}>{s.email || "—"}</td><td style={td}>{s.plan_code}</td><td style={td}>{s.monthly_search_allowance}</td><td style={td}>{s.monthly_searches_used}</td><td style={td}><b>{s.monthly_searches_remaining}</b></td><td style={td}>{s.provider_api_calls}</td></tr>)}</tbody></table>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Seller","Email","Plan","Monthly allowance","Used this month","Remaining","Provider API calls (all time)"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.sellers.filter(s=>s.role!=="owner").map(s=><tr key={s.id}><td style={td}><b>{s.display_name || "Seller"}</b></td><td style={td}>{s.email || "—"}</td><td style={td}>{s.plan_code}</td><td style={td}>{s.monthly_search_allowance}</td><td style={td}>{s.monthly_searches_used}</td><td style={td}><b>{s.monthly_searches_remaining}</b></td><td style={td}>{s.provider_api_calls}</td></tr>)}</tbody></table>
           </div>
           <div style={{ ...panel, borderColor: "#E8D8B5" }}><b>Important distinction</b><p style={{ ...small, marginBottom: 0 }}>Remaining means the seller’s remaining platform search credits for the current month. The connected marketplace provider’s own external account quota is not exposed in the current integration, so it is not represented as a remaining provider quota.</p></div>
         </div>}
