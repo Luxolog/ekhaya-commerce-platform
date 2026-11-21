@@ -29,6 +29,7 @@ Apply these files to an isolated non-production database in this order, after re
 7. 20261122040000_allow_seller_campaign_approval.sql
 8. 20261122050000_add_marketing_brand_and_products.sql
 9. 20261122060000_add_marketing_contacts_and_email_drafts.sql
+10. 20261122070000_add_campaign_planning_metadata.sql
 
 Do not apply this list directly to production. Confirm migration history and dependencies in the target environment first.
 
