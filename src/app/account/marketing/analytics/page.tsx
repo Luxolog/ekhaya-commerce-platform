@@ -26,7 +26,7 @@ export default function MarketingAnalyticsPage(){
  },[]);
  const load=useCallback(async()=>{
   setLoading(true);setError("");
-  try{const h=await headers();const get=async<T,>(table:string,select:string,filter:string=""):{data:T[]}=>{const r=await fetch(API+"/rest/v1/"+table+"?select="+select+filter,{headers:h,cache:"no-store"});const d=await r.json().catch(()=>[]);if(!r.ok)throw new Error(d.message||d.msg||"Unable to load analytics.");return {data:d as T[]}};
+  try{const h=await headers();const get=async<T,>(table:string,select:string,filter:string=""):Promise<{data:T[]}>=>{const r=await fetch(API+"/rest/v1/"+table+"?select="+select+filter,{headers:h,cache:"no-store"});const d=await r.json().catch(()=>[]);if(!r.ok)throw new Error(d.message||d.msg||"Unable to load analytics.");return {data:d as T[]}};
    const range="&metric_date=gte."+from+"&metric_date=lte."+to;
    const [u,c,m,ct,de]=await Promise.all([
     get<Usage>("marketing_usage_events","feature_code,quantity,created_at","&created_at=gte."+encodeURIComponent(new Date(from+"T00:00:00").toISOString())+"&created_at=lte."+encodeURIComponent(new Date(to+"T23:59:59").toISOString())),
