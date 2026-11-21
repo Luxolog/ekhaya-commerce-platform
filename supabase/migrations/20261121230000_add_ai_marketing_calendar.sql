@@ -50,3 +50,7 @@ create policy marketing_calendar_posts_delete_own
 
 comment on table public.marketing_calendar_posts is
   'Seller-owned AI marketing calendar drafts. Approved means seller-reviewed only; this table does not publish or schedule posts to external platforms.';
+
+-- Explicit Data API privileges for the seller-owned calendar.
+grant select, insert, update, delete on public.marketing_calendar_posts to authenticated;
+grant all privileges on public.marketing_calendar_posts to service_role;
