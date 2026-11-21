@@ -22,6 +22,17 @@ export default function AccountPage() {
   const [referralCode,setReferralCode] = useState("");
   const [partnerInvitationId,setPartnerInvitationId] = useState("");
   const [partnerLinkCode,setPartnerLinkCode] = useState("SAECHAMBER");
+  const [accountType,setAccountType] = useState<"seller"|"partner"|"owner">("seller");
+  const [signedIn,setSignedIn] = useState(false);
+  const [availableRoles,setAvailableRoles] = useState<string[]>([]);
+  const [checkingAccess,setCheckingAccess] = useState(false);
+  const destinations = { seller: "/", partner: "/partner/saechamber/", owner: "/owner/" } as const;
+  async function loadAccountRoles(accessToken: string) {
+    const response=await fetch(supabaseUrl+"/functions/v1/marketplace-search",{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey,"Authorization":"Bearer "+accessToken},body:JSON.stringify({action:"account_access"}),cache:"no-store"});
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok) throw new Error(data.error??"Unable to verify account access.");
+    return Array.isArray(data.roles)?data.roles as string[]:["seller"];
+  }
   useEffect(()=>{
     const referral = new URLSearchParams(window.location.search).get("ref");
     if(referral) setReferralCode(referral.toUpperCase().replace(/[^A-Z0-9_-]/g,""));
@@ -45,6 +56,22 @@ export default function AccountPage() {
     } else if(params.get("error_description")){
       setMessage((params.get("error_description") || "").replace(/\+/g," "));
     }
+  },[]);
+  useEffect(()=>{
+    let active=true;
+    try {
+      const raw=localStorage.getItem("ekhaya_session");
+      if(raw){
+        const session=JSON.parse(raw);
+        if(session?.access_token){
+          setSignedIn(true); setCheckingAccess(true);
+          loadAccountRoles(session.access_token).then(roles=>{if(active)setAvailableRoles(roles);})
+            .catch(e=>{if(active)setMessage(e instanceof Error?e.message:"Could not verify account access.");})
+            .finally(()=>{if(active)setCheckingAccess(false);});
+        }
+      }
+    } catch { localStorage.removeItem("ekhaya_session"); }
+    return ()=>{active=false;};
   },[]);
   async function submit() {
     setBusy(true); setMessage("");
@@ -91,8 +118,16 @@ export default function AccountPage() {
       if(data.access_token) {
         const session={...data,expires_at:Math.floor(Date.now()/1000)+Number(data.expires_in??3600)};
         localStorage.setItem("ekhaya_session",JSON.stringify(session));
-        router.replace("/");
-        router.refresh();
+        setSignedIn(true);
+        if(mode==="signin"){
+          const roles=await loadAccountRoles(session.access_token);
+          setAvailableRoles(roles);
+          if(!roles.includes(accountType)) throw new Error("This login is not authorised for the selected "+(accountType==="owner"?"Admin/Owner":accountType)+" account. Contact Ekhaya support if you believe this is incorrect.");
+          window.location.href=destinations[accountType];
+          return;
+        }
+        window.location.href=destinations.seller;
+        return;
       } else {
         setMessage("Account created. Check your email to confirm your address, then sign in.");
         setMode("signin");
@@ -100,25 +135,36 @@ export default function AccountPage() {
     } catch(e) { setMessage(e instanceof Error?e.message:"Account request failed."); }
     finally { setBusy(false); }
   }
-  function signOut(){localStorage.removeItem("ekhaya_session");setMessage("You have been signed out.");}
-  const signedIn = typeof window !== "undefined" && !!localStorage.getItem("ekhaya_session");
+  function signOut(){localStorage.removeItem("ekhaya_session");setSignedIn(false);setAvailableRoles([]);setMessage("You have been signed out.");}
   return <main style={{minHeight:"100vh",background:"#F4F8FC",padding:"28px 5%",color:"#071B31",fontFamily:"Arial,sans-serif"}}>
     <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",maxWidth:760,margin:"0 auto",borderBottom:"1px solid #DCE8F1",paddingBottom:18}}>
       <Link href="/"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={170} height={100} style={{width:150,height:"auto"}}/></Link>
       <Link href="/price-checker/" style={{color:"#079BD3",fontWeight:700,fontSize:13}}>Price checker →</Link>
     </header>
     <section style={{maxWidth:480,margin:"70px auto",background:"#fff",border:"1px solid #DCE8F1",borderRadius:14,padding:28,boxShadow:"0 8px 30px #071b3108"}}>
-      <p style={{color:"#079BD3",fontSize:10,fontWeight:800,letterSpacing:2}}>EKHAYA SELLER ACCESS</p>
+      <p style={{color:"#079BD3",fontSize:10,fontWeight:800,letterSpacing:2}}>EKHAYA ACCOUNT ACCESS</p>
       <h1 style={{fontSize:30,fontWeight:700,margin:"8px 0 10px"}}>{mode==="signup"?"Create your seller account":mode==="reset"?"Reset your password":mode==="new-password"?"Choose a new password":mode==="accept-partner"?"Accept partner invitation":"Welcome back"}</h1>
-      <p style={{color:"#60758A",fontSize:13,lineHeight:1.6}}>Your account keeps your monthly live marketplace search allowance separate from other sellers.</p>
-      {mode==="signup"&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={field}/>}
-      {mode==="signup"&&<div style={{fontSize:12,lineHeight:1.6,color:"#40566B",marginTop:14}}><label style={{display:"flex",gap:9,alignItems:"flex-start"}}><input type="checkbox" checked={privacyAccepted} onChange={e=>setPrivacyAccepted(e.target.checked)} style={{marginTop:3}}/><span>I have read and acknowledge the <Link href="/privacy/" target="_blank">Ekhaya Privacy Notice</Link>. I understand how my account information will be processed. *</span></label><label style={{display:"flex",gap:9,alignItems:"flex-start",marginTop:10}}><input type="checkbox" checked={marketingOptIn} onChange={e=>setMarketingOptIn(e.target.checked)} style={{marginTop:3}}/><span>Optional: Send me product news and offers. I can opt out at any time.</span></label></div>}
+      <p style={{color:"#60758A",fontSize:13,lineHeight:1.6}}>Choose the Ekhaya workspace you are authorised to use. Each account type has its own dashboard and permissions.</p>
+      {mode!=="accept-partner"&&mode!=="reset"&&mode!=="new-password"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(115px,1fr))",gap:9,margin:"18px 0"}}>
+        {([{id:"seller",title:"Seller",desc:"Marketplace searches",icon:"🛍️"},{id:"partner",title:"Partner",desc:"Referrals & commissions",icon:"🤝"},{id:"owner",title:"Admin / Owner",desc:"Platform administration",icon:"🔐"}] as const).map(item=><button key={item.id} type="button" onClick={()=>{setAccountType(item.id);setMessage("");if(item.id!=="seller"&&mode==="signup")setMode("signin");}} style={{textAlign:"left",padding:12,borderRadius:10,border:accountType===item.id?"2px solid #079BD3":"1px solid #DCE8F1",background:accountType===item.id?"#EFF9FE":"#fff",color:"#071B31",cursor:"pointer"}}>
+          <span style={{fontSize:21}}>{item.icon}</span><strong style={{display:"block",fontSize:13,marginTop:6}}>{item.title}</strong><span style={{display:"block",fontSize:10,color:"#60758A",lineHeight:1.4,marginTop:4}}>{item.desc}</span>
+        </button>)}
+      </div>}
+      {signedIn&&<div style={{background:"#F4F8FC",border:"1px solid #DCE8F1",borderRadius:10,padding:14,marginBottom:14}}>
+        <strong style={{fontSize:13}}>Your available accounts</strong>
+        {checkingAccess?<p style={{fontSize:12,color:"#60758A",marginBottom:0}}>Checking your account permissions…</p>:<div style={{display:"grid",gap:8,marginTop:10}}>
+          {([{id:"seller",title:"Seller account",href:"/"},{id:"partner",title:"Partner account",href:"/partner/saechamber/"},{id:"owner",title:"Admin / Owner account",href:"/owner/"}] as const).filter(item=>availableRoles.includes(item.id)).map(item=><Link key={item.id} href={item.href} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff",border:"1px solid #DCE8F1",borderRadius:8,padding:"10px 12px",color:"#087EAC",fontSize:13,fontWeight:700,textDecoration:"none"}}>{item.title}<span>Open →</span></Link>)}
+          {!availableRoles.length&&<p style={{fontSize:12,color:"#60758A",margin:0}}>Your account permissions could not be confirmed. Please sign in again.</p>}
+        </div>}
+      </div>}
+      {mode==="signup"&&accountType==="seller"&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={field}/>}
+      {mode==="signup"&&accountType==="seller"&&<div style={{fontSize:12,lineHeight:1.6,color:"#40566B",marginTop:14}}><label style={{display:"flex",gap:9,alignItems:"flex-start"}}><input type="checkbox" checked={privacyAccepted} onChange={e=>setPrivacyAccepted(e.target.checked)} style={{marginTop:3}}/><span>I have read and acknowledge the <Link href="/privacy/" target="_blank">Ekhaya Privacy Notice</Link>. I understand how my account information will be processed. *</span></label><label style={{display:"flex",gap:9,alignItems:"flex-start",marginTop:10}}><input type="checkbox" checked={marketingOptIn} onChange={e=>setMarketingOptIn(e.target.checked)} style={{marginTop:3}}/><span>Optional: Send me product news and offers. I can opt out at any time.</span></label></div>}
       {mode==="accept-partner"&&<><p style={{fontSize:13,color:"#40566B",lineHeight:1.6}}>Create your own secure password and choose a unique referral code. Your link will be yours to share with prospective sellers.</p><input value={partnerLinkCode} onChange={e=>setPartnerLinkCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,20))} placeholder="Your unique link code (5–20 letters/numbers)" style={field}/></>}
       {mode!=="new-password"&&mode!=="accept-partner"&&<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address" style={field}/>}
       {mode!=="reset"&&<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="new-password"?"New password (at least 8 characters)":"Password (at least 8 characters)"} style={field}/>}
-      <button onClick={submit} disabled={busy||(mode!=="new-password"&&mode!=="accept-partner"&&!email)||(mode!=="reset"&&password.length<8)||(mode==="accept-partner"&&partnerLinkCode.length<5)} style={{width:"100%",padding:14,background:"#079BD3",border:0,borderRadius:8,color:"#fff",fontWeight:700,marginTop:12,cursor:"pointer"}}>{busy?"Please wait…":mode==="signup"?"Create account":mode==="reset"?"Send reset link":mode==="new-password"?"Update password":mode==="accept-partner"?"Accept invitation & create account":"Sign in"}</button>
+      <button onClick={submit} disabled={busy||(mode!=="new-password"&&mode!=="accept-partner"&&!email)||(mode!=="reset"&&password.length<8)||(mode==="accept-partner"&&partnerLinkCode.length<5)||(mode==="signup"&&accountType!=="seller")} style={{width:"100%",padding:14,background:"#079BD3",border:0,borderRadius:8,color:"#fff",fontWeight:700,marginTop:12,cursor:"pointer"}}>{busy?"Please wait…":mode==="signup"?"Create seller account":mode==="reset"?"Send reset link":mode==="new-password"?"Update password":mode==="accept-partner"?"Accept invitation & create account":"Sign in"}</button>
       {mode==="signin"&&<button onClick={()=>{setMode("reset");setMessage("");}} style={{width:"100%",padding:10,background:"transparent",border:0,color:"#079BD3",fontWeight:700,cursor:"pointer"}}>Forgot password?</button>}
-      {mode!=="accept-partner"&&<button onClick={()=>{setMode(mode==="signup"?"signin":mode==="signin"?"signup":"signin");setMessage("");}} style={{width:"100%",padding:12,background:"transparent",border:0,color:"#079BD3",fontWeight:700,cursor:"pointer"}}>{mode==="signup"?"Already registered? Sign in":mode==="reset"||mode==="new-password"?"Back to sign in":"New to Ekhaya? Create an account"}</button>}
+      {mode!=="accept-partner"&&<button onClick={()=>{setMode(mode==="signup"?"signin":mode==="signin"?"signup":"signin");setMessage("");}} style={{width:"100%",padding:12,background:"transparent",border:0,color:"#079BD3",fontWeight:700,cursor:"pointer"}}>{mode==="signup"?"Already registered? Sign in":mode==="reset"||mode==="new-password"?"Back to sign in":accountType==="seller"?"New to Ekhaya? Create a seller account":"Partner and Admin/Owner access are invitation-only"}</button>}
       {signedIn&&<button onClick={signOut} style={{width:"100%",padding:10,border:"1px solid #DCE8F1",borderRadius:8,background:"#fff",color:"#071B31"}}>Sign out</button>}
       {message&&<p role="status" style={{fontSize:12,lineHeight:1.6,color:"#304B63",background:"#F4F8FC",padding:12,borderRadius:8}}>{message}</p>}
       <p style={{fontSize:10,color:"#71869A",lineHeight:1.6,marginTop:16}}>Use a unique password. Ekhaya never asks for your marketplace Seller Central password here.</p>
