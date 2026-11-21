@@ -85,10 +85,21 @@ Deno.serve(async (req: Request) => {
       typeof p?.title !== "string" || !p.title.trim() || p.title.length > 160 ||
       typeof p?.content !== "string" || !p.content.trim() || p.content.length > 10000
     )) throw new Error("The planner returned an invalid seven-post plan.");
+    const start = new Date();
+    start.setHours(9, 0, 0, 0);
+    const rows = parsed.map((post: { title: string; content: string }, index: number) => {
+      const scheduled = new Date(start);
+      scheduled.setDate(start.getDate() + index);
+      return { user_id: data.user.id, title: post.title.trim(), content: post.content.trim(),
+        platform, scheduled_for: scheduled.toISOString(), status: "draft" };
+    });
+    const { data: savedPosts, error: saveError } = await admin.from("marketing_calendar_posts")
+      .insert(rows).select("id,title,content,platform,scheduled_for,status");
+    if (saveError || !savedPosts || savedPosts.length !== 7) throw new Error("The seven posts could not be saved to your calendar.");
     await Promise.all(keys.map(k => admin.from("marketing_usage_events")
       .update({ metadata: { source: "ai-marketing-weekly-planner", reserved: false, model: result.model ?? "gpt-4o-mini" } })
       .eq("user_id", data.user.id).eq("idempotency_key", k)));
-    return json({ posts: parsed, credits_used: 7 });
+    return json({ posts: savedPosts, credits_used: 7 });
   } catch (e) {
     await Promise.all(keys.map(k => admin.rpc("release_marketing_usage", { p_user_id: data.user.id, p_idempotency_key: k })));
     return json({ error: e instanceof Error ? e.message : "Weekly content generation failed. Your seven credits have been restored." }, 502);
