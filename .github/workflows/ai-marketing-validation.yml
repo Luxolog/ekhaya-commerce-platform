@@ -1,0 +1,51 @@
+name: AI Marketing validation
+
+on:
+  push:
+    branches:
+      - feature/ai-marketing-addon
+  pull_request:
+    branches:
+      - feature/paystack-checkout-preparation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-marketing-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Next.js build, TypeScript and lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run TypeScript checks
+        run: npx tsc --noEmit
+      - name: Run ESLint
+        run: npm run lint
+      - name: Build Next.js application
+        run: npm run build
+
+  edge-functions:
+    name: AI Marketing Edge Function type-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check AI Marketing functions
+        run: deno check --no-lock --node-modules-dir=auto supabase/functions/ai-marketing-generate/index.ts supabase/functions/ai-marketing-weekly-plan/index.ts supabase/functions/paystack-marketing-billing/index.ts
