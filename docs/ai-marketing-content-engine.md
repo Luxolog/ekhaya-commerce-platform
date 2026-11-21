@@ -19,6 +19,8 @@ All creative formats use the existing `ai_post` allowance; no new quota category
 - Calls to action.
 - Hashtag suggestions.
 
+Optional generation context includes a target audience, seller-verified product facts and a brand voice description. These fields are length-limited, sent to the authenticated Edge Function and used only as additional prompt context; they do not create new quota categories or expose secrets. Product facts remain seller-supplied and the model is instructed not to invent missing specifications.
+
 The dashboard also retains the existing campaign idea, research brief and trend-planning generation features.
 - Campaign idea: one campaign concept with a hook and suggested call to action.
 - Research query: a concise seller-focused research brief based on the seller's supplied question; it does not claim live web research.
