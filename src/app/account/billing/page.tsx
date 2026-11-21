@@ -135,7 +135,7 @@ export default function BillingDashboardPage() {
     <section style={{ maxWidth: 1180, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,230px),1fr))", gap: 14 }}>
       {[
         ["CURRENT PLAN", currentPlanLabel, currentSubscription ? label(currentSubscription.status) : "No paid subscription"],
-        ["SEARCHES AVAILABLE", creditTotals.available.toLocaleString("en-ZA"), "Paid search credits remaining"],
+        ["SEARCH CREDITS AVAILABLE", creditTotals.available.toLocaleString("en-ZA"), "Credits currently available on your account"],
         ["SEARCHES USED THIS MONTH", monthlySearches.toLocaleString("en-ZA"), "Based on daily account usage"],
         ["SEARCHES TODAY", Number(todaySearches).toLocaleString("en-ZA"), "Successful product searches"],
       ].map(([heading, value, note]) => <article key={heading} style={{ background: "#fff", border: "1px solid #DCE8F1", borderRadius: 14, padding: 22 }}>
@@ -163,7 +163,7 @@ export default function BillingDashboardPage() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           {[["Allocated", creditTotals.allocated], ["Available", creditTotals.available], ["Consumed", creditTotals.consumed], ["Reserved", creditTotals.reserved]].map(([name, value]) => <div key={String(name)}><small style={{ color: "#60758A" }}>{name}</small><p style={{ fontFamily: "Manrope,sans-serif", fontSize: 25, fontWeight: 800, margin: "5px 0" }}>{Number(value).toLocaleString("en-ZA")}</p></div>)}
         </div>
-        <p style={{ color: "#60758A", fontSize: 12, lineHeight: 1.6, margin: "18px 0 0" }}>Welcome searches and paid plan credits are tracked separately. Your live allowance is controlled by the platform, not by this dashboard.</p>
+        <p style={{ color: "#60758A", fontSize: 12, lineHeight: 1.6, margin: "18px 0 0" }}>Search-credit balances reflect credits recorded to your account. Your live allowance is controlled by the platform, not by this dashboard.</p>
       </article>
     </section>
 
