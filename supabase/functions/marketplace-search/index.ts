@@ -807,6 +807,18 @@ Deno.serve(async (req: Request) => {
         const parsed = Number(cleaned);
         return Number.isFinite(parsed) ? parsed : null;
       };
+      const classifyProduct = (title: string, brand: unknown, specs: unknown): "exact" | "related" | "accessory" | null => {
+        const source = String(brand ?? "") + " " + title + " " + (Array.isArray(specs) ? specs.join(" ") : "");
+        const tokens = [...new Set(query.toLowerCase().match(/[a-z0-9]+/g)?.filter((token) => token.length > 1) ?? [])];
+        if (tokens.length === 0) return null;
+        const matched = tokens.filter((token) => source.toLowerCase().includes(token));
+        const ratio = matched.length / tokens.length;
+        const accessoryTerms = /\b(battery|keyboard|charger|adapter|backplate|top cover|screen|display|case|cover|cable|replacement|spare part|fan|hinge|memory|ram upgrade|ssd upgrade)\b/i;
+        if (accessoryTerms.test(source) && !accessoryTerms.test(query)) return "accessory";
+        if (ratio >= 0.85) return "exact";
+        if (ratio >= 0.5 && matched.length >= 2) return "related";
+        return null;
+      };
       const products = raw.map((p: Record<string, unknown>) => {
         const isAmazon = marketplace === "amazon";
         const isMakro = marketplace === "makro";
@@ -840,8 +852,9 @@ Deno.serve(async (req: Request) => {
           width_cm: typeof p.width_cm === "number" ? p.width_cm : null,
           height_cm: typeof p.height_cm === "number" ? p.height_cm : null,
           variant_selection_required: p.variant_selection_required ?? p.has_variations ?? false,
+          relevance: classifyProduct(String((isAmazon ? p.product_title : p.title) ?? ""), p.brand, isMakro ? p.key_specs : []),
         };
-      });
+      }).filter((product: Record<string, unknown>) => product.relevance !== null);
       await recordProviderUsage({
         marketplace, lookupKey: `search:${lookupKey}`, credits: Number(payload.meta?.charged_credits ?? 0),
         status: "success", responseCount: products.length, providerRequestId: typeof payload.meta?.request_id === "string" ? payload.meta.request_id : null,
