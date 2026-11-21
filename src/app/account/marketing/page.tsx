@@ -54,6 +54,9 @@ export default function MarketingDashboardPage() {
   const [generating, setGenerating] = useState(false);
   const [generationUsage, setGenerationUsage] = useState<{ used: number; limit: number; remaining: number } | null>(null);
   const [calendarPosts, setCalendarPosts] = useState<CalendarPost[]>([]);
+  const [calendarStatusFilter, setCalendarStatusFilter] = useState("all");
+  const [calendarMonthFilter, setCalendarMonthFilter] = useState("");
+  const [editingCalendarPost, setEditingCalendarPost] = useState<CalendarPost | null>(null);
   const [weeklyContext, setWeeklyContext] = useState("");
   const [weeklyPlatform, setWeeklyPlatform] = useState("instagram");
   const [weeklyTone, setWeeklyTone] = useState("friendly and professional");
@@ -256,6 +259,44 @@ export default function MarketingDashboardPage() {
     finally { setBusy(false); }
   }
 
+  async function saveCalendarPostEdit() {
+    if (!editingCalendarPost || !editingCalendarPost.title.trim() || !editingCalendarPost.content.trim()) {
+      setError("Post title and content are required.");
+      return;
+    }
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const headers = await getHeaders();
+      const response = await fetch(SUPABASE_URL + "/rest/v1/marketing_calendar_posts?id=eq." + encodeURIComponent(editingCalendarPost.id), {
+        method: "PATCH", headers: { ...headers, Prefer: "return=minimal" },
+        body: JSON.stringify({
+          title: editingCalendarPost.title.trim().slice(0, 160),
+          content: editingCalendarPost.content.trim().slice(0, 10000),
+          platform: editingCalendarPost.platform,
+          scheduled_for: editingCalendarPost.scheduled_for,
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}));
+        throw new Error(detail.message ?? "Unable to save calendar post.");
+      }
+      setEditingCalendarPost(null);
+      setNotice("Calendar post updated. It remains a draft unless you separately approve it.");
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to save calendar post."); }
+    finally { setBusy(false); }
+  }
+
+  function exportCalendarPlan() {
+    const rows = [["Date", "Platform", "Title", "Status", "Content"], ...filteredCalendarPosts.map(post => [
+      new Date(post.scheduled_for).toISOString(), post.platform, post.title, post.status, post.content.replace(/\\s+/g, " "),
+    ])];
+    const csv = rows.map(row => row.map(value => '"' + String(value).replace(/"/g, '""') + '"').join(",")).join("\\r\\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a"); anchor.href = url; anchor.download = "ekhaya-marketing-calendar.csv"; anchor.click(); URL.revokeObjectURL(url);
+  }
+
   async function copyGeneratedContent() {
     try {
       await navigator.clipboard.writeText(generatedContent);
@@ -328,6 +369,11 @@ export default function MarketingDashboardPage() {
       setBusy(false);
     }
   }
+
+  const filteredCalendarPosts = calendarPosts.filter(post =>
+    (calendarStatusFilter === "all" || post.status === calendarStatusFilter) &&
+    (!calendarMonthFilter || post.scheduled_for.slice(0, 7) === calendarMonthFilter)
+  );
 
   const quotaRows = plan ? [
     ["AI social posts", "ai_post", plan.monthly_ai_posts],
@@ -474,16 +520,30 @@ export default function MarketingDashboardPage() {
         </div>
         <button type="button" onClick={() => void generateWeeklyPlan()} disabled={weeklyBusy || weeklyContext.trim().length < 12} style={{ padding: 13, border: 0, borderRadius: 8, background: weeklyBusy || weeklyContext.trim().length < 12 ? "#9FB5C5" : "#079BD3", color: "#fff", fontWeight: 800 }}>{weeklyBusy ? "BUILDING YOUR WEEK…" : "GENERATE 7-DAY CONTENT PLAN · 7 CREDITS"}</button>
       </div>}
-      <div style={{ display: "grid", gap: 12, marginTop: 22 }}>
-        {calendarPosts.length ? calendarPosts.map(post => <article key={post.id} style={{ border: "1px solid #DCE8F1", borderRadius: 10, padding: 15 }}>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end", marginTop: 18 }}>
+        <label style={formLabel}>Filter by month<input type="month" value={calendarMonthFilter} onChange={event => setCalendarMonthFilter(event.target.value)} style={field}/></label>
+        <label style={formLabel}>Filter by status<select value={calendarStatusFilter} onChange={event => setCalendarStatusFilter(event.target.value)} style={field}><option value="all">All statuses</option><option value="draft">Draft</option><option value="approved">Approved</option><option value="archived">Archived</option></select></label>
+        <button type="button" onClick={exportCalendarPlan} disabled={!filteredCalendarPosts.length} style={{ padding: 10, border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Export CSV</button>
+      </div>
+      <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+        {filteredCalendarPosts.length ? filteredCalendarPosts.map(post => <article key={post.id} style={{ border: "1px solid #DCE8F1", borderRadius: 10, padding: 15 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><strong>{post.title}</strong><span style={{ fontSize: 11, color: post.status === "approved" ? "#147A46" : "#60758A", fontWeight: 800 }}>{pretty(post.status)}</span></div>
           <p style={{ color: "#71869A", fontSize: 11, margin: "6px 0" }}>{pretty(post.platform)} · {date(post.scheduled_for)}</p>
           <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: "#40566B", fontSize: 13, lineHeight: 1.65 }}>{post.content}</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button type="button" onClick={() => void navigator.clipboard.writeText(post.content).then(() => setNotice("Post copied."), () => setError("Clipboard access unavailable."))} style={{ padding: "8px 11px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Copy post</button>
+            <button type="button" onClick={() => setEditingCalendarPost({ ...post })} style={{ padding: "8px 11px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Edit post</button>
+            <button type="button" disabled={busy} onClick={() => void updateCalendarPost(post, "archived" as "approved" | "draft")} style={{ padding: "8px 11px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Archive</button>
             {post.status === "draft" ? <button type="button" disabled={busy} onClick={() => void updateCalendarPost(post, "approved")} style={{ padding: "8px 11px", border: 0, borderRadius: 7, background: "#E8F6EE", color: "#147A46", fontWeight: 700 }}>Approve post</button> : <button type="button" disabled={busy} onClick={() => void updateCalendarPost(post, "draft")} style={{ padding: "8px 11px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477", fontWeight: 700 }}>Return to draft</button>}
           </div>
-        </article>) : <p style={{ color: "#71869A", fontSize: 13 }}>Your generated weekly posts will appear here.</p>}
+          {editingCalendarPost?.id === post.id && <div style={{ display: "grid", gap: 9, marginTop: 12, borderTop: "1px solid #DCE8F1", paddingTop: 12 }}>
+            <input aria-label="Calendar post title" value={editingCalendarPost.title} onChange={event => setEditingCalendarPost({ ...editingCalendarPost, title: event.target.value })} maxLength={160} style={field}/>
+            <select aria-label="Calendar post platform" value={editingCalendarPost.platform} onChange={event => setEditingCalendarPost({ ...editingCalendarPost, platform: event.target.value })} style={field}><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option><option value="other">Other</option></select>
+            <input aria-label="Planned date" type="datetime-local" value={new Date(editingCalendarPost.scheduled_for).toISOString().slice(0,16)} onChange={event => setEditingCalendarPost({ ...editingCalendarPost, scheduled_for: new Date(event.target.value).toISOString() })} style={field}/>
+            <textarea aria-label="Calendar post content" value={editingCalendarPost.content} onChange={event => setEditingCalendarPost({ ...editingCalendarPost, content: event.target.value })} maxLength={10000} rows={6} style={{ ...field, height: "auto", padding: 12, resize: "vertical" }}/>
+            <div style={{ display: "flex", gap: 8 }}><button type="button" disabled={busy} onClick={() => void saveCalendarPostEdit()} style={{ padding: "8px 12px", border: 0, borderRadius: 7, background: "#079BD3", color: "#fff", fontWeight: 800 }}>SAVE POST</button><button type="button" onClick={() => setEditingCalendarPost(null)} style={{ padding: "8px 12px", border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", color: "#075477" }}>CANCEL</button></div>
+          </div>}
+        </article>) : <p style={{ color: "#71869A", fontSize: 13 }}>No posts match these filters.</p>}
       </div>
     </section>
 
