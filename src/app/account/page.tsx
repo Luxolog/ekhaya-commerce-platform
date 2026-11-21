@@ -28,10 +28,21 @@ export default function AccountPage() {
   const [checkingAccess,setCheckingAccess] = useState(false);
   const destinations = { seller: "/", partner: "/partner/saechamber/", owner: "/owner/" } as const;
   async function loadAccountRoles(accessToken: string) {
-    const response=await fetch(supabaseUrl+"/functions/v1/marketplace-search",{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey,"Authorization":"Bearer "+accessToken},body:JSON.stringify({action:"account_access"}),cache:"no-store"});
-    const data=await response.json().catch(()=>({}));
-    if(!response.ok) throw new Error(data.error??"Unable to verify account access.");
-    return Array.isArray(data.roles)?data.roles as string[]:["seller"];
+    const headers={apikey:anonKey,Authorization:"Bearer "+accessToken};
+    const userResponse=await fetch(supabaseUrl+"/auth/v1/user",{headers,cache:"no-store"});
+    if(!userResponse.ok) throw new Error("Your sign-in session has expired. Please sign in again.");
+    const user=await userResponse.json();
+    const [partnerResponse,ownerResponse]=await Promise.all([
+      fetch(supabaseUrl+"/rest/v1/partner_programs?select=id&partner_user_id=eq."+encodeURIComponent(user.id)+"&limit=1",{headers,cache:"no-store"}),
+      fetch(supabaseUrl+"/rest/v1/partner_owner_access?select=user_id&user_id=eq."+encodeURIComponent(user.id)+"&limit=1",{headers,cache:"no-store"})
+    ]);
+    if(!partnerResponse.ok||!ownerResponse.ok) throw new Error("Could not verify your account permissions. Please contact Ekhaya support.");
+    const [partners,owners]=await Promise.all([partnerResponse.json(),ownerResponse.json()]);
+    const roles=["seller"];
+    if(Array.isArray(partners)&&partners.length) roles.push("partner");
+    const app=user.app_metadata??{};
+    if((Array.isArray(owners)&&owners.length)||(app.role==="owner"||app.is_owner===true)) roles.push("owner");
+    return roles;
   }
   useEffect(()=>{
     const referral = new URLSearchParams(window.location.search).get("ref");
