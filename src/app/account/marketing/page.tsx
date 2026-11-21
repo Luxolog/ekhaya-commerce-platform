@@ -37,6 +37,12 @@ export default function MarketingDashboardPage() {
   const [title, setTitle] = useState("");
   const [objective, setObjective] = useState("");
   const [platform, setPlatform] = useState("instagram");
+  const [generatorFeature, setGeneratorFeature] = useState("ai_post");
+  const [generatorTone, setGeneratorTone] = useState("friendly and professional");
+  const [generatorContext, setGeneratorContext] = useState("");
+  const [generatedContent, setGeneratedContent] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [generationUsage, setGenerationUsage] = useState<{ used: number; limit: number; remaining: number } | null>(null);
 
   const getHeaders = useCallback(async () => {
     if (!ANON_KEY) throw new Error("Seller account services are not configured. Please contact Ekhaya support.");
@@ -130,6 +136,43 @@ export default function MarketingDashboardPage() {
     }
   }
 
+  async function generateContent() {
+    setGenerating(true); setError(""); setNotice(""); setGeneratedContent(""); setGenerationUsage(null);
+    try {
+      const headers = await getHeaders();
+      const response = await fetch(SUPABASE_URL + "/functions/v1/ai-marketing-generate", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          feature: generatorFeature,
+          platform,
+          tone: generatorTone,
+          context: generatorContext.trim(),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || typeof payload.content !== "string") {
+        throw new Error(payload.error ?? "Content generation is not available yet.");
+      }
+      setGeneratedContent(payload.content);
+      setGenerationUsage(payload.usage ?? null);
+      setNotice("Your draft is ready. Review it carefully before publishing.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to generate marketing content.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function copyGeneratedContent() {
+    try {
+      await navigator.clipboard.writeText(generatedContent);
+      setNotice("Generated content copied to your clipboard.");
+    } catch {
+      setError("Clipboard access is unavailable in this browser. Select and copy the generated text manually.");
+    }
+  }
+
   async function saveDraft(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!activeSubscription) return;
@@ -211,6 +254,38 @@ export default function MarketingDashboardPage() {
       </article>
 
       <article style={{ background: "#fff", border: "1px solid #DCE8F1", borderRadius: 14, padding: 24 }}>
+        <h2 style={{ fontFamily: "Manrope,sans-serif", fontSize: 20, margin: "0 0 8px" }}>AI content studio</h2>
+        <p style={{ color: "#60758A", fontSize: 13, lineHeight: 1.6, marginTop: 0 }}>Generate a first draft for your marketing. Your monthly allowance is checked securely before generation.</p>
+        {!activeSubscription ? <div style={{ padding: 14, background: "#F4F8FC", borderRadius: 9, color: "#60758A", fontSize: 12, lineHeight: 1.6 }}>Activate Marketing Mini to unlock AI content generation. Checkout remains disabled until payment approval and testing are complete.</div> : <div style={{ display: "grid", gap: 10 }}>
+          <label style={formLabel}>What do you want to create?
+            <select value={generatorFeature} onChange={event => { setGeneratorFeature(event.target.value); setGeneratedContent(""); }} style={field}>
+              <option value="ai_post">Social media post</option>
+              <option value="campaign_idea">Campaign idea</option>
+              <option value="research_query">Marketing research brief</option>
+              <option value="trend_report">Trend planning brief</option>
+            </select>
+          </label>
+          {generatorFeature === "ai_post" && <label style={formLabel}>Social platform
+            <select value={platform} onChange={event => setPlatform(event.target.value)} style={field}><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option><option value="other">Other</option></select>
+          </label>}
+          <label style={formLabel}>Writing tone
+            <select value={generatorTone} onChange={event => setGeneratorTone(event.target.value)} style={field}><option value="friendly and professional">Friendly and professional</option><option value="bold and persuasive">Bold and persuasive</option><option value="premium and sophisticated">Premium and sophisticated</option><option value="warm and community-focused">Warm and community-focused</option><option value="informative and educational">Informative and educational</option></select>
+          </label>
+          <label style={formLabel}>Tell us about your product, audience or goal
+            <textarea value={generatorContext} onChange={event => setGeneratorContext(event.target.value)} maxLength={2500} rows={5} placeholder="Example: We sell handmade leather bags in South Africa. Our audience is working professionals looking for durable everyday bags. We want to introduce our new collection." style={{ ...field, height: "auto", padding: 12, resize: "vertical" }}/>
+          </label>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, color: "#71869A", fontSize: 11 }}><span>Minimum 12 characters · Maximum 2,500</span><span>{generatorContext.length}/2,500</span></div>
+          <button type="button" onClick={() => void generateContent()} disabled={generating || generatorContext.trim().length < 12} style={{ padding: 13, border: 0, borderRadius: 8, background: generating || generatorContext.trim().length < 12 ? "#9FB5C5" : "#079BD3", color: "#fff", fontWeight: 800, cursor: generating ? "wait" : "pointer" }}>{generating ? "GENERATING…" : "GENERATE CONTENT"}</button>
+          {generatedContent && <div style={{ marginTop: 8, border: "1px solid #DCE8F1", borderRadius: 10, padding: 15, background: "#F8FBFD" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}><strong style={{ fontSize: 13 }}>Your generated draft</strong><button type="button" onClick={() => void copyGeneratedContent()} style={{ border: "1px solid #DCE8F1", borderRadius: 7, background: "#fff", padding: "7px 10px", color: "#075477", fontWeight: 700, cursor: "pointer" }}>Copy draft</button></div>
+            <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontFamily: "inherit", fontSize: 13, lineHeight: 1.7, color: "#304B63", margin: 0 }}>{generatedContent}</pre>
+            {generationUsage && <p style={{ color: "#71869A", fontSize: 11, margin: "12px 0 0" }}>This month: {generationUsage.used}/{generationUsage.limit} used · {generationUsage.remaining} remaining for this tool.</p>}
+            <p style={{ color: "#71869A", fontSize: 11, lineHeight: 1.5, margin: "12px 0 0" }}>AI-generated content is a draft. Check product details, prices and claims before publishing.</p>
+          </div>}
+        </div>}
+      </article>
+
+      <article style={{ background: "#fff", border: "1px solid #DCE8F1", borderRadius: 14, padding: 24 }}>
         <h2 style={{ fontFamily: "Manrope,sans-serif", fontSize: 20, margin: "0 0 8px" }}>Campaign workspace</h2>
         <p style={{ color: "#60758A", fontSize: 13, lineHeight: 1.6, marginTop: 0 }}>Save campaign briefs and keep drafts together. Publishing is not connected; content must be reviewed and approved before any future scheduling integration.</p>
         {activeSubscription ? <form onSubmit={saveDraft} style={{ display: "grid", gap: 10 }}>
@@ -237,4 +312,5 @@ export default function MarketingDashboardPage() {
   </main>;
 }
 
+const formLabel: React.CSSProperties = { display: "grid", gap: 7, color: "#40566B", fontSize: 12, fontWeight: 700 };
 const field: React.CSSProperties = { boxSizing: "border-box", width: "100%", minHeight: 44, padding: "0 12px", border: "1px solid #DCE8F1", borderRadius: 7, fontSize: 13, background: "#fff", color: "#071B31" };
