@@ -8,6 +8,24 @@ const cors = {
 };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors });
 
+// Extract only literal facts present in OCR text. These are suggestions, never
+// verified product specifications; the seller must review them before use.
+function extractOcrAttributes(text: string): Record<string, { value: string; source: "ocr"; confirmed: false }> {
+  const attributes: Record<string, { value: string; source: "ocr"; confirmed: false }> = {};
+  const add = (key: string, match: RegExpMatchArray | null) => {
+    if (match?.[0]) attributes[key] = { value: match[0].trim(), source: "ocr", confirmed: false };
+  };
+  add("wattage", text.match(/\\b\\d{1,3}\\s?W\\b/i));
+  add("cable_length", text.match(/\\b\\d+(?:[.,]\\d+)?\\s?(?:m|cm)\\b/i));
+  add("capacity", text.match(/\\b\\d+(?:[.,]\\d+)?\\s?(?:mAh|Ah|GB|TB|MB)\\b/i));
+  add("pack_quantity", text.match(/\\b(?:pack of|set of|\\d+\\s?[- ]?pack|\\d+\\s?(?:pcs|pieces|units))\\b/i));
+  add("model_or_sku", text.match(/\\b(?:model|model no\\.?|sku|item no\\.?|p\\/n)\\s*[:#-]?\\s*[A-Z0-9][A-Z0-9._/-]{2,}\\b/i));
+  add("connector_types", text.match(/\\b(?:USB[- ]?C\\s*(?:to|[-–])\\s*USB[- ]?C|USB[- ]?A\\s*(?:to|[-–])\\s*USB[- ]?C|USB[- ]?C|USB[- ]?A|Lightning|Micro[- ]?USB)\\b/i));
+  if (/\\bwall charger\\b|\\bpower adapter\\b|\\bcharging adapter\\b/i.test(text)) attributes.product_type = { value: "wall charger / power adapter", source: "ocr", confirmed: false };
+  else if (/\\bcharging cable\\b|\\bUSB cable\\b|\\bdata cable\\b/i.test(text)) attributes.product_type = { value: "cable", source: "ocr", confirmed: false };
+  return attributes;
+}
+
 async function sha256(value: string) {
   const bytes = new TextEncoder().encode(value);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -102,7 +120,8 @@ Deno.serve(async (req: Request) => {
         weight_confidence: p.weight_confidence ?? null, description: p.description ?? null,
       } });
     }
-    return json({ mode: "photo", text: String(data.text ?? ""), confidence: data.mean_confidence ?? null, words: data.words ?? 0 });
+    const text = String(data.text ?? "");
+    return json({ mode: "photo", text, confidence: data.mean_confidence ?? null, words: data.words ?? 0, attributes: extractOcrAttributes(text) });
   } catch (error) {
     if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) return json({ error: "Product identification timed out. Please try again.", code: "IDENTIFICATION_TIMEOUT" }, 504);
     return json({ error: "Unable to identify this product.", detail: String(error) }, 500);
