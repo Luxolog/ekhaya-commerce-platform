@@ -71,6 +71,57 @@ grant select, insert, update, delete on public.seller_marketing_email_campaigns 
 grant all on public.seller_marketing_contacts to service_role;
 grant all on public.seller_marketing_email_campaigns to service_role;
 
+-- A draft may only reference this seller's contacts with recorded consent and an email.
+create or replace function public.validate_marketing_email_recipients()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  contact_id_text text;
+  matching_count integer;
+begin
+  if jsonb_typeof(new.selected_contact_ids) <> 'array' then
+    raise exception 'Email recipient selection must be an array';
+  end if;
+  for contact_id_text in
+    select jsonb_array_elements_text(new.selected_contact_ids)
+  loop
+    if contact_id_text !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}
+
+drop trigger if exists seller_marketing_contacts_updated_at on public.seller_marketing_contacts;
+create trigger seller_marketing_contacts_updated_at before update on public.seller_marketing_contacts
+for each row execute function public.set_seller_marketing_updated_at();
+drop trigger if exists seller_marketing_email_campaigns_updated_at on public.seller_marketing_email_campaigns;
+create trigger seller_marketing_email_campaigns_updated_at before update on public.seller_marketing_email_campaigns
+for each row execute function public.set_seller_marketing_updated_at();
+ then
+      raise exception 'Invalid email recipient reference';
+    end if;
+    select count(*) into matching_count
+    from public.seller_marketing_contacts c
+    where c.id = contact_id_text::uuid
+      and c.user_id = new.user_id
+      and c.consent_status = 'consented'
+      and c.consent_recorded_at is not null
+      and c.opted_out_at is null
+      and c.email is not null;
+    if matching_count <> 1 then
+      raise exception 'Only contacts with recorded consent may be selected for email drafts';
+    end if;
+  end loop;
+  return new;
+end;
+$;
+
+drop trigger if exists seller_marketing_email_recipient_consent on public.seller_marketing_email_campaigns;
+create trigger seller_marketing_email_recipient_consent
+before insert or update of selected_contact_ids, user_id
+on public.seller_marketing_email_campaigns
+for each row execute function public.validate_marketing_email_recipients();
+
+
 drop trigger if exists seller_marketing_contacts_updated_at on public.seller_marketing_contacts;
 create trigger seller_marketing_contacts_updated_at before update on public.seller_marketing_contacts
 for each row execute function public.set_seller_marketing_updated_at();
