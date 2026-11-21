@@ -9,7 +9,7 @@ type Partner = { id: string; partner_name: string; partner_slug: string; referra
 type Referral = { id: string; partner_id: string; partner_name: string; referred_user_id: string; referral_code: string; registered_at: string; first_paid_at: string | null; seller_display_name: string | null; seller_plan: string; seller_account_status: string };
 type Commission = { id: string; partner_id: string; payment_month: string; plan_code: string; qualifying_amount: number; commission_rate: number; commission_amount: number; status: string; paid_at: string | null };
 type Activity = { user_id: string; partner_id: string; partner_name: string; seller_display_name: string | null; seller_plan: string; marketplace: string; query: string; result_count: number; result_status: string; source: string; created_at: string };
-type Seller = { id: string; email: string | null; display_name: string | null; created_at: string | null; last_sign_in_at: string | null; email_confirmed_at: string | null; role: string; account_status: string; plan_code: string; subscription_status: string; subscription_period_end: string | null; partner_name: string | null; referral_code: string | null; searches: number; search_failures: number; last_search: string | null; payments_count: number; payments_total: number };
+type Seller = { id: string; email: string | null; display_name: string | null; created_at: string | null; last_sign_in_at: string | null; email_confirmed_at: string | null; role: string; account_status: string; plan_code: string; subscription_status: string; subscription_period_end: string | null; partner_name: string | null; referral_code: string | null; searches: number; search_failures: number; last_search: string | null; payments_count: number; payments_total: number; monthly_search_allowance: number; monthly_searches_used: number; monthly_searches_remaining: number; provider_api_calls: number };
 type PlatformActivity = { user_id: string | null; seller_email: string | null; seller_display_name: string | null; seller_plan: string; marketplace?: string; query: string; result_count: number; result_status: string; source?: string; provider?: string; action?: string; credits_charged?: number; event_type: string; partner_name?: string | null; created_at: string };
 type Data = { generated_at: string; totals: { users: number; sellers: number; active_sellers: number; paying_sellers: number; total_searches: number; total_search_failures: number; provider_api_events: number; total_payments: number; partners: number; active_partners: number; registered_referred_sellers: number; paying_referred_sellers: number; total_commission_recorded: number; pending_commission: number; commission_paid: number; partner_searches: number; partner_search_failures: number }; sellers: Seller[]; all_activity: PlatformActivity[]; api_usage: Record<string, unknown>[]; partners: Partner[]; referrals: Referral[]; commissions: Commission[]; statements: Record<string, unknown>[]; activity: Activity[] };
 
@@ -50,12 +50,12 @@ export default function EkhayaOwnerDashboard() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const tabs = ["overview", "sellers", "searches", "platform activity", "partners", "referrals", "activity", "commissions"] as const;
+  const tabs = ["overview", "sellers", "searches", "platform activity", "partners", "referrals", "activity", "commissions", "api usage"] as const;
 
   // Keep dashboard sections in the URL so browser Back/Forward works.
   useEffect(() => {
     const syncTabFromUrl = () => {
-      const requested = window.location.hash.replace(/^#/, "");
+      const requested = window.location.hash.replace(/^#/, "").replace(/-/g, " ");
       if (tabs.includes(requested as typeof tabs[number])) {
         setTab(requested as typeof tabs[number]);
       } else {
@@ -73,7 +73,7 @@ export default function EkhayaOwnerDashboard() {
 
   const navigateToTab = (next: typeof tabs[number]) => {
     setTab(next);
-    const nextUrl = window.location.pathname + window.location.search + (next === "overview" ? "" : "#" + next);
+    const nextUrl = window.location.pathname + window.location.search + (next === "overview" ? "" : "#" + next.replace(/\s+/g, "-"));
     window.history.pushState({ ownerDashboardTab: next }, "", nextUrl);
   };
   const total = data?.totals;
@@ -97,6 +97,9 @@ export default function EkhayaOwnerDashboard() {
           <div style={small}>Live partner data · Last refreshed {when(data.generated_at)}</div>
           <div style={{ ...small, color: "#16835D", fontWeight: 700 }}>Owner-only data access</div>
         </div>
+        <nav aria-label="Owner dashboard sections" style={{ position: "sticky", top: 0, zIndex: 30, display: "flex", flexWrap: "wrap", gap: 8, margin: "0 0 18px", padding: "12px 0", background: "#F3F6FA", borderBottom: "1px solid #DDE6EF" }}>
+          {tabs.map(x => <button key={x} aria-current={tab === x ? "page" : undefined} onClick={() => navigateToTab(x)} style={{ padding: "10px 15px", borderRadius: 8, border: tab === x ? "1px solid #10243A" : "1px solid #DDE6EF", background: tab === x ? "#10243A" : "#fff", color: tab === x ? "#fff" : "#3C5368", textTransform: "capitalize", fontWeight: 700, cursor: "pointer" }}>{x}</button>)}
+        </nav>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(185px,1fr))", gap: 13, marginBottom: 20 }}>
           {[
             ["Registered sellers", String(total.sellers)],
@@ -104,7 +107,7 @@ export default function EkhayaOwnerDashboard() {
             ["Paying sellers", String(total.paying_sellers)],
             ["Total marketplace searches", String(total.total_searches)],
             ["Search failures", String(total.total_search_failures)],
-            ["Provider API events", String(total.provider_api_events)],
+            ["Provider API calls used", String(total.provider_api_events)], ["Monthly search credits remaining", String(total.monthly_searches_remaining)],
             ["Successful payments", String(total.total_payments)],
             ["Total partners", String(total.partners)],
             ["Active partners", String(total.active_partners)],
@@ -117,10 +120,6 @@ export default function EkhayaOwnerDashboard() {
             ["Commission paid", money(total.commission_paid)]
           ].map(([label,value]) => <article key={label} style={panel}><div style={small}>{label}</div><div style={{ fontSize: 25, fontWeight: 800, marginTop: 10 }}>{value}</div></article>)}
         </div>
-        <nav style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-          {tabs.map(x => <button key={x} onClick={() => navigateToTab(x)} style={{ padding: "10px 15px", borderRadius: 8, border: "1px solid #DDE6EF", background: tab === x ? "#10243A" : "#fff", color: tab === x ? "#fff" : "#3C5368", textTransform: "capitalize", fontWeight: 700, cursor: "pointer" }}>{x}</button>)}
-        </nav>
-
         {tab === "overview" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 16 }}>
           <section style={panel}><h2 style={{ fontSize: 18, marginTop: 0 }}>Partner accounts</h2>{data.partners.length ? data.partners.map(p => <div key={p.id} style={{ padding: "12px 0", borderBottom: "1px solid #EDF1F5", display: "flex", justifyContent: "space-between", gap: 12 }}><div><b>{p.partner_name}</b><div style={small}>Referral code: {p.referral_code}</div></div><span style={{ fontSize: 12, fontWeight: 700, color: p.status === "active" ? "#16835D" : "#A66B1C" }}>{p.status}</span></div>) : <p style={small}>No partner records yet.</p>}</section>
           <section style={panel}><h2 style={{ fontSize: 18, marginTop: 0 }}>Recent partner activity</h2>{data.activity.slice(0,8).length ? data.activity.slice(0,8).map((a,i)=><div key={a.user_id+a.created_at+i} style={{ padding: "11px 0", borderBottom: "1px solid #EDF1F5" }}><b>{a.partner_name}</b><div style={small}>{a.seller_display_name || "Referred seller"} · {a.marketplace} · {a.result_status}</div><div style={{ fontSize: 12, marginTop: 4 }}>{a.query}</div><div style={{ ...small, marginTop: 4 }}>{when(a.created_at)}</div></div>) : <p style={small}>No search activity has been recorded for referred sellers yet.</p>}</section>
@@ -132,6 +131,22 @@ export default function EkhayaOwnerDashboard() {
 
         {tab === "platform activity" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All platform activity</h2><p style={small}>Owner-only event feed combining seller search activity and marketplace provider API usage.</p><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Date","Event","Seller","Email","Marketplace","Details","Results / credits","Status","Partner"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.all_activity.map((a,i)=><tr key={String(a.user_id)+a.created_at+a.event_type+i}><td style={td}>{when(a.created_at)}</td><td style={td}>{a.event_type === "seller_search" ? "Seller search" : "Provider API usage"}</td><td style={td}>{a.seller_display_name || a.user_id || "System / unassigned"}</td><td style={td}>{a.seller_email || "—"}</td><td style={td}>{a.marketplace || "—"}</td><td style={td}>{a.query || a.action || "—"}</td><td style={td}>{a.event_type === "seller_search" ? a.result_count : a.credits_charged ?? 0}</td><td style={td}>{a.result_status}</td><td style={td}>{a.partner_name || "—"}</td></tr>)}</tbody></table>{!data.all_activity.length && <p style={small}>No platform activity recorded yet.</p>}</div>}
 
+        {tab === "api usage" && <div style={{ display: "grid", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 13 }}>
+            {[
+              ["Monthly search allowance", total.monthly_search_allowance],
+              ["Search credits used this month", total.monthly_searches_used],
+              ["Search credits remaining", total.monthly_searches_remaining],
+              ["Provider API calls logged", total.provider_api_events]
+            ].map(([label,value]) => <article key={String(label)} style={panel}><div style={small}>{label}</div><div style={{ fontSize: 25, fontWeight: 800, marginTop: 10 }}>{value}</div></article>)}
+          </div>
+          <div style={{ ...panel, overflowX: "auto" }}>
+            <h2 style={{ marginTop: 0, fontSize: 18 }}>Seller API and search-credit usage</h2>
+            <p style={small}>Monthly marketplace search credits are calculated from the active plan allowance and this month’s recorded usage. Provider API calls are counted separately from seller search credits.</p>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Seller","Email","Plan","Monthly allowance","Used this month","Remaining","Provider API calls"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.sellers.filter(s=>s.role!=="owner").map(s=><tr key={s.id}><td style={td}><b>{s.display_name || "Seller"}</b></td><td style={td}>{s.email || "—"}</td><td style={td}>{s.plan_code}</td><td style={td}>{s.monthly_search_allowance}</td><td style={td}>{s.monthly_searches_used}</td><td style={td}><b>{s.monthly_searches_remaining}</b></td><td style={td}>{s.provider_api_calls}</td></tr>)}</tbody></table>
+          </div>
+          <div style={{ ...panel, borderColor: "#E8D8B5" }}><b>Important distinction</b><p style={{ ...small, marginBottom: 0 }}>Remaining means the seller’s remaining platform search credits for the current month. The connected marketplace provider’s own external account quota is not exposed in the current integration, so it is not represented as a remaining provider quota.</p></div>
+        </div>}
         {tab === "partners" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All partner accounts</h2><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Partner","Referral code","Status","Linked owner user","Go-live date","Created"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.partners.map(p=><tr key={p.id}><td style={td}><b>{p.partner_name}</b><div style={small}>{p.partner_slug}</div></td><td style={td}>{p.referral_code}</td><td style={td}>{p.status}</td><td style={td}>{p.partner_user_id ?? "Not linked"}</td><td style={td}>{when(p.program_live_at)}</td><td style={td}>{when(p.created_at)}</td></tr>)}</tbody></table></div>}
 
         {tab === "referrals" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All referred sellers</h2><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Partner","Seller","Plan","Account status","Registered","First payment"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.referrals.map(r=><tr key={r.id}><td style={td}>{r.partner_name}</td><td style={td}>{r.seller_display_name || r.referred_user_id}</td><td style={td}>{r.seller_plan}</td><td style={td}>{r.seller_account_status}</td><td style={td}>{when(r.registered_at)}</td><td style={td}>{when(r.first_paid_at)}</td></tr>)}</tbody></table>{!data.referrals.length && <p style={small}>No referred sellers recorded yet.</p>}</div>}
