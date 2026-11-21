@@ -99,29 +99,61 @@ export default function EkhayaOwnerDashboard() {
         <nav aria-label="Owner dashboard sections" style={{ position: "sticky", top: 0, zIndex: 30, display: "flex", flexWrap: "wrap", gap: 8, margin: "0 0 18px", padding: "12px 0", background: "#F3F6FA", borderBottom: "1px solid #DDE6EF" }}>
           {OWNER_TABS.map(x => <button key={x} aria-current={tab === x ? "page" : undefined} onClick={() => navigateToTab(x)} style={{ padding: "10px 15px", borderRadius: 8, border: tab === x ? "1px solid #10243A" : "1px solid #DDE6EF", background: tab === x ? "#10243A" : "#fff", color: tab === x ? "#fff" : "#3C5368", textTransform: "capitalize", fontWeight: 700, cursor: "pointer" }}>{x}</button>)}
         </nav>
-        {tab === "overview" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(185px,1fr))", gap: 13, marginBottom: 20 }}>
-          {[
-            ["Registered sellers", String(total.sellers)],
-            ["Active sellers", String(total.active_sellers)],
-            ["Paying sellers", String(total.paying_sellers)],
-            ["Total marketplace searches", String(total.total_searches)],
-            ["Search failures", String(total.total_search_failures)],
-            ["Provider API calls used", String(total.provider_api_events)], ["Monthly search credits remaining", String(total.monthly_searches_remaining)],
-            ["Successful payments", String(total.total_payments)],
-            ["Total partners", String(total.partners)],
-            ["Active partners", String(total.active_partners)],
-            ["Referred sellers", String(total.registered_referred_sellers)],
-            ["Paying referred sellers", String(total.paying_referred_sellers)],
-            ["Partner searches", String(total.partner_searches)],
-            ["Search failures", String(total.partner_search_failures)],
-            ["Commission recorded", money(total.total_commission_recorded)],
-            ["Pending / approved", money(total.pending_commission)],
-            ["Commission paid", money(total.commission_paid)]
-          ].map(([label,value]) => <article key={label} style={panel}><div style={small}>{label}</div><div style={{ fontSize: 25, fontWeight: 800, marginTop: 10 }}>{value}</div></article>)}
-        </div>}
-        {tab === "overview" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 16 }}>
-          <section style={panel}><h2 style={{ fontSize: 18, marginTop: 0 }}>Partner accounts</h2>{data.partners.length ? data.partners.map(p => <div key={p.id} style={{ padding: "12px 0", borderBottom: "1px solid #EDF1F5", display: "flex", justifyContent: "space-between", gap: 12 }}><div><b>{p.partner_name}</b><div style={small}>Referral code: {p.referral_code}</div></div><span style={{ fontSize: 12, fontWeight: 700, color: p.status === "active" ? "#16835D" : "#A66B1C" }}>{p.status}</span></div>) : <p style={small}>No partner records yet.</p>}</section>
-          <section style={panel}><h2 style={{ fontSize: 18, marginTop: 0 }}>Recent partner activity</h2>{data.activity.slice(0,8).length ? data.activity.slice(0,8).map((a,i)=><div key={a.user_id+a.created_at+i} style={{ padding: "11px 0", borderBottom: "1px solid #EDF1F5" }}><b>{a.partner_name}</b><div style={small}>{a.seller_display_name || "Referred seller"} · {a.marketplace} · {a.result_status}</div><div style={{ fontSize: 12, marginTop: 4 }}>{a.query}</div><div style={{ ...small, marginTop: 4 }}>{when(a.created_at)}</div></div>) : <p style={small}>No search activity has been recorded for referred sellers yet.</p>}</section>
+        {tab === "overview" && <div style={{ display: "grid", gap: 18 }}>
+          <section style={{ ...panel, background: "linear-gradient(120deg,#10243A 0%,#173D5A 100%)", color: "#fff", border: 0, padding: 24 }}>
+            <div style={{ color: "#7DD3FC", fontSize: 11, fontWeight: 800, letterSpacing: 1.8 }}>PLATFORM COMMAND CENTRE</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 20, flexWrap: "wrap", marginTop: 8 }}>
+              <div><h2 style={{ fontSize: 25, margin: "0 0 7px" }}>Platform overview</h2><p style={{ margin: 0, color: "#D5E2ED", fontSize: 13 }}>A live summary of sellers, marketplace activity, usage, partners and revenue administration.</p></div>
+              <div style={{ color: "#D5E2ED", fontSize: 12 }}>Data refreshed {when(data.generated_at)}</div>
+            </div>
+          </section>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(205px,1fr))", gap: 13 }}>
+            {[
+              { label: "Registered sellers", value: String(total.sellers), detail: total.active_sellers + " active accounts", color: "#078FC4" },
+              { label: "Marketplace searches", value: String(total.total_searches), detail: total.total_search_failures + " unsuccessful searches", color: "#16835D" },
+              { label: "Provider API calls", value: String(total.provider_api_events), detail: "Logged across connected providers", color: "#7657C8" },
+              { label: "Search credits remaining", value: String(total.monthly_searches_remaining), detail: total.monthly_searches_used + " used of " + total.monthly_search_allowance + " allocated", color: "#C17A24" }
+            ].map(item => <article key={item.label} style={{ ...panel, padding: 18 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}><span style={small}>{item.label}</span><span style={{ width: 9, height: 9, borderRadius: 20, background: item.color, display: "inline-block" }} /></div>
+              <div style={{ fontSize: 30, lineHeight: 1.2, fontWeight: 800, margin: "10px 0 5px" }}>{item.value}</div><div style={small}>{item.detail}</div>
+            </article>)}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 16, alignItems: "start" }}>
+            <section style={panel}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 12 }}><div><h3 style={{ margin: 0, fontSize: 17 }}>Recent platform activity</h3><p style={{ ...small, margin: "5px 0 0" }}>Latest seller searches and provider API events</p></div><button onClick={() => navigateToTab("platform activity")} style={{ border: 0, background: "#EAF5FA", color: "#087EAC", borderRadius: 8, padding: "8px 11px", fontWeight: 700, cursor: "pointer" }}>View all</button></div>
+              {data.all_activity.slice(0,7).length ? data.all_activity.slice(0,7).map((a,i)=><div key={String(a.user_id)+a.created_at+i} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "11px 0", borderTop: "1px solid #EDF1F5" }}>
+                <div style={{ minWidth: 0 }}><b style={{ fontSize: 13 }}>{a.seller_display_name || a.seller_email || "Platform event"}</b><div style={{ ...small, marginTop: 3 }}>{a.event_type === "provider_usage" ? (a.provider || "Provider") + " API · " + (a.marketplace || "Marketplace") : "Seller search · " + (a.marketplace || "Marketplace")}</div><div style={{ fontSize: 12, marginTop: 4, overflowWrap: "anywhere" }}>{a.query || a.action || "Usage event"}</div></div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}><span style={{ fontSize: 11, fontWeight: 700, color: a.result_status === "success" ? "#16835D" : "#A66B1C" }}>{a.result_status || "logged"}</span><div style={{ ...small, marginTop: 5 }}>{when(a.created_at)}</div></div>
+              </div>) : <p style={small}>No platform activity has been recorded yet.</p>}
+            </section>
+
+            <section style={panel}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 12 }}><div><h3 style={{ margin: 0, fontSize: 17 }}>Seller performance</h3><p style={{ ...small, margin: "5px 0 0" }}>Highest recorded search activity by seller</p></div><button onClick={() => navigateToTab("sellers")} style={{ border: 0, background: "#EAF5FA", color: "#087EAC", borderRadius: 8, padding: "8px 11px", fontWeight: 700, cursor: "pointer" }}>View sellers</button></div>
+              {data.sellers.filter(s=>s.role!=="owner").sort((a,b)=>b.searches-a.searches).slice(0,6).map(s=><div key={s.id} style={{ padding: "12px 0", borderTop: "1px solid #EDF1F5" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}><div><b style={{ fontSize: 13 }}>{s.display_name || s.email || "Seller"}</b><div style={small}>{s.plan_code} plan · {s.subscription_status}</div></div><b style={{ fontSize: 14 }}>{s.searches} searches</b></div>
+                <div style={{ height: 6, background: "#EDF2F7", borderRadius: 10, marginTop: 9, overflow: "hidden" }}><div style={{ height: "100%", width: Math.min(100, (s.searches / Math.max(1, ...data.sellers.map(x=>x.searches))) * 100) + "%", background: "#078FC4", borderRadius: 10 }} /></div>
+              </div>)}
+              {!data.sellers.some(s=>s.role!=="owner") && <p style={small}>No seller accounts are available.</p>}
+            </section>
+
+            <section style={panel}>
+              <h3 style={{ margin: "0 0 5px", fontSize: 17 }}>Partner programme</h3><p style={{ ...small, margin: "0 0 14px" }}>Referral network and partner performance</p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 10 }}>
+                {[["Partners",total.partners],["Active partners",total.active_partners],["Referred sellers",total.registered_referred_sellers],["Partner searches",total.partner_searches]].map(([label,value])=><div key={String(label)} style={{ background: "#F5F8FB", borderRadius: 10, padding: 13 }}><div style={small}>{label}</div><div style={{ fontSize: 22, fontWeight: 800, marginTop: 5 }}>{value}</div></div>)}
+              </div>
+              <button onClick={() => navigateToTab("partners")} style={{ marginTop: 13, border: 0, background: "#EAF5FA", color: "#087EAC", borderRadius: 8, padding: "9px 12px", fontWeight: 700, cursor: "pointer" }}>Manage partners</button>
+            </section>
+
+            <section style={panel}>
+              <h3 style={{ margin: "0 0 5px", fontSize: 17 }}>Payments and commissions</h3><p style={{ ...small, margin: "0 0 14px" }}>Recorded payment and partner commission position</p>
+              <div style={{ display: "grid", gap: 11 }}>
+                {[["Successful payments",String(total.total_payments)],["Commission recorded",money(total.total_commission_recorded)],["Pending / approved",money(total.pending_commission)],["Commission paid",money(total.commission_paid)]].map(([label,value])=><div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 10, borderBottom: "1px solid #EDF1F5", paddingBottom: 9 }}><span style={small}>{label}</span><b style={{ fontSize: 14 }}>{value}</b></div>)}
+              </div>
+              <button onClick={() => navigateToTab("commissions")} style={{ marginTop: 13, border: 0, background: "#EAF5FA", color: "#087EAC", borderRadius: 8, padding: "9px 12px", fontWeight: 700, cursor: "pointer" }}>View commissions</button>
+            </section>
+          </div>
         </div>}
 
         {tab === "sellers" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All registered sellers and accounts</h2><p style={small}>Private owner view of every registered account, subscription, referral attribution and seller usage.</p><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Seller","Email","Plan","Subscription","Account","Partner","Searches","Failures","Last search","Payments","Joined","Last sign-in"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.sellers.filter(s=>s.role!=="owner").map(s=><tr key={s.id}><td style={td}><b>{s.display_name || "Seller"}</b><div style={small}>{s.id}</div></td><td style={td}>{s.email || "—"}</td><td style={td}>{s.plan_code}</td><td style={td}>{s.subscription_status}</td><td style={td}>{s.account_status}</td><td style={td}>{s.partner_name || "Direct"}</td><td style={td}>{s.searches}</td><td style={td}>{s.search_failures}</td><td style={td}>{when(s.last_search)}</td><td style={td}>{s.payments_count} · {money(s.payments_total)}</td><td style={td}>{when(s.created_at)}</td><td style={td}>{when(s.last_sign_in_at)}</td></tr>)}</tbody></table>{!data.sellers.some(s=>s.role!=="owner") && <p style={small}>No seller accounts found.</p>}</div>}
