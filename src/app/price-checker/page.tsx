@@ -23,7 +23,7 @@ function classifyProduct(query: string, product: { title?: string; brand?: strin
   if (ratio >= 0.5 && matched.length >= 2) return "related";
   return null;
 }
-\nconst money = (v: number) => new Intl.NumberFormat("en-ZA",{style:"currency",currency:"ZAR",maximumFractionDigits:2}).format(v);
+const money = (v: number) => new Intl.NumberFormat("en-ZA",{style:"currency",currency:"ZAR",maximumFractionDigits:2}).format(v);
 const categories = [
   ["general","General / other"],["beauty","Beauty & personal care"],["electronics","Electronics / computers"],
   ["home","Home & kitchen"],["clothing","Clothing & accessories"],["toys","Toys"],["books","Books"],["automotive","Automotive"]
