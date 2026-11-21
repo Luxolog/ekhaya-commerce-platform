@@ -432,7 +432,7 @@ Deno.serve(async (req: Request) => {
     const allSearchActivity = allActivity.map((item: Record<string, unknown>) => {
       const seller = sellers.find((s: Record<string, unknown>) => s.id === item.user_id) as Record<string, unknown> | undefined;
       const referral = referralByUser.get(String(item.user_id));
-      const partner = referral ? partnerById.get(referral.partner_id) as Record<string, unknown> | undefined : undefined;
+      const partner = referral ? partnerById.get(String(referral.partner_id)) as Record<string, unknown> | undefined : undefined;
       return { ...item, seller_email: seller?.email ?? null, seller_display_name: seller?.display_name ?? null,
         seller_plan: seller?.plan_code ?? "free", partner_name: partner?.partner_name ?? null, event_type: "seller_search" };
     });
@@ -469,8 +469,8 @@ Deno.serve(async (req: Request) => {
       },
       sellers, all_activity: allPlatformActivity.slice(0, 20000), api_usage: apiUsage,
       partners, referrals: referrals.map((r: Record<string, unknown>) => {
-        const partner = partnerById.get(r.partner_id) as Record<string, unknown> | undefined;
-        const profile = profileById.get(r.referred_user_id) as Record<string, unknown> | undefined;
+        const partner = partnerById.get(String(r.partner_id)) as Record<string, unknown> | undefined;
+        const profile = profileById.get(String(r.referred_user_id)) as Record<string, unknown> | undefined;
         return { ...r, partner_name: partner?.partner_name ?? "Unknown partner", seller_display_name: profile?.display_name ?? null,
           seller_plan: profile?.plan_code ?? "free", seller_account_status: profile?.account_status ?? "unknown" };
       }),
