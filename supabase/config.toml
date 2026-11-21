@@ -28,3 +28,7 @@ verify_jwt = true
 
 [functions.paystack-marketing-billing]
 verify_jwt = true
+
+[functions.marketing-automation-worker]
+# The function validates a high-entropy x-marketing-worker-secret itself.
+verify_jwt = false
