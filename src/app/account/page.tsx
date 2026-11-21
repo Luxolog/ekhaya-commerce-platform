@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -9,7 +8,6 @@ const supabaseUrl = "https://itxxnhcjjiynrmivexcb.supabase.co";
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 export default function AccountPage() {
-  const router = useRouter();
   const [mode,setMode] = useState<"signin"|"signup"|"reset"|"new-password"|"accept-partner">("signin");
   const [email,setEmail] = useState("");
   const [password,setPassword] = useState("");
