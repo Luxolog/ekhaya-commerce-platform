@@ -41,7 +41,7 @@
 
 ### Performance
 
-- The new 10,000-seller SQL smoke benchmark creates synthetic auth/profile/allocation rows and measures allocation lookup elapsed time at cumulative dataset sizes.
+- The 10,000-seller SQL smoke benchmark passed in isolated CI. It created 10,000 synthetic auth/profile/allocation rows; the allocation insert took 105.83 ms and indexed lookups measured 0.41 ms (100), 0.17 ms (500), 0.20 ms (1,000), 0.79 ms (5,000) and 2.23 ms (10,000).
 - It does not measure concurrent sessions, provider latency, production resource limits or end-to-end marketplace search throughput.
 - Do not convert its results into a production seller-capacity promise.
 
