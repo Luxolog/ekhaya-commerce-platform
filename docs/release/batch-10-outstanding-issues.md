@@ -30,7 +30,7 @@
 - Fixed the profile bootstrap conflict by allowing an empty marketplace selection during initial profile creation.
 - Seller signup now requires at least one selection from Takealot, Amazon South Africa and Makro, sends the selection in auth metadata, and the profile bootstrap persists only supported values to profiles.marketplace_access.
 - Marketplace selection is stored as a seller preference; it is not used as a substitute for plan/search entitlements.
-- Latest signup preference migration and UI changes are awaiting CI. Full browser-level enforcement of required Privacy Notice, marketplace-fee estimate acknowledgements and marketplace selection is not yet verified.
+- The signup preference migration and SQL/quality checks passed at implementation commit 3d49487. Full browser-level enforcement of required Privacy Notice, marketplace-fee estimate acknowledgements and marketplace selection is not yet verified.
 - The fee disclaimer remains a signup-only acknowledgement, not a repeated login checklist.
 
 ### Notifications
