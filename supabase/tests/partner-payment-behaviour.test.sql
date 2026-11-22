@@ -4,11 +4,7 @@ select plan(12);
 
 -- All fixtures are isolated to this pgTAP transaction. No external provider,
 -- SMTP, or production service is contacted.
--- The profile bootstrap trigger enforces at least one marketplace in the profile.
--- Give synthetic test users a valid temporary default, then restore the normal default.
-alter table public.profiles alter column marketplace_access
-  set default array['takealot']::text[];
-
+-- Exercise the normal profile bootstrap defaults; no marketplace is preselected.
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -45,8 +41,6 @@ insert into auth.users (
   '{"provider":"email","providers":["email"]}'::jsonb,'{}'::jsonb,now(),now()
 );
 
-alter table public.profiles alter column marketplace_access
-  set default '{}'::text[];
 
 select is(
   (select count(*)::integer from public.partner_referrals
