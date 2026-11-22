@@ -112,3 +112,22 @@ Deno.test("discovery query planner normalizes repeated whitespace before dedupli
  }
  assertEquals(plan[0],"dell inspirion 15 3000");
 });
+
+Deno.test("deduplicates repeated listings by canonical URL across query responses",()=>{
+ const intent=understandProductQuery("iphone 13 128gb");
+ const result=rankMarketplaceProducts([
+  {title:"Apple iPhone 13 128GB",brand:"Apple",url:"https://shop.example/item/iphone-13?utm_source=search"},
+  {title:"Apple iPhone 13 128GB",brand:"Apple",url:"https://shop.example/item/iphone-13#details"},
+  {title:"Apple iPhone 13 128GB Blue",brand:"Apple",url:"https://shop.example/item/iphone-13-blue"}
+ ],intent);
+ assertEquals(result.products.length,2);
+});
+
+Deno.test("uses marketplace product identifiers as the strongest listing identity",()=>{
+ const intent=understandProductQuery("amazon echo dot");
+ const result=rankMarketplaceProducts([
+  {asin:"B000000001",title:"Amazon Echo Dot",url:"https://amazon.co.za/dp/B000000001"},
+  {asin:"B000000001",title:"Amazon Echo Dot (duplicate response)",url:"https://amazon.co.za/dp/B000000001?tag=other"}
+ ],intent);
+ assertEquals(result.products.length + result.related_products.length,1);
+});
