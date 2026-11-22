@@ -5,7 +5,7 @@
 **Branch:** feature/saechamber-public-showcase  
 **Pull request:** [#33](https://github.com/Luxolog/ekhaya-commerce-platform/pull/33) — keep OPEN and UNMERGED  
 **PR base:** feature/partner-admin-email-otp  
-**Latest implementation commit under CI:** b5ed0f88e5eeb7c8a8e5b20c9348313e14900423  
+**Latest implementation commit under CI:** 3d494876c05dbbe642cc27a6d93551d3dac958b2  
 **Last fully validated code head before signup-preference changes:** 71d90af8b16f58f02321f5caf8e1b7f9e3c19fbe  
 **Execution mode:** GitHub-only; no Vercel deployment or production Supabase write/migration.
 
