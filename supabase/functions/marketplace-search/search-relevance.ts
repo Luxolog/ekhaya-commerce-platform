@@ -41,8 +41,16 @@ export function understandProductQuery(input:string): ProductIntent {
   const brand = brandToken ? BRANDS[brandToken] : null;
   const accessoryIntent = ACCESSORY_TERMS.some(term=>includesPhrase(raw,term));
   let category:string|null = null;
-  for (const [kind,terms] of Object.entries(CATEGORY_TERMS)) {
-    if (terms.some(term=>includesPhrase(raw,term))) { category=kind; break; }
+  if (accessoryIntent) {
+    for (const kind of ["keyboard","charger"]) {
+      const terms = CATEGORY_TERMS[kind] ?? [];
+      if (terms.some(term=>includesPhrase(raw,term))) { category=kind; break; }
+    }
+  }
+  if (!category) {
+    for (const [kind,terms] of Object.entries(CATEGORY_TERMS)) {
+      if (terms.some(term=>includesPhrase(raw,term))) { category=kind; break; }
+    }
   }
   const condition = corrected.includes("refurbished") ? "refurbished" : corrected.includes("used") || corrected.includes("secondhand") ? "used" : corrected.includes("new") ? "new" : null;
   const stop = new Set(["the","and","for","with","brand","laptop","notebook","computer","new","used","refurbished","gb","tb"]);
