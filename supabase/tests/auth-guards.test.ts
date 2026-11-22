@@ -2,6 +2,7 @@ import {
   findReferralPartner,
   normalizeReferralCode,
   signupAcknowledgementError,
+  signupMarketplaceSelectionError,
   type ReferralPartner,
 } from "../../src/lib/auth-guards.ts";
 
@@ -53,5 +54,23 @@ Deno.test("does not apply signup acknowledgements to sign-in or recovery", () =>
   }
   if (signupAcknowledgementError("reset", false, false) !== null) {
     throw new Error("Password recovery must not require signup acknowledgements.");
+  }
+});
+
+Deno.test("blocks seller signup when no marketplace is selected", () => {
+  if (!signupMarketplaceSelectionError("signup", [])?.includes("at least one marketplace")) {
+    throw new Error("Signup without a marketplace selection was not blocked.");
+  }
+});
+
+Deno.test("accepts one or more supported marketplace selections", () => {
+  if (signupMarketplaceSelectionError("signup", ["takealot", "amazon"]) !== null) {
+    throw new Error("Supported marketplace selections should be accepted.");
+  }
+});
+
+Deno.test("does not require marketplace selection outside seller signup", () => {
+  if (signupMarketplaceSelectionError("signin", []) !== null) {
+    throw new Error("Sign-in must not require marketplace selection.");
   }
 });
