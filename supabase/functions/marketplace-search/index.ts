@@ -636,6 +636,8 @@ Deno.serve(async (req: Request) => {
   if (query.length < 2) {
     return json({ error: "Enter at least 2 search characters." }, 400);
   }
+  const intent = understandProductQuery(query);
+  const providerQuery = intent.normalizedQuery;
   if (testingMarketplaces[marketplace ?? ""]) {
     return json({ error: testingMarketplaces[marketplace ?? ""], code: "MARKETPLACE_TESTING", marketplace }, 501);
   }
@@ -719,6 +721,9 @@ Deno.serve(async (req: Request) => {
         marketplace,
         fetched_at: cache.fetched_at,
         products: cachedProducts,
+        related_products: cachedRelated,
+        accessories: cachedAccessories,
+        query_understanding: { brand: intent.brand, category: intent.category, normalized_query: providerQuery },
         refresh_paused: !fresh,
         credit_charged: cacheCreditCharged,
       });
@@ -881,9 +886,14 @@ Deno.serve(async (req: Request) => {
           variant_selection_required: p.variant_selection_required ?? p.has_variations ?? false,
         };
       });
+      const ranked = rankMarketplaceProducts(normalizedProducts, intent);
+      const products = ranked.products;
+      const relatedProducts = ranked.related_products;
+      const accessories = ranked.accessories;
+      const totalResults = products.length + relatedProducts.length + accessories.length;
       await recordProviderUsage({
         marketplace, lookupKey: `search:${lookupKey}`, credits: Number(payload.meta?.charged_credits ?? 0),
-        status: "success", responseCount: products.length, providerRequestId: typeof payload.meta?.request_id === "string" ? payload.meta.request_id : null,
+        status: "success", responseCount: totalResults, providerRequestId: typeof payload.meta?.request_id === "string" ? payload.meta.request_id : null,
         actorId: charged ? userId : null,
       });
       providerUsageLogged = true;
