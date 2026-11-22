@@ -34,7 +34,7 @@ export default function PricingPage() {
           <ul style={{...muted,paddingLeft:19,margin:0}}>{plan.features.map(feature=><li key={feature} style={{marginBottom:7}}>{feature}</li>)}</ul>
         </article>)}
       </div>
-      <section aria-labelledby="custom-plan-title" style={{marginTop:22,padding:"clamp(26px,4vw,42px)",borderRadius:18,background:"linear-gradient(125deg,#071B31 0%,#123B59 100%)",color:"#fff",display:"grid",gridTemplateColumns:"minmax(0,1.5fr) minmax(230px,0.9fr)",gap:28,alignItems:"center",boxShadow:"0 16px 38px #071B3118"}}>
+      <section aria-labelledby="custom-plan-title" style={{marginTop:22,padding:"clamp(26px,4vw,42px)",borderRadius:18,background:"linear-gradient(125deg,#071B31 0%,#123B59 100%)",color:"#fff",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,300px),1fr))",gap:28,alignItems:"center",boxShadow:"0 16px 38px #071B3118"}}>
         <div>
           <p style={{color:"#78D5F5",fontSize:10,fontWeight:800,letterSpacing:2,margin:"0 0 10px"}}>BUILT AROUND YOUR OPERATION</p>
           <h3 id="custom-plan-title" style={{fontFamily:"Manrope,sans-serif",fontSize:"clamp(23px,3vw,32px)",lineHeight:1.2,letterSpacing:"-.03em",margin:"0 0 12px",color:"#fff"}}>Need more room to research and grow?</h3>
