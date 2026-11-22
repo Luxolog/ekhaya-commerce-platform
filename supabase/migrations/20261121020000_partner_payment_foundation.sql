@@ -37,6 +37,108 @@ create index if not exists payment_transactions_subscription_idx
 create index if not exists payment_transactions_user_created_idx
   on public.payment_transactions(user_id, created_at desc);
 
+-- Reconcile the subscription/payment contract used by the current Paystack
+-- function. These definitions are catalog-verified; paid checkout remains
+-- hard-disabled in the Edge Function until its separate release gate is opened.
+alter table public.subscriptions
+  add column if not exists billing_mode text not null default 'manual',
+  add column if not exists intro_price numeric not null default 49.00,
+  add column if not exists renewal_amount numeric,
+  add column if not exists intro_payment_completed_at timestamptz,
+  add column if not exists grace_period_ends_at timestamptz,
+  add column if not exists cancel_at_period_end boolean not null default false,
+  add column if not exists cancelled_at timestamptz;
+
+alter table public.subscriptions drop constraint if exists subscriptions_plan_code_check;
+alter table public.subscriptions add constraint subscriptions_plan_code_check
+  check (plan_code in ('starter','growth','pro','business'));
+alter table public.subscriptions drop constraint if exists subscriptions_billing_mode_check;
+alter table public.subscriptions add constraint subscriptions_billing_mode_check
+  check (billing_mode in ('manual','automatic'));
+alter table public.subscriptions drop constraint if exists subscriptions_intro_price_check;
+alter table public.subscriptions add constraint subscriptions_intro_price_check
+  check (intro_price >= 0);
+alter table public.subscriptions drop constraint if exists subscriptions_renewal_amount_check;
+alter table public.subscriptions add constraint subscriptions_renewal_amount_check
+  check (renewal_amount is null or renewal_amount > 0);
+
+create index if not exists subscriptions_due_idx
+  on public.subscriptions(status, current_period_end)
+  where status in ('active','past_due');
+
+alter table public.profiles drop constraint if exists profiles_plan_code_check;
+alter table public.profiles add constraint profiles_plan_code_check
+  check (plan_code in ('free','starter','growth','pro','business'));
+
+create table if not exists public.billing_plans (
+  code text primary key check (code in ('starter','growth','pro','business')),
+  name text not null,
+  intro_price numeric not null default 0 check (intro_price >= 0),
+  monthly_price numeric not null check (monthly_price > 0),
+  currency char(3) not null default 'ZAR',
+  is_active boolean not null default true,
+  display_order smallint not null,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.billing_plans(code,name,intro_price,monthly_price,currency,is_active,display_order)
+values
+  ('starter','Starter',0,99,'ZAR',true,1),
+  ('growth','Growth',0,149,'ZAR',true,2),
+  ('pro','Pro',0,199,'ZAR',true,3),
+  ('business','Business',0,299,'ZAR',false,4)
+on conflict (code) do update set
+  name=excluded.name,
+  intro_price=excluded.intro_price,
+  monthly_price=excluded.monthly_price,
+  currency=excluded.currency,
+  is_active=excluded.is_active,
+  display_order=excluded.display_order,
+  updated_at=now();
+
+insert into public.plan_search_allowances(plan_code,monthly_search_credits)
+values
+  ('starter',50),('growth',100),('pro',250),('business',350)
+on conflict (plan_code) do update set
+  monthly_search_credits=excluded.monthly_search_credits,
+  updated_at=now();
+
+create table if not exists public.search_credit_allocations (
+  id bigserial primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  payment_transaction_id uuid references public.payment_transactions(id) on delete set null,
+  plan_code text not null check (plan_code in ('starter','growth','pro','business')),
+  source_reference text not null unique,
+  credits_allocated integer not null check (credits_allocated > 0),
+  credits_available integer not null check (credits_available >= 0),
+  credits_reserved integer not null default 0 check (credits_reserved >= 0),
+  credits_consumed integer not null default 0 check (credits_consumed >= 0),
+  allocated_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  constraint search_credit_allocation_reconciles
+    check (credits_allocated = credits_available + credits_reserved + credits_consumed)
+);
+create index if not exists search_credit_allocations_user_fifo_idx
+  on public.search_credit_allocations(user_id, allocated_at, id)
+  where credits_available > 0;
+
+alter table public.billing_plans enable row level security;
+alter table public.search_credit_allocations enable row level security;
+revoke all on public.billing_plans from anon, authenticated;
+grant select on public.billing_plans to anon, authenticated;
+grant all on public.billing_plans to service_role;
+revoke all on public.search_credit_allocations from anon, authenticated;
+grant select on public.search_credit_allocations to authenticated;
+grant all on public.search_credit_allocations to service_role;
+grant usage, select on sequence public.search_credit_allocations_id_seq to service_role;
+
+drop policy if exists billing_plans_read_active on public.billing_plans;
+create policy billing_plans_read_active on public.billing_plans
+  for select to anon, authenticated using (is_active);
+drop policy if exists search_credit_allocations_read_own on public.search_credit_allocations;
+create policy search_credit_allocations_read_own on public.search_credit_allocations
+  for select to authenticated using ((select auth.uid()) = user_id);
+
 -- Current live profile contract permits inactive partner accounts. The original
 -- 0003 profile check did not; align the check before the partner exclusion trigger.
 alter table public.profiles
@@ -239,6 +341,91 @@ begin
   return new;
 end;
 $function$;
+
+create or replace function public.grant_paid_search_credits(
+  p_user_id uuid,
+  p_plan_code text,
+  p_credits integer,
+  p_source_reference text,
+  p_payment_transaction_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  v_id bigint;
+begin
+  if p_user_id is null or p_plan_code not in ('starter','growth','pro','business')
+     or p_credits is null or p_credits <= 0
+     or p_source_reference is null or length(trim(p_source_reference)) = 0 then
+    raise exception 'Invalid paid credit allocation request';
+  end if;
+
+  insert into public.search_credit_allocations
+    (user_id,payment_transaction_id,plan_code,source_reference,credits_allocated,credits_available)
+  values
+    (p_user_id,p_payment_transaction_id,p_plan_code,p_source_reference,p_credits,p_credits)
+  on conflict (source_reference) do nothing
+  returning id into v_id;
+
+  if v_id is null then
+    select id into v_id from public.search_credit_allocations
+    where source_reference=p_source_reference
+      and user_id=p_user_id
+      and credits_allocated=p_credits
+      and plan_code=p_plan_code;
+    if v_id is null then
+      raise exception 'Allocation reference already exists with different details';
+    end if;
+    return jsonb_build_object('allocated',false,'duplicate',true,'allocation_id',v_id);
+  end if;
+
+  return jsonb_build_object('allocated',true,'duplicate',false,'allocation_id',v_id,
+    'credits',p_credits,'expires_at',null);
+end;
+$function$;
+
+create or replace function private.allocate_search_credits_after_payment()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  v_plan text;
+  v_credits integer;
+begin
+  if new.status <> 'complete' or new.subscription_id is null then
+    return new;
+  end if;
+
+  select s.plan_code into v_plan
+  from public.subscriptions s
+  where s.id=new.subscription_id and s.user_id=new.user_id;
+
+  if v_plan is null then return new; end if;
+
+  select a.monthly_search_credits into v_credits
+  from public.plan_search_allowances a
+  where a.plan_code=v_plan;
+
+  if coalesce(v_credits,0) <= 0 then
+    raise exception 'No paid search-credit allowance configured for plan %', v_plan;
+  end if;
+
+  perform public.grant_paid_search_credits(
+    new.user_id,v_plan,v_credits,'payment:' || new.id::text,new.id
+  );
+  return new;
+end;
+$function$;
+
+revoke all on function public.grant_paid_search_credits(uuid,text,integer,text,uuid)
+  from public,anon,authenticated;
+grant execute on function public.grant_paid_search_credits(uuid,text,integer,text,uuid)
+  to service_role;
 
 create or replace function private.mark_partner_first_payment()
 returns trigger
@@ -455,6 +642,11 @@ begin
     create trigger on_auth_user_created_partner_referral
       after insert on auth.users for each row execute function private.capture_partner_referral();
   end if;
+  if not exists (select 1 from pg_trigger where tgname='allocate_search_credits_on_payment_complete' and tgrelid='public.payment_transactions'::regclass and not tgisinternal) then
+    create trigger allocate_search_credits_on_payment_complete
+      after insert or update on public.payment_transactions
+      for each row execute function private.allocate_search_credits_after_payment();
+  end if;
   if not exists (select 1 from pg_trigger where tgname='on_partner_payment_completed' and tgrelid='public.payment_transactions'::regclass and not tgisinternal) then
     create trigger on_partner_payment_completed
       after insert or update of status, paid_at on public.payment_transactions
@@ -616,6 +808,8 @@ create policy "Users can mark their own notifications read" on public.user_notif
   using ((select auth.uid()) = user_id)
   with check ((select auth.uid()) = user_id);
 
+revoke all on function private.allocate_search_credits_after_payment() from public, anon, authenticated;
+grant execute on function private.allocate_search_credits_after_payment() to service_role;
 revoke all on function private.capture_partner_referral() from public, anon, authenticated;
 revoke all on function private.mark_partner_first_payment() from public, anon, authenticated;
 revoke all on function private.prevent_partner_self_referral() from public, anon, authenticated;
