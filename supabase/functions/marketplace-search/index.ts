@@ -746,7 +746,7 @@ Deno.serve(async (req: Request) => {
         });
         pilotCharged = false;
       }
-      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:cachedTotal,result_status:cachedTotal?"success":"empty",source:fresh?"cache":"stale-cache"})});
+      if (!isOwner && !isActivePartner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:cachedTotal,result_status:cachedTotal?"success":"empty",source:fresh?"cache":"stale-cache"})});
       return json({
         source: fresh ? "cache" : "stale-cache",
         marketplace,
@@ -966,7 +966,7 @@ Deno.serve(async (req: Request) => {
           body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
         });
       }
-      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:totalResults,result_status:totalResults?"success":"empty",source:"live"})});
+      if (!isOwner && !isActivePartner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:totalResults,result_status:totalResults?"success":"empty",source:"live"})});
       return json({ source: "live", marketplace, fetched_at: now.toISOString(), products, related_products: relatedProducts, accessories, query_understanding: { brand: intent.brand, category: intent.category, normalized_query: providerQuery }, provider_meta: payload.meta ?? null, credit_charged: charged });
     } catch (error) {
       if (providerAttempted && !providerUsageLogged) {
