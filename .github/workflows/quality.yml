@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: quality-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: quality-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
   # Do not cancel a required release check when another commit is pushed.
   cancel-in-progress: false
 
