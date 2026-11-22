@@ -58,3 +58,25 @@ Deno.test("different model numbers do not qualify as strong matches",()=>{
  assertEquals(result.products.length,0);
  assertEquals(result.related_products.length,1);
 });
+
+Deno.test("recognises the expanded laptop families and Google Pixel brand",()=>{
+ assertEquals(understandProductQuery("lenovo thinkpad t14 gen 3").brand,"Lenovo");
+ assertEquals(understandProductQuery("google pixel 8").brand,"Google");
+ assertEquals(understandProductQuery("hp probook 450 g8").category,"laptop");
+ assertEquals(understandProductQuery("acer aspire 5").category,"laptop");
+});
+Deno.test("corrects additional common laptop and accessory spelling errors",()=>{
+ assertEquals(understandProductQuery("dell inspirone 15 3000").normalizedQuery,"dell inspiron 15 3000 laptop");
+ assertEquals(understandProductQuery("hp laptop chargr").category,"charger");
+ assertEquals(understandProductQuery("dell latitude 5420").category,"laptop");
+});
+Deno.test("keeps accessories separate from complete products for explicit laptop intent",()=>{
+ const intent=understandProductQuery("hp elitebook 840 g5");
+ const result=rankMarketplaceProducts([
+  {id:"laptop",title:"HP EliteBook 840 G5 Laptop",brand:"HP"},
+  {id:"screen",title:"HP EliteBook 840 G5 Replacement Screen",brand:"HP"},
+  {id:"charger",title:"HP Laptop Charger",brand:"HP"}
+ ],intent);
+ assertEquals(result.products.some(p=>p.id==="laptop"),true);
+ assertEquals(result.accessories.length,2);
+});
