@@ -181,7 +181,7 @@ export default function PriceCheckerPage() {
     finally{setPhotoBusy(false);}
   }
   const calculations=useMemo(()=>{
-    return products.map(p=>{
+    return [...products,...relatedProducts,...accessories].map(p=>{
       const price=Number(p.price)||0;
       const tal=takealotFulfilment(category,volume,kg);
       const success=price*(takealotRates[category]??12)/100;
@@ -204,7 +204,7 @@ export default function PriceCheckerPage() {
       const profit=price-buying-fee;
       return {id:p.id,fee,profit,margin:price?profit/price*100:0,fulfilment:p.marketplace==="takealot"?talFulfilment:amzFulfilment,success:p.marketplace==="takealot"?success:amazonReferral,size:tal.size};
     });
-  },[products,buying,category,volume,kg,takealotMode,amazonMode,sellerDelivery,makroFulfilment,makroCommission]);
+  },[products,relatedProducts,accessories,buying,category,volume,kg,takealotMode,amazonMode,sellerDelivery,makroFulfilment,makroCommission]);
   const renderProductCard=(p:MarketplaceProduct,i:number,allCalculations:typeof calculations)=>{
     const c=allCalculations.find(x=>x?.id===p.id);
     return <article className="product" key={p.marketplace+"-"+p.id+"-"+i}>
