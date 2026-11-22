@@ -149,7 +149,8 @@ Deno.serve(async (req: Request) => {
         last_sign_in_at: u.last_sign_in_at ?? null,
         email_confirmed_at: u.email_confirmed_at ?? null,
         role: app.role ?? (app.is_owner === true ? "owner" : "seller"),
-        account_id: profile.account_id ?? null,\n        account_status: profile.account_status ?? "pending",
+        account_id: profile.account_id ?? null,
+        account_status: profile.account_status ?? "pending",
         plan_code: profile.plan_code ?? "free",
         pilot: pilotById.get(String(u.id)) ?? null
       };
