@@ -63,16 +63,7 @@ export default function EkhayaOwnerDashboard() {
     if (!newPartnerName.trim()) return;
     setNewPartnerBusy(true); setNewPartnerFeedback("");
     try {
-      const session = JSON.parse(localStorage.getItem("ekhaya_session") ?? "null");
-      if (!session?.access_token) throw new Error("Sign in with the Ekhaya owner account first.");
-      const response = await fetch(API, {
-        method: "POST",
-        headers: { apikey: KEY, Authorization: "Bearer " + session.access_token, "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "owner_create_partner", partner_name: newPartnerName.trim(), partner_slug: newPartnerSlug.trim(), referral_code: newPartnerReferralCode.trim() }),
-        cache: "no-store"
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || "Could not register partner programme.");
+      const body = await manageInvitations({ action: "create_partner", partner_name: newPartnerName.trim(), partner_slug: newPartnerSlug.trim(), referral_code: newPartnerReferralCode.trim() });
       setNewPartnerFeedback("Partner programme registered: " + body.partner.partner_name + " · " + body.partner.referral_code + ". Status: pending. You can now invite its owner.");
       setNewPartnerName(""); setNewPartnerSlug(""); setNewPartnerReferralCode("");
       await load();
