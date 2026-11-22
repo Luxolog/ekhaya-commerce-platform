@@ -360,48 +360,6 @@ Deno.serve(async (req: Request) => {
     }
     return json({ok:true,totals:{searches:activity.length,failures:activity.filter((x:Record<string,unknown>)=>x.result_status!=="success").length,feedback:feedback.length,open_feedback:feedback.filter((x:Record<string,unknown>)=>x.status==="open").length},by_seller:bySeller,popular_queries:Object.entries(popular).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([query,count])=>({query,count})),feedback,activity:activity.slice(0,200)});
   }
-  if (body.action === "owner_create_partner") {
-    if (!isOwner) return json({ error: "Owner permission required." }, 403);
-    const partnerName = typeof body.partner_name === "string" ? body.partner_name.trim().replace(/\s+/g, " ") : "";
-    const requestedSlug = typeof body.partner_slug === "string" ? body.partner_slug.trim().toLowerCase() : "";
-    const requestedCode = typeof body.referral_code === "string" ? body.referral_code.trim().toUpperCase() : "";
-    const slug = (requestedSlug || partnerName.toLowerCase())
-      .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
-    const referralCode = (requestedCode || slug.replace(/-/g, "").toUpperCase()).replace(/[^A-Z0-9]/g, "").slice(0, 24);
-    if (partnerName.length < 2 || partnerName.length > 120) {
-      return json({ error: "Enter a partner organisation name between 2 and 120 characters." }, 400);
-    }
-    if (!slug || slug.length < 2 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
-      return json({ error: "Enter a valid partner slug using letters, numbers and hyphens." }, 400);
-    }
-    if (referralCode.length < 4 || referralCode.length > 24) {
-      return json({ error: "Referral codes must contain 4 to 24 letters or numbers." }, 400);
-    }
-    const existing = await fetch(new URL("/rest/v1/partner_programs?select=id,partner_name,partner_slug,referral_code&or=(partner_slug.eq." + encodeURIComponent(slug) + ",referral_code.eq." + encodeURIComponent(referralCode) + ")", supabaseUrl), { headers: adminHeaders });
-    if (!existing.ok) return json({ error: "Could not check existing partner names and referral codes." }, 502);
-    const matches = await existing.json();
-    if (matches.length) {
-      const slugTaken = matches.some((p: Record<string, unknown>) => p.partner_slug === slug);
-      const codeTaken = matches.some((p: Record<string, unknown>) => p.referral_code === referralCode);
-      return json({ error: slugTaken ? "That partner slug is already in use." : codeTaken ? "That referral code is already in use." : "A partner with those details already exists." }, 409);
-    }
-    const created = await fetch(new URL("/rest/v1/partner_programs", supabaseUrl), {
-      method: "POST",
-      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=representation" },
-      body: JSON.stringify({ partner_name: partnerName, partner_slug: slug, referral_code: referralCode, status: "pending" })
-    });
-    if (!created.ok) {
-      const detail = await created.text();
-      if (created.status === 409) return json({ error: "The partner slug or referral code is already registered. Refresh the dashboard and try a different value." }, 409);
-      console.error("Partner programme creation failed:", created.status, detail);
-      return json({ error: "Could not register the partner programme." }, 502);
-    }
-    const rows = await created.json();
-    const partner = rows?.[0];
-    if (!partner) return json({ error: "Partner registration returned no record." }, 502);
-    return json({ ok: true, partner, message: "Partner programme registered in pending status. It will not attribute referrals until activated." }, 201);
-  }
   if (body.action === "owner_partner_analytics") {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
     // This is the central owner view: all registered users, all seller searches,
