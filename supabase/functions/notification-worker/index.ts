@@ -85,6 +85,11 @@ Deno.serve(async (req) => {
       const recipientName = String(metadata.full_name ?? metadata.name ?? metadata.display_name ?? "there").trim() || "there";
       const title = String(item.title ?? "Ekhaya Price Checker notification");
       const isPartnerOwnerNotification = String(item.event_key ?? "").startsWith("partner-invitation-accepted:owner:");
+      const isPartnerReferralNotification = String(item.event_key ?? "").startsWith("partner-referral:new:");
+      const emailSectionLabel = isPartnerReferralNotification ? "EKHAYA PARTNER PROGRAMME" : "EKHAYA PRICE CHECKER";
+      const emailFooterMessage = isPartnerReferralNotification
+        ? "You are receiving this message because a seller registered through your Ekhaya partner referral link."
+        : "${emailFooterMessage}";
       const emailRecipient = isPartnerOwnerNotification ? "support@ekhayatech.co.za" : user.email;
       const message = String(item.message ?? "");
       const action = item.action_url ? String(item.action_url) : "";
@@ -100,12 +105,12 @@ Deno.serve(async (req) => {
       const safeTitle = escapeHtml(title);
       const safeMessage = escapeHtml(message).replace(/\r?\n/g, "<br>");
       const actionHtml = safeAction
-        ? `<tr><td align="center" style="padding:26px 32px 30px"><a href="${escapeHtml(safeAction)}" style="display:inline-block;background:#1769aa;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:.3px;padding:14px 26px;border-radius:5px">OPEN PRICE CHECKER</a></td></tr>`
+        ? `<tr><td align="center" style="padding:26px 32px 30px"><a href="${escapeHtml(safeAction)}" style="display:inline-block;background:#1769aa;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:.3px;padding:14px 26px;border-radius:5px">${isPartnerReferralNotification ? "OPEN PARTNER PORTAL" : "OPEN PRICE CHECKER"}</a></td></tr>`
         : "";
       const isPilotApproval = item.event_key === "seller_pilot_approved_v1";
       const textBody = isPilotApproval
         ? `Hello ${recipientName},\n\nYour application to join the Ekhaya Price Checker Seller Pilot Programme has been approved. Welcome aboard!\n\nYOUR PILOT ACCESS\nDuration: 5 days from approval\nDaily allowance: Up to 10 successful searches\nTotal allowance: 50 successful searches\nMarketplace: Takealot\nDaily reset: Midnight South African time\n\nIMPORTANT\nFailed, blocked or rejected searches do not use your allowance. Unused daily searches do not roll over. Your pilot access ends automatically after five days.\n\n${safeAction ? `Open Ekhaya Price Checker: ${safeAction}\n\n` : ""}For assistance, contact support@ekhayatech.co.za.\n\nThank you for helping us improve Ekhaya Price Checker.\n\nEkhaya Technologies\nDIGITAL SOLUTIONS · BUILT AROUND YOU`
-        : `Hello ${recipientName},\n\n${message}${safeAction ? `\n\nOpen Price Checker: ${safeAction}` : ""}\n\nEkhaya Technologies\nDIGITAL SOLUTIONS · BUILT AROUND YOU`;
+        : `Hello ${recipientName},\n\n${message}${safeAction ? `\n\n${isPartnerReferralNotification ? "Open Partner Portal" : "Open Price Checker"}: ${safeAction}` : ""}\n\nEkhaya Technologies\nDIGITAL SOLUTIONS · BUILT AROUND YOU`;
 
       const pilotDetailsHtml = isPilotApproval ? `
         <p style="font-size:15px;line-height:1.65;color:#30445d;margin:0 0 18px">Your application to join the Ekhaya Price Checker Seller Pilot Programme has been approved. Welcome aboard!</p>
@@ -141,7 +146,7 @@ Deno.serve(async (req) => {
 <div style="font-size:10px;letter-spacing:1.7px;color:#c6d5e5;margin-top:8px">DIGITAL SOLUTIONS · BUILT AROUND YOU</div>
 </td></tr>
 <tr><td style="padding:34px 34px 8px">
-<div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:#1976b9;text-transform:uppercase">EKHAYA PRICE CHECKER</div>
+<div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:#1976b9;text-transform:uppercase">${emailSectionLabel}</div>
 <h1 style="font-size:26px;line-height:1.25;color:#10243e;margin:12px 0 22px;font-weight:700">${safeTitle}</h1>
 ${greetingHtml}
 ${isPilotApproval ? pilotDetailsHtml : `<div style="font-size:15px;line-height:1.75;color:#40536a">${safeMessage}</div>`}
