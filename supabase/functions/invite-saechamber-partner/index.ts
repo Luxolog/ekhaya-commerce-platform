@@ -148,8 +148,9 @@ Deno.serve(async (req: Request) => {
   const { data: existing } = await admin.from("partner_invitations")
     .select("id,status,expires_at").eq("partner_id", partner.id).eq("invited_email", email).maybeSingle();
   if (existing?.status === "accepted") return new Response(JSON.stringify({ error: "This email has already accepted the partner invitation" }), { status: 409, headers: cors });
-  if (existing?.status === "pending" && new Date(existing.expires_at) > new Date())
-    return new Response(JSON.stringify({ error: "A valid invitation is already pending for this email" }), { status: 409, headers: cors });
+  // Reuse the existing invitation row when an owner resends. The database
+  // invitation may still be valid even when its one-time Auth email token expired.
+  // A resend issues a fresh Auth link without creating duplicate partner records.
 
   const { data: invitation, error: insertError } = await admin.from("partner_invitations").upsert({
     ...(existing?.id ? { id: existing.id } : {}),
@@ -176,10 +177,12 @@ Deno.serve(async (req: Request) => {
   }
   const existingUser = authUsers.users.find(item => item.email?.toLowerCase() === email);
   if (existingUser) {
+    const needsPasswordSetup = !existingUser.encrypted_password;
+    const existingAccountRedirect = redirectTo + (needsPasswordSetup ? "&password_setup=1" : "");
     const mailClient = createClient(url, anon);
     const { error: magicLinkError } = await mailClient.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
+      options: { emailRedirectTo: existingAccountRedirect, shouldCreateUser: false },
     });
     if (magicLinkError) {
       await admin.from("partner_invitations").update({ status: "revoked" }).eq("id", invitation.id);
@@ -192,7 +195,10 @@ Deno.serve(async (req: Request) => {
       invited_email: email,
       expires_in_days: 14,
       existing_account: true,
-      message: "Partner invitation sign-in link sent. The recipient will keep their existing Ekhaya account and password.",
+      password_setup_required: needsPasswordSetup,
+      message: needsPasswordSetup
+        ? "A fresh partner sign-in link was sent. This invited account still needs its first password."
+        : "Partner invitation sign-in link sent. The recipient can keep their existing Ekhaya password.",
     }), { status: 200, headers: cors });
   }
 
