@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { findReferralPartner, signupAcknowledgementError } from "@/lib/auth-guards";
+import { findReferralPartner, signupAcknowledgementError, signupMarketplaceSelectionError } from "@/lib/auth-guards";
 
 const supabaseUrl = "https://itxxnhcjjiynrmivexcb.supabase.co";
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -14,7 +14,7 @@ export default function AccountPage() {
   const [password,setPassword] = useState("");
   const [name,setName] = useState("");
   const [privacyAccepted,setPrivacyAccepted] = useState(false);
-  const [marketplaceFeesAccepted,setMarketplaceFeesAccepted] = useState(false);
+  const [marketplaceFeesAccepted,setMarketplaceFeesAccepted] = useState(false);\n  const [selectedMarketplaces,setSelectedMarketplaces] = useState<Array<"takealot"|"amazon"|"makro">>([]);
   const [marketingOptIn,setMarketingOptIn] = useState(false);
   const [message,setMessage] = useState("");
   const [busy,setBusy] = useState(false);
@@ -300,7 +300,7 @@ export default function AccountPage() {
         return;
       }
       const endpoint = mode === "signup" ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
-      const response = await fetch(supabaseUrl+endpoint,{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:JSON.stringify(mode==="signup"?{email,password,data:{display_name:name,privacy_notice_acknowledged_at:new Date().toISOString(),privacy_notice_version:"2026-11-16",marketplace_fee_disclaimer_acknowledged_at:new Date().toISOString(),marketplace_fee_disclaimer_version:"2026-11-21",marketing_opt_in:marketingOptIn,...(matchedReferralPartner?{referral_code:matchedReferralPartner.referral_code,referral_source:incomingReferralCode,referral_method:"unique_link"}:{})}}:{email,password})});
+      const response = await fetch(supabaseUrl+endpoint,{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:JSON.stringify(mode==="signup"?{email,password,data:{display_name:name,privacy_notice_acknowledged_at:new Date().toISOString(),privacy_notice_version:"2026-11-16",marketplace_fee_disclaimer_acknowledged_at:new Date().toISOString(),marketplace_fee_disclaimer_version:"2026-11-21",marketing_opt_in:marketingOptIn,marketplace_access:selectedMarketplaces,...(matchedReferralPartner?{referral_code:matchedReferralPartner.referral_code,referral_source:incomingReferralCode,referral_method:"unique_link"}:{})}}:{email,password})});
       const data = await response.json();
       if(!response.ok) throw new Error(data.msg??data.message??data.error_description??"Unable to process your account request.");
       if(mode==="signup") {
@@ -330,7 +330,7 @@ export default function AccountPage() {
   }
   function signOut(){localStorage.removeItem("ekhaya_session");setSignedIn(false);setAvailableRoles([]);setMessage("You have been signed out.");}
   const submitLabel = busy ? "Please wait…" : mode === "signup" ? "Create seller account" : mode === "reset" ? "Send reset link" : mode === "new-password" ? "Update password" : mode === "accept-partner" ? "Accept invitation & create account" : mode === "accept-existing-partner" ? "Accept partner invitation" : "Sign in";
-  const submitDisabled = busy || ((mode === "signin" || mode === "signup" || mode === "reset") && !email) || ((mode === "new-password" || mode === "accept-partner" || partnerPasswordSetupRequired) && password.length < 8) || ((mode === "accept-partner" || mode === "accept-existing-partner") && partnerLinkCode.length < 5) || (mode === "signup" && accountType !== "seller") || (mode === "signup" && (!privacyAccepted || !marketplaceFeesAccepted));
+  const submitDisabled = busy || ((mode === "signin" || mode === "signup" || mode === "reset") && !email) || ((mode === "new-password" || mode === "accept-partner" || partnerPasswordSetupRequired) && password.length < 8) || ((mode === "accept-partner" || mode === "accept-existing-partner") && partnerLinkCode.length < 5) || (mode === "signup" && accountType !== "seller") || (mode === "signup" && (!privacyAccepted || !marketplaceFeesAccepted || selectedMarketplaces.length===0));
   const passwordPlaceholder = mode === "new-password" ? "New password (at least 8 characters)" : "Create password (at least 8 characters)";
   const showPasswordInput = mode === "new-password" || (mode === "accept-partner" && Boolean(recoveryToken)) || (mode === "accept-existing-partner" && Boolean(recoveryToken) && partnerPasswordSetupRequired) || (!signedIn && mode !== "accept-partner" && mode !== "accept-existing-partner" && mode !== "reset");
   return <main style={{minHeight:"100vh",background:"#F4F8FC",padding:"28px 5%",color:"#071B31",fontFamily:"Arial,sans-serif"}}>
@@ -372,6 +372,13 @@ export default function AccountPage() {
         <button onClick={acceptPendingPartnerInvitation} disabled={acceptingPartnerInvitation||pendingPartnerCode.length<5} style={{width:"100%",padding:13,background:"#079BD3",border:0,borderRadius:8,color:"#fff",fontWeight:700,marginTop:12,cursor:"pointer"}}>{acceptingPartnerInvitation?"Accepting invitation…":"Accept partner invitation"}</button>
       </div>}
       {!signedIn&&mode==="signup"&&accountType==="seller"&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={field}/>}
+      {!signedIn&&mode==="signup"&&accountType==="seller"&&<div style={{marginTop:14,padding:12,border:"1px solid #DCE8F1",borderRadius:8,background:"#F4F8FC"}}>
+        <p style={{fontSize:12,fontWeight:700,color:"#071B31",margin:"0 0 8px"}}>Which marketplaces do you currently sell on or plan to use? Select at least one. *</p>
+        {([{id:"takealot",label:"Takealot"},{id:"amazon",label:"Amazon South Africa"},{id:"makro",label:"Makro Marketplace"}] as const).map(item=><label key={item.id} style={{display:"flex",gap:9,alignItems:"center",fontSize:12,color:"#40566B",marginTop:8}}>
+          <input type="checkbox" checked={selectedMarketplaces.includes(item.id)} onChange={e=>setSelectedMarketplaces(current=>e.target.checked?[...current,item.id]:current.filter(m=>m!==item.id))}/>
+          <span>{item.label}</span>
+        </label>)}
+      </div>}
       {!signedIn&&mode==="signup"&&accountType==="seller"&&<div style={{marginTop:10,padding:12,border:"1px solid #DCE8F1",borderRadius:8,background:"#F4F8FC"}}><p style={{fontSize:12,color:"#40566B",lineHeight:1.6,margin:0}}>{incomingReferralCode?<>Partner referral link detected: <strong>{referralPartners.find(partner=>partner.referral_code.toUpperCase()===incomingReferralCode)?.partner_name??"Verifying partner…"}</strong>. Your registration will be attributed to this partner after successful signup.</>:<>Were you referred by an Ekhaya partner? Open the partner’s unique registration link before signing up. Referrals are only recorded when registration starts through that link; selecting a partner manually does not qualify.</>}</p>{incomingReferralCode&&!referralPartners.some(partner=>partner.referral_code.toUpperCase()===incomingReferralCode)?<p role="status" style={{fontSize:11,color:"#9A5B00",lineHeight:1.5,margin:"8px 0 0"}}>We detected referral code {incomingReferralCode}, but that exact partner programme is not currently active. Please contact the partner or Ekhaya support before completing registration.</p>:null}</div>}
       {!signedIn&&mode==="signup"&&accountType==="seller"&&<div style={{fontSize:12,lineHeight:1.6,color:"#40566B",marginTop:14}}><label style={{display:"flex",gap:9,alignItems:"flex-start"}}><input type="checkbox" checked={privacyAccepted} onChange={e=>setPrivacyAccepted(e.target.checked)} style={{marginTop:3}}/><span>I have read and acknowledge the <Link href="/privacy/" target="_blank">Ekhaya Privacy Notice</Link>. I understand how my account information will be processed. *</span></label><label style={{display:"flex",gap:9,alignItems:"flex-start",marginTop:10}}><input type="checkbox" checked={marketplaceFeesAccepted} onChange={e=>setMarketplaceFeesAccepted(e.target.checked)} style={{marginTop:3}}/><span>I understand that marketplace fees, charges, net payouts and estimated profits are estimates only and are not final marketplace charges. Actual fees vary by category, fulfilment, seller terms and marketplace policy. I will confirm actual fees in my marketplace seller portal before making purchasing or pricing decisions. *</span></label><label style={{display:"flex",gap:9,alignItems:"flex-start",marginTop:10}}><input type="checkbox" checked={marketingOptIn} onChange={e=>setMarketingOptIn(e.target.checked)} style={{marginTop:3}}/><span>Optional: Send me product news and offers. I can opt out at any time.</span></label></div>}
       {(mode==="accept-partner"||mode==="accept-existing-partner")&&recoveryToken&&<><p style={{fontSize:13,color:"#40566B",lineHeight:1.6}}>{mode==="accept-partner"||partnerPasswordSetupRequired?"Create your secure password and choose a unique referral code.":"Your existing Ekhaya account and password will remain unchanged. Choose a unique referral code."} Your link will be yours to share with prospective sellers.</p><input value={partnerLinkCode} onChange={e=>setPartnerLinkCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,20))} placeholder="Your unique link code (5–20 letters/numbers)" style={field}/></>}
