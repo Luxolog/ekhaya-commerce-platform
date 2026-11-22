@@ -61,6 +61,44 @@ export function understandProductQuery(input:string): ProductIntent {
   if (brand && !normalizedQuery.startsWith(brand.toLowerCase())) normalizedQuery = brand.toLowerCase()+" "+normalizedQuery;
   return {originalQuery,normalizedQuery:normalizedQuery.replace(/\s+/g," ").trim(),brand,category,modelTokens,accessoryIntent,requestedCondition:condition};
 }
+
+const queryKey = (value:string) => tokens(value).join(" ");
+export function buildDiscoveryQueries(intent:ProductIntent, maxRequests=3):string[] {
+  const candidates = [
+    intent.originalQuery,
+    intent.normalizedQuery,
+    [intent.brand, ...intent.modelTokens].filter(Boolean).join(" "),
+    intent.category === "laptop" ? [intent.brand, ...intent.modelTokens, "laptop"].filter(Boolean).join(" ") :
+      intent.category === "smartphone" ? [intent.brand, ...intent.modelTokens, "smartphone"].filter(Boolean).join(" ") :
+      intent.category === "charger" ? [intent.brand, ...intent.modelTokens, "charger"].filter(Boolean).join(" ") :
+      intent.category === "keyboard" ? [intent.brand, ...intent.modelTokens, "keyboard"].filter(Boolean).join(" ") : ""
+  ];
+  const unique:string[]=[];
+  const seen=new Set<string>();
+  for (const candidate of candidates) {
+    const value=candidate.replace(/\\s+/g," ").trim();
+    const key=queryKey(value);
+    if (!value || !key || seen.has(key)) continue;
+    seen.add(key); unique.push(value);
+    if (unique.length >= Math.max(1,Math.min(4,Math.floor(maxRequests)))) break;
+  }
+  return unique;
+}
+export function selectAdditionalDiscoveryQueries(
+  intent:ProductIntent,
+  ranked:RankedProduct[],
+  usedQueries:string[],
+  maxAdditional=2
+):string[] {
+  if (maxAdditional <= 0) return [];
+  const best=ranked[0]?.relevance_score ?? 0;
+  const exact=ranked.filter(p=>p.match_classification==="Exact match").length;
+  const strong=ranked.filter(p=>p.match_classification==="Strong match").length;
+  const additionalBudget=ranked.length>=3 && exact>=1 && best>=80 ? 0 :
+    ranked.length>=2 && (best>=70 || strong>=2) ? 1 : Math.min(2,maxAdditional);
+  const used=new Set(usedQueries.map(queryKey));
+  return buildDiscoveryQueries(intent,4).filter(q=>!used.has(queryKey(q))).slice(0,Math.min(maxAdditional,additionalBudget || 0));
+}
 function textOf(p:Record<string,unknown>):string {
   return [p.title,p.brand,p.description,p.key_specs,p.product_badge].flatMap(v=>Array.isArray(v)?v:[v]).filter(v=>typeof v==="string").join(" ").toLowerCase();
 }
@@ -88,13 +126,16 @@ export function rankMarketplaceProducts<T extends Record<string,unknown>>(items:
     const requestedModelTokens = intent.modelTokens.filter(t => /[0-9]/.test(t));
     const exactModel = requestedModelTokens.length > 0 && requestedModelTokens.every(t => titleTokens.includes(t));
     const exact=titleTokens.join(" ")===tokens(intent.normalizedQuery).join(" ") || (brandMatch && categoryMatch && exactModel && modelRatio >= 0.8);
+    const descriptionTokens=tokens(String(p.description??""));
+    const descriptionRatio=intent.modelTokens.length
+      ? intent.modelTokens.filter(t=>descriptionTokens.includes(t)).length/intent.modelTokens.length
+      : 0;
     const condition_label=conditionOf(text);
     const conditionConflict=!!intent.requestedCondition && condition_label.toLowerCase()!==intent.requestedCondition;
     const score=Math.max(0,Math.min(100,
       (exact?35:Math.min(35,modelRatio*35))+
       (brandMatch?20:0)+(categoryMatch?20:0)+(modelRatio*15)+
-      (intent.modelTokens.length?Math.min(10,matchedModel.length*2):5)+
-      (text.includes(String(p.description??"").toLowerCase()) && p.description ? 0 : 0)-
+      (descriptionRatio*10)-
       (accessory && !intent.accessoryIntent?70:0)-
       (!categoryMatch?35:0)-
       (modelConflict?50:0)-
