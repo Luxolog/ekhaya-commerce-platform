@@ -1,6 +1,6 @@
 # Security Remediation Report
 
-**Audit head:** `80c0862fde0b9e40644eeb412184ce23d3d85bc3`
+**Audit head:** `4efb61bb2038e7309d7cb35663bdaf43a429c6ed`
 
 ## Completed remediation
 
