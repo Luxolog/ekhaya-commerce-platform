@@ -82,7 +82,7 @@ export default function PriceCheckerPage() {
     if(typeof window==="undefined") return;
     setIsInstalled(window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone===true);
     const ua=navigator.userAgent;
-    if(/iPhone|iPad|iPod/i.test(ua)) setInstallPlatform("ios");
+    if(/iPhone|iPad|iPod/i.test(ua)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1)) setInstallPlatform("ios");
     else if(/Android/i.test(ua) && /Firefox/i.test(ua)) setInstallPlatform("firefox-android");
     else if(/Android/i.test(ua)) setInstallPlatform("android");
     else if(/Firefox/i.test(ua)) setInstallPlatform("firefox-desktop");
