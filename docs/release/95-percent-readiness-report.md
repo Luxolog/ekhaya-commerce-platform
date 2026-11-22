@@ -3,7 +3,7 @@
 **Audit date:** 2026-11-22  
 **Repository:** `Luxolog/ekhaya-commerce-platform`  
 **Branch:** `feature/saechamber-public-showcase`  
-**Audited head:** `2f928710052085b7d81f79395c5ef91ebd3bd2e0`  
+**Audited head:** `58ea67cfbaad84f578b127662408a036e0ebbd1a`  
 **PR:** [#33](https://github.com/Luxolog/ekhaya-commerce-platform/pull/33), open and unmerged
 
 ## Executive result
@@ -26,7 +26,7 @@ This is a conservative engineering estimate using the weighted scorecard below. 
 | Automated testing and build quality | 5 | 4 | PARTIAL | Final-head quality and security workflows passed. Existing Deno tests run; no isolated full-stack E2E suite. |
 | **Total** | **100** | **62** | | |
 
-## Verified CI on audited head
+## Verified CI on previously audited head
 
 Commit: `4efb61bb2038e7309d7cb35663bdaf43a429c6ed`
 
@@ -52,3 +52,4 @@ A green CI run does not prove live end-to-end behaviour.
 ## Production safety
 
 This audit performed no Supabase deployment, migration, production database/Auth mutation, Vercel deployment, paid ReefAPI request, invitation send, payment or PR merge. Production `marketplace-search` version 59 was not intentionally modified; this GitHub-only audit cannot independently attest the current deployed version.
+\n\n## Local database test harness update (2026-11-22)\n\n- Added a local-only Supabase configuration at `supabase/config.toml`; it uses a distinct local project ID and default localhost ports, and does not link to production.\n- Added 23 pgTAP database contract assertions for pilot, partner-support and atomic partner-acceptance function existence, security-definer attributes, RLS/unique-request constraints and execution grants. These checks are committed but are not yet evidenced as passed.\n- Added `.github/workflows/local-supabase-tests.yml` to start local Supabase on a GitHub-hosted runner and run `supabase test db`. Workflow result is pending; no claim of SQL integration success is made.\n- Readiness remains **62%** until the database workflow and behavioural transaction/concurrency tests pass.\n
