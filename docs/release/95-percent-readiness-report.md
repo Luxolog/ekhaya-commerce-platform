@@ -3,7 +3,8 @@
 **Audit date:** 2026-11-22  
 **Repository:** `Luxolog/ekhaya-commerce-platform`  
 **Branch:** `feature/saechamber-public-showcase`  
-**Audited head:** `58ea67cfbaad84f578b127662408a036e0ebbd1a`  
+**Original audit head:** `58ea67cfbaad84f578b127662408a036e0ebbd1a`  
+**Latest tested code head (Batch 9):** `8f1f583a706f820894942e7e86542c0d56de773f`  
 **PR:** [#33](https://github.com/Luxolog/ekhaya-commerce-platform/pull/33), open and unmerged
 
 ## Executive result
