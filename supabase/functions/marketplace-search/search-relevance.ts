@@ -25,12 +25,12 @@ const BRANDS: Record<string, string> = {
   apple: "Apple", iphone: "Apple", samsung: "Samsung", acer: "Acer",
   asus: "ASUS", microsoft: "Microsoft", google: "Google", pixel: "Google", logitech: "Logitech",
 };
-const ACCESSORY_TERMS = ["keyboard","keyboards","charger","charging cable","cable","battery","batteries","hinge","screen replacement","replacement screen","adapter","mouse","case","cover","dock","replacement"];
+const ACCESSORY_TERMS = ["keyboard","keyboards","charger","charging cable","charging jack","dc jack","dc power jack","power jack","charging port","dc-in jack","power connector","charging connector","cable","battery","batteries","hinge","screen replacement","replacement screen","adapter","mouse","case","cover","dock","replacement"];
 const CATEGORY_TERMS: Record<string,string[]> = {
   laptop:["laptop","notebook","inspiron","elitebook","probook","pavilion","thinkpad","ideapad","latitude","vostro","xps","aspire","vivobook","macbook"],
   smartphone:["iphone","smartphone","mobile phone","galaxy s","galaxy a","pixel","s24","s23","s22","s21"],
   tablet:["tablet","ipad","galaxy tab"],
-  keyboard:["keyboard","keyboards"], charger:["charger","charging cable","power adapter"],
+  keyboard:["keyboard","keyboards"], charger:["charger","charging cable","power adapter","charging jack","dc jack","dc power jack","power jack","charging port","dc-in jack","power connector","charging connector"],
 };
 const tokens = (s:string) => s.toLowerCase().replace(/[^a-z0-9]+/g," ").trim().split(/\s+/).filter(Boolean);
 const includesPhrase = (haystack:string, phrase:string) => (" "+haystack+" ").includes(" "+phrase+" ");
@@ -116,13 +116,13 @@ export function rankMarketplaceProducts<T extends Record<string,unknown>>(items:
   const ranked=items.map(p=>{
     const title=String(p.title??"");
     const text=textOf(p);
-    const accessory=isAccessory(title.toLowerCase());
+    const accessory=isAccessory(text);
     const titleTokens=tokens(title);
     const brandMatch=!!intent.brand && (String(p.brand??"").toLowerCase()===intent.brand.toLowerCase() || includesPhrase(text,intent.brand.toLowerCase()));
     const matchedModel=intent.modelTokens.filter(t=>titleTokens.includes(t));
     const modelRatio=intent.modelTokens.length?matchedModel.length/intent.modelTokens.length:0;
     const modelConflict=intent.modelTokens.some(t=>/[0-9]/.test(t)&&!titleTokens.includes(t));
-    const categoryMatch=!intent.category || (intent.category==="laptop" ? /\b(laptop|notebook|inspiron|elitebook|probook|thinkpad|pavilion|latitude|vostro|xps|aspire|vivobook|ideapad|macbook)\b/.test(text) && !accessory : intent.category==="smartphone" ? /\b(iphone|smartphone|galaxy|pixel)\b/.test(text) && !accessory : intent.category==="tablet" ? /\b(tablet|ipad|galaxy tab)\b/.test(text) && !accessory : title.toLowerCase().includes(intent.category));
+    const categoryMatch=!intent.category || (intent.category==="laptop" ? /\b(laptop|notebook|inspiron|elitebook|probook|thinkpad|pavilion|latitude|vostro|xps|aspire|vivobook|ideapad|macbook)\b/.test(text) && !accessory : intent.category==="smartphone" ? /\b(iphone|smartphone|galaxy|pixel)\b/.test(text) && !accessory : intent.category==="tablet" ? /\b(tablet|ipad|galaxy tab)\b/.test(text) && !accessory : intent.category==="charger" ? /\b(charger|charging cable|power adapter|charging jack|dc jack|dc power jack|power jack|charging port|dc-in jack|power connector|charging connector)\b/.test(text) : intent.category==="keyboard" ? /\b(keyboard|keyboards)\b/.test(text) : title.toLowerCase().includes(intent.category));
     const requestedModelTokens = intent.modelTokens.filter(t => /[0-9]/.test(t));
     const exactModel = requestedModelTokens.length > 0 && requestedModelTokens.every(t => titleTokens.includes(t));
     const exact=titleTokens.join(" ")===tokens(intent.normalizedQuery).join(" ") || (brandMatch && categoryMatch && exactModel && modelRatio >= 0.8);
@@ -142,8 +142,9 @@ export function rankMarketplaceProducts<T extends Record<string,unknown>>(items:
       (conditionConflict?12:0)-
       (intent.brand && !brandMatch?20:0)
     ));
-    const classification:RankedProduct["match_classification"]=accessory?"Accessory":score>=80?"Exact match":score>=55?"Strong match":"Related product";
-    const result_group:RankedProduct["result_group"]=accessory?"accessory":score>=55?"best_match":"related";
+    const requestedAccessory = intent.accessoryIntent && accessory;
+    const classification:RankedProduct["match_classification"]=accessory && !requestedAccessory?"Accessory":score>=85?"Exact match":score>=65?"Strong match":"Related product";
+    const result_group:RankedProduct["result_group"]=accessory && !requestedAccessory?"accessory":score>=65?"best_match":"related";
     const stableId = p.asin ?? p.plid ?? p.product_id ?? p.item_id ?? p.id;
     const rawUrl = typeof p.url === "string" ? p.url.trim() : "";
     let canonicalUrl = rawUrl.toLowerCase();
