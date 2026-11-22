@@ -9,9 +9,9 @@
 
 ## Important discovery gap
 
-The relevance file exports `buildDiscoveryQueries` and `selectAdditionalDiscoveryQueries`. The current `supabase/functions/marketplace-search/index.ts` imports only `understandProductQuery` and `rankMarketplaceProducts`. It does not call either discovery helper.
+The relevance file exports `buildDiscoveryQueries` and `selectAdditionalDiscoveryQueries`. `supabase/functions/marketplace-search/index.ts` now imports and calls `selectAdditionalDiscoveryQueries` in the Takealot provider path. It runs one initial query and at most two targeted follow-ups, re-ranking after each response and preserving successful results if a follow-up fails.
 
-Therefore **bounded multi-query discovery is not live in provider orchestration**. Existing provider requests use the current normalized query flow; helper tests alone do not establish marketplace-level discovery.
+This is implemented in branch source, not verified against a live ReefAPI service. Existing tests cover the query-selection helper, but mocked provider-orchestration tests are still required.
 
 ## Credit lifecycle observations
 
@@ -22,9 +22,9 @@ Source includes:
 - `complete_monthly_search_credit`
 - `refund_monthly_search_credit`
 
-The source reserves a pilot search before cache/provider handling and separately reserves monthly credit for applicable non-pilot users. Cache empty-result paths include refunds; successful cache results complete monthly credit. This review did not prove all exceptional paths, concurrency or duplicate refund/completion behaviour with integration tests.
+The source currently reserves pilot or partner-support allowance before cache lookup, then releases those reservations on cache hits. Monthly seller credits are not reserved for cache hits; they are reserved on the live cache-miss path. A new service-role-only RPC migration releases partner support usage for a cache hit. The monthly refund migration records the original period and refunds that period. These source paths still need isolated database tests, including failure to release a partner allowance.
 
-**Do not enable multi-query variations until one seller credit lifecycle per selected marketplace request is demonstrated by deterministic mocked adapter tests.** Provider request budgets and actual provider cost metadata must also be tested; do not infer ReefAPI cost.
+Takealot discovery is now enabled in branch source with one logical seller reservation and at most three provider attempts. Each Takealot attempt is written to the provider usage ledger separately, retaining provider request ID and reported charged credits when returned. No live provider cost is asserted. Add deterministic mocked adapter tests before production deployment.
 
 ## Cache/provider reliability
 
@@ -32,7 +32,7 @@ Existing cache handling and marketplace-specific Makro postal-code logic are pre
 - concurrent identical request protection end-to-end;
 - timeout and retry behaviour for each provider;
 - retaining successful provider results when another provider fails;
-- provider request accounting across follow-up queries;
+- provider request accounting across follow-up queries (source records each Takealot attempt; not yet integration-tested);
 - end-to-end credit semantics for cache hits and provider failures.
 
 ## Validation decision
