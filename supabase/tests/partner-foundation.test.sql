@@ -1,6 +1,6 @@
 begin;
 
-select plan(19);
+select plan(25);
 
 select ok(to_regclass('public.partner_programs') is not null,
   'partner programme foundation exists');
@@ -20,6 +20,27 @@ select ok(to_regclass('public.payment_transactions') is not null,
   'authoritative payment transaction table exists');
 select ok(to_regclass('public.user_notifications') is not null,
   'idempotent user notification table exists');
+select ok(to_regclass('public.billing_plans') is not null,
+  'billing plan catalogue exists');
+select ok(to_regclass('public.search_credit_allocations') is not null,
+  'paid search credit allocation ledger exists');
+select ok(to_regprocedure('public.grant_paid_search_credits(uuid,text,integer,text,uuid)') is not null,
+  'idempotent paid credit allocation function exists');
+select ok(
+  exists (select 1 from pg_trigger where tgrelid='public.payment_transactions'::regclass
+    and tgname='allocate_search_credits_on_payment_complete' and not tgisinternal),
+  'payment completion allocates paid search credits'
+);
+select ok(
+  exists (select 1 from public.plan_search_allowances
+    where plan_code='growth' and monthly_search_credits=100),
+  'growth plan allowance is represented in the plan quota catalogue'
+);
+select ok(
+  exists (select 1 from information_schema.columns
+    where table_schema='public' and table_name='subscriptions' and column_name='billing_mode'),
+  'subscription billing mode contract exists'
+);
 
 select ok(
   (select relrowsecurity from pg_class where oid='public.partner_programs'::regclass),
