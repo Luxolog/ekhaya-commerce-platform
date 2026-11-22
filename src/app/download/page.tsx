@@ -44,7 +44,7 @@ export default function DownloadPage() {
 
   useEffect(() => {
     const ua = navigator.userAgent;
-    if (/iPhone|iPad|iPod/i.test(ua)) setPlatform("ios");
+    if (/iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) setPlatform("ios");
     else if (/Android/i.test(ua)) setPlatform("android");
     else if (/Firefox/i.test(ua)) setPlatform("firefox-desktop");
     else if (/Windows|Macintosh|Linux/i.test(ua)) setPlatform("desktop");
