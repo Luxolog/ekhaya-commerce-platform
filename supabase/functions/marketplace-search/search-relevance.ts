@@ -91,12 +91,14 @@ export function rankMarketplaceProducts<T extends Record<string,unknown>>(items:
       (intent.modelTokens.length?Math.min(10,matchedModel.length*2):5)-
       (accessory && !intent.accessoryIntent?70:0)-
       (!categoryMatch?35:0)-
-      (modelConflict?50:0)-\n      (conditionConflict?12:0)-
+      (modelConflict?50:0)-
+      (conditionConflict?12:0)-
       (intent.brand && !brandMatch?20:0)
     ));
     const classification:RankedProduct["match_classification"]=accessory?"Accessory":score>=80?"Exact match":score>=55?"Strong match":"Related product";
     const result_group:RankedProduct["result_group"]=accessory?"accessory":score>=55?"best_match":"related";
-    const condition_label=conditionOf(text);\n    const conditionConflict=!!intent.requestedCondition && condition_label.toLowerCase()!==intent.requestedCondition;
+    const condition_label=conditionOf(text);
+    const conditionConflict=!!intent.requestedCondition && condition_label.toLowerCase()!==intent.requestedCondition;
     const identity=String(p.url??p.id??title).toLowerCase();
     return {...p,relevance_score:Math.round(score),match_classification:classification,result_group,condition_label,_identity:identity};
   }).filter(p=>{
