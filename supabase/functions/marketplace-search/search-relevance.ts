@@ -27,7 +27,7 @@ const BRANDS: Record<string, string> = {
 const ACCESSORY_TERMS = ["keyboard","keyboards","charger","charging cable","cable","battery","batteries","hinge","screen replacement","replacement screen","adapter","mouse","case","cover","dock","replacement"];
 const CATEGORY_TERMS: Record<string,string[]> = {
   laptop:["laptop","notebook","inspiron","inspiron","elitebook","thinkpad","pavilion","latitude","vivobook","ideapad","macbook"],
-  smartphone:["iphone","smartphone","mobile phone","galaxy s","galaxy a","pixel"],
+  smartphone:["iphone","smartphone","mobile phone","galaxy s","galaxy a","pixel","s24","s23","s22","s21"],
   tablet:["tablet","ipad","galaxy tab"],
   keyboard:["keyboard","keyboards"], charger:["charger","charging cable","power adapter"],
 };
@@ -91,12 +91,12 @@ export function rankMarketplaceProducts<T extends Record<string,unknown>>(items:
       (intent.modelTokens.length?Math.min(10,matchedModel.length*2):5)-
       (accessory && !intent.accessoryIntent?70:0)-
       (!categoryMatch?35:0)-
-      (modelConflict?50:0)-
+      (modelConflict?50:0)-\n      (conditionConflict?12:0)-
       (intent.brand && !brandMatch?20:0)
     ));
     const classification:RankedProduct["match_classification"]=accessory?"Accessory":score>=80?"Exact match":score>=55?"Strong match":"Related product";
     const result_group:RankedProduct["result_group"]=accessory?"accessory":score>=55?"best_match":"related";
-    const condition_label=conditionOf(text);
+    const condition_label=conditionOf(text);\n    const conditionConflict=!!intent.requestedCondition && condition_label.toLowerCase()!==intent.requestedCondition;
     const identity=String(p.url??p.id??title).toLowerCase();
     return {...p,relevance_score:Math.round(score),match_classification:classification,result_group,condition_label,_identity:identity};
   }).filter(p=>{
