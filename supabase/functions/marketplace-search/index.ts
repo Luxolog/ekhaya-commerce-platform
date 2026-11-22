@@ -1,4 +1,4 @@
-import { understandProductQuery, rankMarketplaceProducts } from "./search-relevance.ts";
+import { understandProductQuery, rankMarketplaceProducts, selectAdditionalDiscoveryQueries } from "./search-relevance.ts";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const cors = {
@@ -865,17 +865,59 @@ Deno.serve(async (req: Request) => {
         })) as Record<string, unknown>[];
       } else {
         if (!reefKey) throw new Error("Takealot search is not configured. Add REEFAPI_KEY to Supabase Edge Function secrets.");
-        providerAttempted = true;
-        const upstream = await fetch("https://api.reefapi.com/takealot/v1/search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
-          body: JSON.stringify({ query: providerQuery, country: "za" }),
-          signal: AbortSignal.timeout(9000),
-        });
-        payload = await upstream.json();
+        // One seller request/credit reservation may use at most three bounded provider
+        // queries. Additional discovery is sequential, deduplicated and best-effort.
+        const usedQueries = [providerQuery];
+        let providerCreditsTotal = 0;
+        const callTakealot = async (searchQuery: string): Promise<ProviderResponse> => {
+          providerAttempted = true;
+          const upstream = await fetch("https://api.reefapi.com/takealot/v1/search", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
+            body: JSON.stringify({ query: searchQuery, country: "za" }),
+            signal: AbortSignal.timeout(9000),
+          });
+          const result = await upstream.json() as ProviderResponse;
+          if (!upstream.ok || result?.ok === false) {
+            throw new Error(result?.error?.message ?? result?.error?.detail ?? upstream.statusText ?? "Provider lookup failed");
+          }
+          providerCreditsTotal += Math.max(0, Number(result.meta?.charged_credits) || 0);
+          return result;
+        };
+
+        payload = await callTakealot(providerQuery);
         providerPayload = payload;
-        if (!upstream.ok || payload?.ok === false) throw new Error(payload?.error?.message ?? upstream.statusText ?? "Provider lookup failed");
-        raw = payload?.data?.results ?? [];
+        raw = [...(payload?.data?.results ?? [])];
+
+        let discoveryRanked = rankMarketplaceProducts(raw, intent);
+        const discoveryResults = [...discoveryRanked.products, ...discoveryRanked.related_products, ...discoveryRanked.accessories];
+        const additionalQueries = selectAdditionalDiscoveryQueries(intent, discoveryResults, usedQueries, 2);
+        for (const discoveryQuery of additionalQueries) {
+          usedQueries.push(discoveryQuery);
+          try {
+            const additionalPayload = await callTakealot(discoveryQuery);
+            providerPayload = additionalPayload;
+            payload = {
+              ...additionalPayload,
+              meta: {
+                ...(additionalPayload.meta ?? {}),
+                charged_credits: providerCreditsTotal,
+              },
+            };
+            raw.push(...(additionalPayload.data?.results ?? []));
+            discoveryRanked = rankMarketplaceProducts(raw, intent);
+          } catch (discoveryError) {
+            console.warn("Additional Takealot discovery query failed; preserving successful results:", discoveryQuery, discoveryError);
+          }
+        }
+        payload = {
+          ...payload,
+          meta: {
+            ...(payload.meta ?? {}),
+            charged_credits: providerCreditsTotal,
+            discovery_queries: usedQueries,
+          },
+        };
       }
 
       const parsePrice = (value: unknown): number | null => {
