@@ -18,11 +18,11 @@ The batch is not complete. The database foundation has been recovered and expand
 
 | Milestone | Status | Evidence / remaining work |
 |---|---|---|
-| 1. Database CI recovery | PARTIAL | 21 migrations replayed and 69 assertions passed at e72fb00; 76 assertions across 6 SQL files passed at dc99eea. Supabase CLI is now pinned to 3.2.0 after a latest-release API rate-limit failure. Latest 10k capacity-inclusive database run at 71d90af is pending. |
+| 1. Database CI recovery | PARTIAL | 21 migrations replayed and 69 assertions passed at e72fb00; 76 assertions across 6 SQL files passed at dc99eea. Supabase CLI is now pinned to 3.2.0 after a latest-release API rate-limit failure. The capacity-inclusive database run at 71d90af passed 103 assertions across 10 SQL files, including the 10,000-seller allocation smoke benchmark. |
 | 2. Partner invitation lifecycle | PARTIAL | SQL coverage includes wrong email, successful atomic acceptance, pending status retained, accepted timestamp, owner/partner notifications, replay rejection, expired and revoked invitations. Deno guard tests cover verified email, UUID/code formats and expiry. Concurrent Edge Function/browser acceptance and full owner-to-partner E2E remain unverified. |
 | 3. Referral and commission integrity | PARTIAL | Behavioural tests cover active unique-link attribution, replay idempotency, first-paid timestamp preservation, inactive/suspended partner rejection, self-referral prevention, self-commission prevention and valid payment-linked commission. Live referral signup and payment-event integration remain unverified. |
 | 4. Payments and subscriptions | PARTIAL / BLOCKED | Database tests cover paid-credit replay and subscription payment trigger behaviour: failed payment grants no credits; complete payment allocates plan allowance; replay does not duplicate allocation. No Paystack/PayFast checkout or webhook source implementation was found in this branch. Paid checkout remains disabled. |
-| 5. Credit lifecycle and capacity | PARTIAL | Seller-pilot lifecycle tests cover reservation, duplicate request, completion, refund, daily limit and unsupported marketplace. A 10,000-seller/credit-allocation smoke benchmark was added for cumulative sizes 100, 500, 1,000, 5,000 and 10,000; latest CI result and timing notices are pending. True concurrent allocation/consumption and lock-contention tests remain outstanding. |
+| 5. Credit lifecycle and capacity | PARTIAL | Seller-pilot lifecycle tests cover reservation, duplicate request, completion, refund, daily limit and unsupported marketplace. A 10,000-seller/credit-allocation smoke benchmark passed for cumulative sizes 100, 500, 1,000, 5,000 and 10,000. Allocation insert time was 105.83 ms; indexed lookup times were 0.41, 0.17, 0.20, 0.79 and 2.23 ms respectively in the isolated CI environment. True concurrent allocation/consumption and lock-contention tests remain outstanding. |
 | 6. Seller registration/workspace | PARTIAL | Signup guard tests enforce Privacy Notice and marketplace-fee estimate acknowledgements only during signup. Fixed a profile bootstrap/marketplace constraint conflict and added a normal-trigger regression test. No browser E2E, real email verification or complete seller workspace journey has been verified. |
 | 7. Owner/partner dashboards and RLS | PARTIAL | Direct SQL RLS test verifies partner A/B row isolation and owner visibility. The corrected test passed as part of 85 assertions across 7 SQL files at 309571e. Latest expanded run is pending. UI/API direct-access and full role matrix remain outstanding. |
 | 8. Notifications/email | PARTIAL | Database tests verify idempotent referral, invitation and payment notification creation. Worker source has SMTP configuration checks, a row-claim step and terminal failed status. No real SMTP delivery test was performed. Automatic retry is not implemented; a worker crash after claim can leave a pending row with a non-null attempt timestamp. |
@@ -57,7 +57,7 @@ The batch is not complete. The database foundation has been recovered and expand
 - [dc99eea database run](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45064199594): 76 assertions across 6 SQL files passed; Supabase CLI setup succeeded after pinning.
 - [309571e database run](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45064624420): 85 assertions across 7 SQL files passed, including owner/partner RLS isolation.
 - [227bb12 database run](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45064750218): 98 assertions across 9 SQL files passed, including commission and seller-pilot lifecycle tests.
-- Latest capacity-inclusive run at 71d90af is still running; do not count it as passed until its job log confirms all tests and timing output.
+- [71d90af database run](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45064823900): 103 assertions across 10 SQL files passed. The 10,000-seller fixture inserted 10,000 allocation rows in 105.83 ms; indexed lookup measurements were 0.41 ms (100), 0.17 ms (500), 0.20 ms (1,000), 0.79 ms (5,000), and 2.23 ms (10,000). These are synthetic CI measurements, not concurrency or production capacity evidence.
 
 ### Quality and security
 
@@ -75,7 +75,7 @@ The original marketplace constraint required at least one marketplace while the 
 2. Production migration history (previously observed at 51 records) is not reconciled with the 22-file branch migration chain.
 3. No full browser E2E for seller signup, partner invite acceptance, account linking, owner activation or workspace access.
 4. No real SMTP delivery verification. Retry/backoff and stale-claim recovery are not implemented.
-5. Latest 10,000-seller allocation benchmark result is pending; no concurrent workload/lock-contention proof exists.
+5. The 10,000-seller allocation smoke benchmark passed; no concurrent workload/lock-contention proof exists.
 6. No production migration approval, deployment approval or environment runbook sign-off.
 7. PR #33 base remains feature/partner-admin-email-otp; dependency chain must be deliberately reconciled before release.
 
