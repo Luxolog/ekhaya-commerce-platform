@@ -207,9 +207,7 @@ The Supabase metadata/advisor response flags RLS disabled on three `private` tab
 
 ## 10. Milestone 1 conclusion
 
-**Inventory complete as a read-only evidence inventory; migration replay is not certified.** The core defect is not just a missing `partner_programs` CREATE TABLE: the PR migration tree omits the partner foundation and the billing foundation, while production has 51 applied migration records and a larger live schema. The PR base is a feature branch with a materially different and incomplete migration history.
-
-Next: reconcile authoritative object definitions and migration provenance in `partner-schema-authoritative-reconciliation.md`. Do not implement a partner foundation migration until all critical financial and notification dependencies, policies, grants, trigger definitions and clean-install ordering can be reproduced from verified sources.
+**Initial inventory complete; the original migration replay defect is now fixed on the feature branch.** The new foundation migration creates the missing partner/payment/paid-credit dependencies before dependent partner migrations. The account-ID migration now wraps its exclusive table lock in an explicit transaction. Clean local replay and database contract tests have passed on the updated branch head.
 
 
 ## 11. Batch 9 foundation migration added (2026-11-22)
@@ -222,6 +220,11 @@ It creates/reconciles the verified partner programme, invitation, owner access, 
 
 The migration removes the conflicting legacy `ensure_partner_program_active_before_insert` trigger. That trigger forced every new partner programme to active, contradicting the current owner-registration workflow which explicitly creates programmes as pending and requires invitation acceptance before activation. The migration does not delete the orphaned trigger function. A pgTAP test asserts new programmes remain pending.
 
-**Scope limitation:** the historical subscription billing/webhook and paid-credit allocation migration source is still incomplete in this branch. The payment transaction table is recreated from the verified live schema for partner financial referential integrity; the full provider webhook and paid-credit allocation workflow is not declared restored by this migration. This remains a separate release blocker until source and behavioural tests are recovered.
+**Scope limitation:** the historical billing foundation source was absent, so the migration reconstructs the currently deployed, catalog-verified billing subset: subscription billing columns/constraints, billing plan catalogue, plan allowances, paid-credit allocation ledger, idempotent allocation function and payment-completion trigger. This restores the database contracts used by the current Paystack Edge Function. The full renewal/reminder and private webhook-event lifecycle is not claimed as restored; paid checkout remains hard-disabled in the current Edge Function release gate.
 
-CI was triggered on the branch after the migration and contract-test commits. See workflow evidence before recording replay as passing.
+**CI result — PASS:** GitHub Actions run [45057734774](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45057734774) on head `8f1f583a706f820894942e7e86542c0d56de773f` started an isolated Supabase stack, applied all 21 branch migrations in order, and ran `supabase test db`. Both SQL test files passed: 48 assertions total (23 credit lifecycle + 25 partner/billing foundation). The local stack was stopped cleanly. Quality checks and all four security jobs also passed on the same head.
+
+
+## 12. Follow-up correction: account-ID migration transaction
+
+The first replay after adding the partner foundation reached `20261122090359_standard_ekhaya_account_ids.sql` and failed because PostgreSQL requires `LOCK TABLE` to run inside an explicit transaction. The migration now wraps its sequence creation, exclusive lock, ID backfill, sequence setup, constraints and index in `BEGIN/COMMIT`. The successful replay on run 45057734774 verifies this correction on an empty local Supabase database.
