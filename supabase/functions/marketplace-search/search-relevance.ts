@@ -15,18 +15,19 @@ export type RankedProduct = Record<string, unknown> & {
 };
 
 const SPELLING: Record<string, string> = {
-  inspirion: "inspiron", elitebok: "elitebook", thinkpad: "thinkpad",
-  samsng: "samsung", samsumg: "samsung", appl: "apple", ipone: "iphone",
-  galaxyy: "galaxy", chager: "charger", keybord: "keyboard",
+  inspirion: "inspiron", inspirone: "inspiron", elitebok: "elitebook", elitebookk: "elitebook",
+  samsng: "samsung", samsumg: "samsung", samsun: "samsung", appl: "apple", ipone: "iphone",
+  galaxyy: "galaxy", chager: "charger", chargr: "charger", keybord: "keyboard", keybaord: "keyboard",
+  latitute: "latitude", pavillion: "pavilion", vivobookk: "vivobook", thinkapd: "thinkpad",
 };
 const BRANDS: Record<string, string> = {
   dell: "Dell", hp: "HP", "hewlett-packard": "HP", lenovo: "Lenovo",
   apple: "Apple", iphone: "Apple", samsung: "Samsung", acer: "Acer",
-  asus: "ASUS", microsoft: "Microsoft", logitech: "Logitech",
+  asus: "ASUS", microsoft: "Microsoft", google: "Google", pixel: "Google", logitech: "Logitech",
 };
 const ACCESSORY_TERMS = ["keyboard","keyboards","charger","charging cable","cable","battery","batteries","hinge","screen replacement","replacement screen","adapter","mouse","case","cover","dock","replacement"];
 const CATEGORY_TERMS: Record<string,string[]> = {
-  laptop:["laptop","notebook","inspiron","inspiron","elitebook","thinkpad","pavilion","latitude","vivobook","ideapad","macbook"],
+  laptop:["laptop","notebook","inspiron","elitebook","probook","pavilion","thinkpad","ideapad","latitude","vostro","xps","aspire","vivobook","macbook"],
   smartphone:["iphone","smartphone","mobile phone","galaxy s","galaxy a","pixel","s24","s23","s22","s21"],
   tablet:["tablet","ipad","galaxy tab"],
   keyboard:["keyboard","keyboards"], charger:["charger","charging cable","power adapter"],
@@ -53,7 +54,7 @@ export function understandProductQuery(input:string): ProductIntent {
     }
   }
   const condition = corrected.includes("refurbished") ? "refurbished" : corrected.includes("used") || corrected.includes("secondhand") ? "used" : corrected.includes("new") ? "new" : null;
-  const stop = new Set(["the","and","for","with","brand","laptop","notebook","computer","new","used","refurbished","gb","tb"]);
+  const stop = new Set(["the","and","for","with","brand","laptop","notebook","computer","new","used","refurbished","gb","tb","ram","ssd","hdd","wifi","wi","4g","5g"]);
   const modelTokens = corrected.filter(t=>!stop.has(t) && t!==brandToken && !ACCESSORY_TERMS.some(term=>tokens(term).includes(t)));
   let normalizedQuery = corrected.join(" ");
   if (!accessoryIntent && category==="laptop" && !/\b(laptop|notebook)\b/.test(normalizedQuery)) normalizedQuery += " laptop";
@@ -84,13 +85,16 @@ export function rankMarketplaceProducts<T extends Record<string,unknown>>(items:
     const modelRatio=intent.modelTokens.length?matchedModel.length/intent.modelTokens.length:0;
     const modelConflict=intent.modelTokens.some(t=>/[0-9]/.test(t)&&!titleTokens.includes(t));
     const categoryMatch=!intent.category || (intent.category==="laptop" ? /\b(laptop|notebook|inspiron|elitebook|thinkpad|pavilion|latitude|vivobook|ideapad|macbook)\b/.test(text) && !accessory : intent.category==="smartphone" ? /\b(iphone|smartphone|galaxy|pixel)\b/.test(text) && !accessory : intent.category==="tablet" ? /\b(tablet|ipad|galaxy tab)\b/.test(text) && !accessory : title.toLowerCase().includes(intent.category));
-    const exact=titleTokens.join(" ")===tokens(intent.normalizedQuery).join(" ");
+    const requestedModelTokens = intent.modelTokens.filter(t => /[0-9]/.test(t));
+    const exactModel = requestedModelTokens.length > 0 && requestedModelTokens.every(t => titleTokens.includes(t));
+    const exact=titleTokens.join(" ")===tokens(intent.normalizedQuery).join(" ") || (brandMatch && categoryMatch && exactModel && modelRatio >= 0.8);
     const condition_label=conditionOf(text);
     const conditionConflict=!!intent.requestedCondition && condition_label.toLowerCase()!==intent.requestedCondition;
     const score=Math.max(0,Math.min(100,
       (exact?35:Math.min(35,modelRatio*35))+
       (brandMatch?20:0)+(categoryMatch?20:0)+(modelRatio*15)+
-      (intent.modelTokens.length?Math.min(10,matchedModel.length*2):5)-
+      (intent.modelTokens.length?Math.min(10,matchedModel.length*2):5)+
+      (text.includes(String(p.description??"").toLowerCase()) && p.description ? 0 : 0)-
       (accessory && !intent.accessoryIntent?70:0)-
       (!categoryMatch?35:0)-
       (modelConflict?50:0)-
