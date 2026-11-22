@@ -84,7 +84,7 @@ jobs:
           supabase/functions/notification-worker/index.ts
           supabase/functions/partner-admin-email-otp/index.ts
       - name: Run authentication guard regression tests
-        run: deno test --no-lock --node-modules-dir=auto supabase/tests/auth-guards.test.ts
+        run: deno test --no-lock --node-modules-dir=auto supabase/tests/
 
   codeql:
     name: CodeQL analysis
