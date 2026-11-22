@@ -139,24 +139,24 @@ select is(
 );
 
 select throws_ok(
-  $select public.accept_saechamber_partner_invitation(
+  $q$select public.accept_saechamber_partner_invitation(
     'b9100000-0000-4000-8000-000000000022',
     'b9100000-0000-4000-8000-000000000002',
     'batch10-expired@example.invalid',
     'BATCH10EXP'
-  )$,
+  )$q$,
   'P0001',
   'INVITATION_INVALID_EXPIRED_OR_ALREADY_USED',
   'expired invitation cannot be accepted'
 );
 
 select throws_ok(
-  $select public.accept_saechamber_partner_invitation(
+  $q$select public.accept_saechamber_partner_invitation(
     'b9100000-0000-4000-8000-000000000023',
     'b9100000-0000-4000-8000-000000000002',
     'batch10-revoked@example.invalid',
     'BATCH10REV'
-  )$,
+  )$q$,
   'P0001',
   'INVITATION_INVALID_EXPIRED_OR_ALREADY_USED',
   'revoked invitation cannot be accepted'
