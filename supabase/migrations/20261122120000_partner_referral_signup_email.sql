@@ -71,11 +71,11 @@ begin
         'partner_referral',
         'A new seller registered through your partner link',
         'A new seller has registered through your unique Ekhaya partner referral link.'
-          || E'\\n\\nPartner: ' || coalesce(v_partner_name, 'Your partner programme')
-          || E'\\nSeller: ' || v_seller_name
-          || E'\\nRegistered: ' || v_registered_at
-          || E'\\nReferral status: Pending review'
-          || E'\\n\\nThis is a signup notification only. It does not accept the referral or create a commission. Sign in to your Partner Portal to review the referral.',
+          || E'\n\\nPartner: ' || coalesce(v_partner_name, 'Your partner programme')
+          || E'\nSeller: ' || v_seller_name
+          || E'\nRegistered: ' || v_registered_at
+          || E'\nReferral status: Pending review'
+          || E'\n\\nThis is a signup notification only. It does not accept the referral or create a commission. Sign in to your Partner Portal to review the referral.',
         'https://ekhayatech.co.za/partner/',
         'pending'
       )
