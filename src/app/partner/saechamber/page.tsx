@@ -20,7 +20,7 @@ const muted: React.CSSProperties = { color: "#60758A", fontSize: 12 };
 
 export default function PartnerDashboardPage() {
   const [session, setSession] = useState<Session | null>(null);
-  const [partner, setPartner] = useState<Partner | null>(null);
+  const [partner, setPartner] = useState<Partner | null>(null);\n  const [ekhayaAccountId, setEkhayaAccountId] = useState<string>("");
   const [partnerOptions, setPartnerOptions] = useState<Partner[]>([]);
   const [selectedPartnerId, setSelectedPartnerId] = useState("");
   const [referrals, setReferrals] = useState<Referral[]>([]);
@@ -67,7 +67,7 @@ export default function PartnerDashboardPage() {
         const userResponse = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: ANON_KEY, Authorization: `Bearer ${session.access_token}` }, cache: "no-store" });
         if (!userResponse.ok) throw new Error("Your sign-in session has expired. Please sign in again.");
         const user = await userResponse.json();
-        const ownerRows = await api(`partner_owner_access?select=user_id&user_id=eq.${user.id}&limit=1`);
+        const profileRows = await api(`profiles?select=account_id&id=eq.${user.id}&limit=1`);\n        if (!live) return;\n        setEkhayaAccountId((profileRows as {account_id?:string}[])[0]?.account_id ?? "");\n        const ownerRows = await api(`partner_owner_access?select=user_id&user_id=eq.${user.id}&limit=1`);
         const ownerMode = (ownerRows as {user_id:string}[]).length > 0;
         if (!live) return;
         setIsOwner(ownerMode);
@@ -133,7 +133,7 @@ export default function PartnerDashboardPage() {
 
   return <main style={{ minHeight: "100vh", background: "#F4F8FC", color: "#071B31", padding: "28px clamp(16px,4vw,56px) 60px" }}>
     <header style={{ maxWidth: 1240, margin: "0 auto 34px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", borderBottom: "1px solid #DCE8F1", paddingBottom: 18 }}>
-      <div><Link href="/" style={{ color: "#079BD3", fontWeight: 800, fontSize: 12, letterSpacing: 1 }}>EKHAYA TECHNOLOGIES</Link><div style={{ fontSize: 25, fontWeight: 800, marginTop: 7 }}>Partner Portal</div><div style={muted}>Referral performance · Commission transparency</div></div>
+      <div><Link href="/" style={{ color: "#079BD3", fontWeight: 800, fontSize: 12, letterSpacing: 1 }}>EKHAYA TECHNOLOGIES</Link><div style={{ fontSize: 25, fontWeight: 800, marginTop: 7 }}>Partner Portal</div><div style={muted}>Referral performance · Commission transparency</div>{ekhayaAccountId && <div style={{ ...muted, marginTop: 5 }}>Ekhaya Account ID: <strong style={{ color: "#071B31" }}>{ekhayaAccountId}</strong></div>}</div>
       <div style={{ display: "flex", gap: 16, alignItems: "center" }}><Link href="/account/security/" style={{ color: "#079BD3", fontWeight: 700, fontSize: 13 }}>Security settings</Link><Link href="/account/" style={{ color: "#079BD3", fontWeight: 700, fontSize: 13 }}>Seller account</Link><button onClick={() => { localStorage.removeItem("ekhaya_session"); window.location.href = "/account/"; }} style={{ border: "1px solid #DCE8F1", background: "#fff", borderRadius: 8, padding: "10px 14px", cursor: "pointer" }}>Sign out</button></div>
     </header>
     <section style={{ maxWidth: 1240, margin: "0 auto" }}>
