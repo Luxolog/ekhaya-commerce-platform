@@ -9,7 +9,7 @@
 | SMTP delivery unverified | Owner / email provider | Configure sandbox and test owner + partner notifications | No real recipients |
 | Seller signup/workspace E2E unverified | QA + isolated Supabase | Verify email confirmation, acknowledgements, referral and workspace | No, if isolated |
 | Takealot orchestration tests missing | Engineering | Add mocked provider adapter tests for initial + two follow-up calls, partial failures, deduplication and per-attempt usage ledger | Branch-only first; no deployment |
-| Credit lifecycle integration coverage missing | Engineering | Mock RPC/provider adapters for cache hits, retries, refunds, duplicate requests and concurrent limits; verify cache-hit release for pilot and partner allowances | Branch-only |
+| Credit lifecycle SQL integration coverage missing | Engineering | Test pilot/partner reserve, complete and refund RPCs for duplicate IDs, exactly-once refunds, daily/total caps and concurrent requests in isolated Supabase | Branch-only |
 | Provider timeout/partial failure coverage missing | Engineering | Test provider timeouts, non-2xx responses, failed-call reported charges and request IDs; confirm successful Takealot results survive failed follow-ups | Branch-only |
 | Billing source/webhook idempotency not verifiable | Engineering + payment sandbox | Locate authoritative billing source and add sandbox tests | No real payments |
 | Production/branch migration reconciliation unavailable | Owner / Supabase access | Read-only inventory, staging preflight, migration diff | Approval before production migration |
@@ -22,7 +22,7 @@
 
 - Bounded Takealot discovery is integrated in branch source (one initial query plus up to two targeted follow-ups).
 - Takealot provider attempts are written individually to the usage ledger, including provider-reported credits and request IDs when available.
-- Cache hits no longer reserve monthly seller credits. Pilot reservations are released on cache hits; a service-role-only partner support refund RPC was added for the same purpose.
+- Cache lookup now precedes every allowance reservation, so cache hits are free without relying on refund calls. Pilot and partner live-search reservations use request-scoped completion/refund RPCs; refunds retain idempotency records.
 - Atomic partner invitation acceptance is implemented through a service-role-only database RPC and used by the acceptance Edge Function.
 - These are source-level changes. New migrations are not applied, and isolated database/provider integration tests remain outstanding.
 
