@@ -122,9 +122,13 @@ export function rankMarketplaceProducts<T extends Record<string,unknown>>(items:
     const matchedModel=intent.modelTokens.filter(t=>titleTokens.includes(t));
     const modelRatio=intent.modelTokens.length?matchedModel.length/intent.modelTokens.length:0;
     const modelConflict=intent.modelTokens.some(t=>/[0-9]/.test(t)&&!titleTokens.includes(t));
+    const modelSeries = new Set(["1000","2000","3000","4000","5000","6000","7000","8000","9000"]);
+    const requestedSeries = intent.modelTokens.filter(t=>modelSeries.has(t));
+    const listedSeries = titleTokens.filter(t=>modelSeries.has(t));
+    const modelSeriesConflict = requestedSeries.length>0 && listedSeries.some(t=>!requestedSeries.includes(t));
     const categoryMatch=!intent.category || (intent.category==="laptop" ? /\b(laptop|notebook|inspiron|elitebook|probook|thinkpad|pavilion|latitude|vostro|xps|aspire|vivobook|ideapad|macbook)\b/.test(text) && !accessory : intent.category==="smartphone" ? /\b(iphone|smartphone|galaxy|pixel)\b/.test(text) && !accessory : intent.category==="tablet" ? /\b(tablet|ipad|galaxy tab)\b/.test(text) && !accessory : intent.category==="charger" ? /\b(charger|charging cable|power adapter|charging jack|dc jack|dc power jack|power jack|charging port|dc-in jack|power connector|charging connector)\b/.test(text) : intent.category==="keyboard" ? /\b(keyboard|keyboards)\b/.test(text) : title.toLowerCase().includes(intent.category));
     const requestedModelTokens = intent.modelTokens.filter(t => /[0-9]/.test(t));
-    const exactModel = requestedModelTokens.length > 0 && requestedModelTokens.every(t => titleTokens.includes(t));
+    const exactModel = requestedModelTokens.length > 0 && requestedModelTokens.every(t => titleTokens.includes(t)) && !modelSeriesConflict;
     const exact=titleTokens.join(" ")===tokens(intent.normalizedQuery).join(" ") || (brandMatch && categoryMatch && exactModel && modelRatio >= 0.8);
     const descriptionTokens=tokens(String(p.description??""));
     const descriptionRatio=intent.modelTokens.length
@@ -138,7 +142,7 @@ export function rankMarketplaceProducts<T extends Record<string,unknown>>(items:
       (descriptionRatio*10)-
       (accessory && !intent.accessoryIntent?70:0)-
       (!categoryMatch?35:0)-
-      (modelConflict?50:0)-
+      (modelConflict?50:0)-(modelSeriesConflict?25:0)-
       (conditionConflict?12:0)-
       (intent.brand && !brandMatch?20:0)
     ));
