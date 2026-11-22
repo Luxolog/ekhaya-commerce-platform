@@ -671,7 +671,6 @@ Deno.serve(async (req: Request) => {
   }
   let partnerSupportCharged = false;
   let pilotCharged = false;
-  const pilotUsageDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(new Date());
   const requestId = body.request_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.request_id)
     ? body.request_id : crypto.randomUUID();
   const lookupKey = query.toLowerCase().replace(/\s+/g, " ") + (marketplace === "makro" && postalCode ? `:postal:${postalCode}` : "");
