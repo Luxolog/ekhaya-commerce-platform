@@ -33,6 +33,8 @@ export default function EkhayaOwnerDashboard() {
   const [newPartnerReferralCode, setNewPartnerReferralCode] = useState("");
   const [newPartnerFeedback, setNewPartnerFeedback] = useState("");
   const [newPartnerBusy, setNewPartnerBusy] = useState(false);
+  const [activationBusyId, setActivationBusyId] = useState("");
+  const [activationFeedback, setActivationFeedback] = useState("");
   const [invitePartnerId, setInvitePartnerId] = useState("");
   const [inviteContactName, setInviteContactName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -98,6 +100,17 @@ export default function EkhayaOwnerDashboard() {
   useEffect(() => {
     if (tab === "partners" && data) void loadPartnerInvitations();
   }, [tab, data]);
+
+  const activatePartner = async (partnerId: string) => {
+    setActivationBusyId(partnerId); setActivationFeedback("");
+    try {
+      const result = await manageInvitations({ action: "activate_partner", partner_id: partnerId });
+      setActivationFeedback(result.message || "Partner programme activated.");
+      await load();
+    } catch (e) {
+      setActivationFeedback(e instanceof Error ? e.message : "Partner activation failed.");
+    } finally { setActivationBusyId(""); }
+  };
 
   // Keep dashboard sections in the URL so browser Back/Forward works.
   useEffect(() => {
@@ -268,7 +281,8 @@ export default function EkhayaOwnerDashboard() {
           </section>
           <section style={{ ...panel, overflowX: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All partner accounts</h2><button onClick={()=>void loadPartnerInvitations()} style={{ border: "1px solid #DDE6EF", background: "#fff", borderRadius: 8, padding: "8px 12px", fontWeight: 700, cursor: "pointer" }}>Refresh invitations</button></div>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Partner","Referral code","Status","Linked owner user","Go-live date","Created"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.partners.map(p=><tr key={p.id}><td style={td}><b>{p.partner_name}</b><div style={small}>{p.partner_slug}</div></td><td style={td}>{p.referral_code}</td><td style={td}>{p.status}</td><td style={td}>{p.partner_user_id ?? "Not linked"}</td><td style={td}>{when(p.program_live_at)}</td><td style={td}>{when(p.created_at)}</td></tr>)}</tbody></table>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Partner","Referral code","Status","Linked owner user","Go-live date","Created"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.partners.map(p=><tr key={p.id}><td style={td}><b>{p.partner_name}</b><div style={small}>{p.partner_slug}</div></td><td style={td}>{p.referral_code}</td><td style={td}><b>{p.status}</b>{p.status!=="active"&&<div style={{marginTop:7}}><button type="button" onClick={()=>void activatePartner(p.id)} disabled={!p.partner_user_id||activationBusyId===p.id} title={!p.partner_user_id?"Partner owner must accept the invitation first":"Activate this partner programme"} style={{border:0,borderRadius:7,padding:"7px 10px",background:p.partner_user_id?"#16835D":"#E8EDF2",color:p.partner_user_id?"#fff":"#65788A",fontSize:11,fontWeight:700,cursor:p.partner_user_id?"pointer":"not-allowed"}}>{activationBusyId===p.id?"Activating…":p.partner_user_id?"Activate programme":"Awaiting owner"}</button></div>}</td><td style={td}>{p.partner_user_id ?? "Not linked"}</td><td style={td}>{when(p.program_live_at)}</td><td style={td}>{when(p.created_at)}</td></tr>)}</tbody></table>
+            {activationFeedback && <p role="status" style={{ ...small, marginTop: 10 }}>{activationFeedback}</p>}
             <h3 style={{ fontSize: 16, margin: "22px 0 10px" }}>Partner invitations</h3>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 900 }}><thead><tr>{["Partner","Partner contact","Contact email","Linked Ekhaya account","Invited","Accepted (SAST)","Expires","Status"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{partnerInvitations.map(inv=>{const partner=data.partners.find(p=>p.id===inv.partner_id);return <tr key={inv.id}><td style={td}>{partner?.partner_name || inv.partner_id}<div style={small}>{partner?.referral_code || "Referral code pending"}</div></td><td style={td}>{inv.contact_name || "—"}</td><td style={td}>{inv.invited_email}</td><td style={td}>{partner?.partner_user_id || (inv.status==="accepted"?"Linked account ID unavailable":"Not linked yet")}</td><td style={td}>{when(inv.invited_at)}</td><td style={td}>{when(inv.accepted_at)}</td><td style={td}>{when(inv.expires_at)}</td><td style={td}>{inv.status}</td></tr>;})}</tbody></table>
             {!partnerInvitations.length && <p style={small}>No invitations loaded yet. Select “Refresh invitations” to check the invitation ledger.</p>}
