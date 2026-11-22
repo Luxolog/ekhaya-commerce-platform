@@ -671,33 +671,6 @@ Deno.serve(async (req: Request) => {
   let partnerSupportCharged = false;
   let pilotCharged = false;
   const pilotUsageDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(new Date());
-  if (!isOwner && isActivePartner) {
-    const supportRequestId = body.request_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.request_id)
-      ? body.request_id : crypto.randomUUID();
-    body.request_id = supportRequestId;
-    const supportReserve = await fetch(new URL("/rest/v1/rpc/reserve_partner_support_search", supabaseUrl), {
-      method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
-      body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace, p_request_id: supportRequestId, p_search_query: query }),
-    });
-    const support = supportReserve.ok ? await supportReserve.json() : null;
-    if (!supportReserve.ok) return json({ error: "Could not verify partner support search allowance. Please try again." }, 503);
-    if (support?.allowed !== true) return json({ error: "Partner support search allowance is unavailable.", code: support?.reason ?? "PARTNER_SUPPORT_DENIED", usage: support }, 403);
-    if (support?.duplicate) return json({ error: "This partner support search request has already been processed. Please start a new search.", code: "DUPLICATE_REQUEST" }, 409);
-    partnerSupportCharged = true;
-  } else if (!isOwner && !isLinkedPartner) {
-    const pilotReserve = await fetch(new URL("/rest/v1/rpc/reserve_seller_pilot_search", supabaseUrl), {
-      method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
-      body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace }),
-    });
-    const pilot = pilotReserve.ok ? await pilotReserve.json() : null;
-    if (!pilotReserve.ok) return json({ error: "Could not verify pilot search allowance. Please try again." }, 503);
-    if (pilot?.allowed === true) pilotCharged = true;
-    else if (pilot?.reason === "PILOT_DAILY_LIMIT") return json({ error: "You have used all your marketplace searches for today. Your allowance resets at midnight South African time.", code: "PILOT_DAILY_LIMIT", usage: pilot }, 429);
-    else if (pilot?.reason === "PILOT_TOTAL_LIMIT") return json({ error: "You have used all 50 searches included in your five-day pilot.", code: "PILOT_TOTAL_LIMIT", usage: pilot }, 402);
-    else if (pilot?.reason === "PILOT_EXPIRED") return json({ error: "Your five-day seller pilot has ended.", code: "PILOT_EXPIRED", usage: pilot }, 402);
-    else if (pilot?.reason !== "PILOT_NOT_ACTIVE") return json({ error: "Your seller pilot access is not available for this marketplace.", code: pilot?.reason ?? "PILOT_ACCESS_ERROR", usage: pilot }, 403);
-  }
-
   const requestId = body.request_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.request_id)
     ? body.request_id : crypto.randomUUID();
   const lookupKey = query.toLowerCase().replace(/\s+/g, " ") + (marketplace === "makro" && postalCode ? `:postal:${postalCode}` : "");
@@ -722,24 +695,8 @@ Deno.serve(async (req: Request) => {
       const cachedRelated = cachedRanked.related_products;
       const cachedAccessories = cachedRanked.accessories;
       const cachedTotal = cachedProducts.length + cachedRelated.length + cachedAccessories.length;
-      // Cache hits are free for every account type. Allowances are only reserved
-      // after the cache-miss path has been selected below.
+      // Shared cache responses are free: no seller, pilot or partner allowance is reserved.
       const cacheCreditCharged = false;
-      if (pilotCharged) {
-        await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
-          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
-          body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }),
-        });
-        pilotCharged = false;
-      }
-      if (partnerSupportCharged) {
-        const supportRefund = await fetch(new URL("/rest/v1/rpc/refund_partner_support_search", supabaseUrl), {
-          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
-          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }),
-        });
-        if (!supportRefund.ok) console.error("Could not release partner support allowance for cache hit:", await supportRefund.text());
-        else partnerSupportCharged = false;
-      }
       if (!isOwner && !isActivePartner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:cachedTotal,result_status:cachedTotal?"success":"empty",source:fresh?"cache":"stale-cache"})});
       return json({
         source: fresh ? "cache" : "stale-cache",
@@ -752,6 +709,32 @@ Deno.serve(async (req: Request) => {
         refresh_paused: !fresh,
         credit_charged: cacheCreditCharged,
       });
+    }
+
+    // Reserve a single entitlement only after a cache miss has been confirmed.
+    // A cache hit never consumes a seller credit, pilot search or partner support search.
+    if (!isOwner && isActivePartner) {
+      const supportReserve = await fetch(new URL("/rest/v1/rpc/reserve_partner_support_search", supabaseUrl), {
+        method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace, p_request_id: requestId, p_search_query: query }),
+      });
+      const support = supportReserve.ok ? await supportReserve.json() : null;
+      if (!supportReserve.ok) return json({ error: "Could not verify partner support search allowance. Please try again." }, 503);
+      if (support?.allowed !== true) return json({ error: "Partner support search allowance is unavailable.", code: support?.reason ?? "PARTNER_SUPPORT_DENIED", usage: support }, 403);
+      if (support?.duplicate) return json({ error: "This partner support search request has already been processed. Please start a new search.", code: "DUPLICATE_REQUEST" }, 409);
+      partnerSupportCharged = true;
+    } else if (!isOwner && !isLinkedPartner) {
+      const pilotReserve = await fetch(new URL("/rest/v1/rpc/reserve_seller_pilot_search", supabaseUrl), {
+        method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace }),
+      });
+      const pilot = pilotReserve.ok ? await pilotReserve.json() : null;
+      if (!pilotReserve.ok) return json({ error: "Could not verify pilot search allowance. Please try again." }, 503);
+      if (pilot?.allowed === true) pilotCharged = true;
+      else if (pilot?.reason === "PILOT_DAILY_LIMIT") return json({ error: "You have used all your marketplace searches for today. Your allowance resets at midnight South African time.", code: "PILOT_DAILY_LIMIT", usage: pilot }, 429);
+      else if (pilot?.reason === "PILOT_TOTAL_LIMIT") return json({ error: "You have used all 50 searches included in your five-day pilot.", code: "PILOT_TOTAL_LIMIT", usage: pilot }, 402);
+      else if (pilot?.reason === "PILOT_EXPIRED") return json({ error: "Your five-day seller pilot has ended.", code: "PILOT_EXPIRED", usage: pilot }, 402);
+      else if (pilot?.reason !== "PILOT_NOT_ACTIVE") return json({ error: "Your seller pilot access is not available for this marketplace.", code: pilot?.reason ?? "PILOT_ACCESS_ERROR", usage: pilot }, 403);
     }
 
     const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
