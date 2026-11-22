@@ -162,6 +162,8 @@ export function rankMarketplaceProducts<T extends Record<string,unknown>>(items:
     const identity = String(stableId ?? (canonicalUrl || fallbackTitle)).toLowerCase();
     return {...p,relevance_score:Math.round(score),match_classification:classification,result_group,condition_label,_identity:identity};
   }).filter(p=>{
+    // Explicit part/accessory searches must not be diluted by complete devices or weak unrelated parts.
+    if (intent.accessoryIntent && (!isAccessory(textOf(p)) || p.relevance_score < 25)) return false;
     if(seen.has(p._identity)) return false;
     seen.add(p._identity); return true;
   }).sort((a,b)=>b.relevance_score-a.relevance_score);
