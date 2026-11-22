@@ -121,6 +121,19 @@ export default function AccountPage() {
     const inviteId = new URLSearchParams(window.location.search).get("partner_invite");
     const authErrorCode = params.get("error_code") || new URLSearchParams(window.location.search).get("error_code");
     const authErrorDescription = params.get("error_description") || new URLSearchParams(window.location.search).get("error_description");
+    if(!inviteId && (authErrorCode || authErrorDescription)) {
+      const description = (authErrorDescription || "").replace(/\\+/g, " ");
+      if(authErrorCode === "otp_expired" || authErrorCode === "access_denied") {
+        setMode("reset");
+        setRecoveryToken("");
+        setPassword("");
+        setMessage("This password reset link has expired or is invalid. Enter your email below and request a fresh reset link. Open the newest email promptly.");
+      } else {
+        setMessage(description || "We could not verify this account link. Please request a new one.");
+      }
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+      return;
+    }
     if(inviteId && (authErrorCode || authErrorDescription)) {
       setPartnerInvitationId(inviteId);
       setRecoveryToken("");
