@@ -197,3 +197,95 @@ The new guard tests are deterministic unit tests; they are not a substitute for 
 - PR dependency-base reconciliation and a controlled test release require explicit release planning.
 
 **Current decision remains NOT READY FOR CONTROLLED TESTING.**
+
+
+## 10. Expanded migration-history and Edge Function drift findings
+
+### Migration history is not reproducible from this branch
+
+A fresh recursive Git tree comparison found:
+- Production Supabase migration history: **44 applied versions**.
+- Current feature branch: **14 SQL migration files**.
+- PR #33 base branch: **11 SQL migration files**.
+- Only three migration version identifiers match exactly between the live history and the current feature branch.
+- Forty-one live migration version identifiers have no exact corresponding SQL file in the current branch.
+
+The production history includes the following versions that are not present as exact versioned migration files on the feature branch:
+
+```text
+20261111203109
+20261112033301
+20261112034039
+20261112124422
+20261112134433
+20261112135801
+20261112140024
+20261112140116
+20261112153024
+20261112154421
+20261114065854
+20261114065907
+20261114092931
+20261114102708
+20261114105114
+20261114192317
+20261114192915
+20261114192932
+20261115023056
+20261115025620
+20261115065935
+20261115070811
+20261115073917
+20261115083123
+20261115113533
+20261115114312
+20261115114431
+20261115114446
+20261115171536
+20261115171645
+20261115173542
+20261119181448
+20261119181457
+20261119181559
+20261119211157
+20261121003409
+20261121021942
+20261121143253
+20261121143341
+20261122043516
+20261122043601
+```
+
+Some branch files appear to represent similar feature areas but use different timestamps/names. Similar names are not proof that SQL contents, execution order or schema effects are equivalent. Do not mark these as reconciled without a migration-by-migration content comparison against an authoritative source. Do not fabricate replacement migration files from names or current schema alone.
+
+**Release impact:** migration ordering and clean-environment reproducibility are BLOCKED. Before controlled testing or a release, the owner must establish an authoritative migration archive from the deployment history/source-control records, compare each SQL definition and dependency, and then decide how to reconcile historical migrations without reapplying them to production. Never rename already-applied migration versions casually or rerun historical DDL against production.
+
+### Live Edge Function source comparison
+
+Current live versions were checked against branch source on 2026-11-22:
+
+| Function | Live version | JWT | Source comparison |
+|---|---:|---:|---|
+| `marketplace-search` | 59 | true | DIFFERENT. Live owner profile query selects `id,display_name,plan_code,account_status`; branch additionally selects `account_id`. The branch therefore depends on the unapplied account-ID migration. |
+| `product-identify` | 15 | true | DIFFERENT. Live source is materially shorter than branch source; do not deploy without a full behavioural/security diff and isolated tests. |
+| `invite-saechamber-partner` | 12 | true | DIFFERENT. Live source still checks `existingUser.encrypted_password`; branch removes that unsupported inference and preserves existing passwords. |
+| `accept-saechamber-partner-invitation` | 5 | true | Exact entrypoint source match. |
+| `notification-worker` | 13 | false | DIFFERENT. Live source still contains the recursive HTML fallback initializer; branch changes the fallback to an empty string. |
+| `partner-admin-email-otp` | 1 | true | Exact entrypoint source match. |
+| `paystack-billing` | 3 | false | No corresponding source directory/file exists in the current branch tree. |
+| `marketplace-search-test` | 16 | true | Live function exists; no corresponding source directory/file exists in the current branch tree. |
+
+The two previously corrected defects in invitation handling and notification HTML are therefore **branch fixes only**, not production fixes. This sprint deliberately did not deploy them. The production source differences are release blockers requiring an owner-reviewed deployment plan, regression tests and version-specific comparison.
+
+`notification-worker` and `paystack-billing` have JWT verification disabled in the live project; their in-function worker authentication and webhook signature checks must be reviewed before any change to their deployed code or JWT settings.
+
+## 11. Latest sprint implementation and CI status
+
+- Latest branch HEAD: `72928d93a0a197aa4e682a98538d69a7f079c9b8`.
+- Signup acknowledgement and referral matching helper added and integrated into the account page.
+- Deno unit tests added for those pure guards and wired into `.github/workflows/security.yml`.
+- Latest branch secret-scanning workflow completed successfully.
+- Latest quality/security push and PR workflows were still pending/in progress at the time of this update; no passing result is claimed for this latest HEAD.
+- PR #33 remains open, unmerged and based on `feature/partner-admin-email-otp`.
+
+**Decision remains NOT READY.** The branch has new unit coverage, but full auth E2E, isolated Supabase/SMTP testing, migration-history reconciliation, production Auth dashboard settings, and the Edge Function release differences remain unresolved.
