@@ -2,7 +2,7 @@
 
 | Blocker | Owner / dependency | Required action | Production approval? |
 |---|---|---|---|
-| Local Supabase database harness not yet executed | Engineering / GitHub Actions runner | Run the newly added local Supabase workflow; add behavioural transaction fixtures after validating migration bootstrap | No production approval; local only |
+| Behavioural SQL/concurrency suite incomplete | Engineering / isolated Supabase | Extend the now-passing clean replay and 48 contract assertions with transaction, concurrency, rollback and lifecycle fixtures | No production approval; local only |
 | Invitation and activation full E2E not run | Engineering + isolated Supabase | Test owner create, duplicate rejection, invite, accept, account link and activate | No, if isolated |
 | Atomic partner acceptance integration coverage | Engineering + isolated Supabase | Test atomic RPC under concurrent acceptance, duplicate referral code, wrong email, expiry and rollback | No, if isolated |
 | Live referral signup and attribution row unverified | QA + isolated Supabase | Complete controlled signup and inspect resulting referral row | No, if isolated |
@@ -11,7 +11,7 @@
 | Takealot orchestration tests missing | Engineering | Add mocked provider adapter tests for initial + two follow-up calls, partial failures, deduplication and per-attempt usage ledger | Branch-only first; no deployment |
 | Credit lifecycle SQL integration coverage missing | Engineering | Test pilot/partner reserve, complete and refund RPCs for duplicate IDs, exactly-once refunds, daily/total caps and concurrent requests in isolated Supabase | Branch-only |
 | Provider timeout/partial failure coverage missing | Engineering | Test provider timeouts, non-2xx responses, failed-call reported charges and request IDs; confirm successful Takealot results survive failed follow-ups | Branch-only |
-| Billing source/webhook idempotency not verifiable | Engineering + payment sandbox | Locate authoritative billing source and add sandbox tests | No real payments |
+| Full billing webhook/renewal lifecycle not verified | Engineering + payment sandbox | Test payment webhook idempotency, renewal/reminder jobs and full payment state transitions using mocks/sandbox; keep checkout gate disabled | No real payments |
 | Production/branch migration reconciliation unavailable | Owner / Supabase access | Read-only inventory, staging preflight, migration diff | Approval before production migration |
 | RLS/Auth dashboard settings unverified | Owner / Supabase access | Inspect private table RLS, leaked-password protection and redirect allowlist | Do not change without approval |
 | Deployed Edge Function source parity unverified | Owner / Supabase access | Compare deployed source with branch, especially marketplace-search v59 | No deployment |
@@ -103,3 +103,34 @@ Audited commit: `59dcd4c3a8721469f5a763ad1099492e7a5c02e5`. PR #33 remains open 
 Do not add a guessed partner foundation, placeholder financial table, copied legacy partner model, removed financial FK or weakened RLS policy. Obtain authoritative schema and security contracts first, then implement the ordered foundation and repeat clean replay. Keep Vercel and production Supabase untouched for this batch.
 
 **Release recommendation: NOT READY.**
+
+
+## Batch 9 remediation update — 2026-11-22
+
+**Tested code head:** `8f1f583a706f820894942e7e86542c0d56de773f`  
+**PR #33:** still open and unmerged.
+
+### Resolved on the feature branch
+
+- Added `20261121020000_partner_payment_foundation.sql` before `20261121023000_public_active_referral_partners.sql`. It creates the verified partner, invitation, owner access, referral, commission, statements, rate schedule, notification, payment, subscription billing, billing plan and paid-credit allocation contracts.
+- Preserved the non-null unique `partner_commission_ledger.payment_transaction_id` foreign key to `payment_transactions(id)`.
+- Restored the idempotent paid-credit allocation function and payment-completion trigger from live catalog definitions.
+- Corrected the conflicting partner auto-activation trigger and status default so newly created programmes remain pending until the explicit acceptance/activation flow.
+- Wrapped the exclusive `LOCK TABLE public.profiles` in `20261122090359_standard_ekhaya_account_ids.sql` in an explicit transaction.
+
+### Verification passed
+
+- [Local Supabase database tests — run 45057734774](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45057734774): all 21 migrations replayed successfully; 48 pgTAP assertions passed across two SQL test files; isolated stack stopped cleanly.
+- [Quality — run 45057738336](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45057738336): ESLint, TypeScript and production build PASS.
+- [Security — run 45057738264](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45057738264): CodeQL, secret scanning, dependency audit and Supabase Edge Function type-check PASS.
+- [Ekhaya Security Scanning — run 45057734776](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45057734776): PASS.
+
+### Remaining blockers
+
+- Behavioural SQL tests for concurrent partner acceptance, invitation replay, referral attribution, reserve/complete/refund exactly-once behaviour and transaction rollback.
+- Full seller signup/workspace and owner partner create/invite/accept/link/activate E2E.
+- Full payment webhook, renewal/reminder and SMTP delivery verification. The current Paystack Edge Function release gate is disabled; no provider calls or real payments were made.
+- Production migration provenance remains different: 51 applied production migration records versus 21 source migrations in the branch. The successful clean replay proves the branch's own ordered chain, not that every production migration is represented or safely reconciled.
+- Performance/load tests, environment inventory, deployed Edge Function parity and final runbook review remain open.
+
+**Release recommendation remains NOT READY for production deployment or live onboarding.** The database replay and contract gates are now green; behavioural, operational and production-parity gates remain.
