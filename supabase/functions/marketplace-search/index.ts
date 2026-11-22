@@ -81,6 +81,16 @@ Deno.serve(async (req: Request) => {
   const appMetadata = (user.app_metadata ?? {}) as Record<string, unknown>;
   const isOwner = appMetadata.role === "owner" || appMetadata.is_owner === true;
 
+  // Partner identity is resolved from the database, never from user-editable metadata.
+  const partnerLookup = new URL("/rest/v1/partner_programs", supabaseUrl);
+  partnerLookup.searchParams.set("partner_user_id", "eq." + userId);
+  partnerLookup.searchParams.set("select", "id,status");
+  const partnerResponse = await fetch(partnerLookup, { headers: adminHeaders });
+  if (!partnerResponse.ok) return json({ error: "Could not verify partner support access." }, 503);
+  const partnerPrograms = await partnerResponse.json();
+  const isLinkedPartner = Array.isArray(partnerPrograms) && partnerPrograms.length > 0;
+  const isActivePartner = isLinkedPartner && partnerPrograms.some((p: Record<string, unknown>) => p.status === "active");
+
   let body: { marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean; [key: string]: unknown };
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
   // Backward-compatible action names used by the current owner dashboard.
@@ -646,9 +656,26 @@ Deno.serve(async (req: Request) => {
   }
   if (body.force_refresh && !isOwner) return json({ error: "Only the Ekhaya owner can force a live cache refresh." }, 403);
 
+  if (isLinkedPartner && !isActivePartner) {
+    return json({ error: "Your partner programme is not active. Partner support searches are unavailable.", code: "PARTNER_PROGRAM_INACTIVE" }, 403);
+  }
+  let partnerSupportCharged = false;
   let pilotCharged = false;
   const pilotUsageDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(new Date());
-  if (!isOwner) {
+  if (!isOwner && isActivePartner) {
+    const supportRequestId = body.request_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.request_id)
+      ? body.request_id : crypto.randomUUID();
+    body.request_id = supportRequestId;
+    const supportReserve = await fetch(new URL("/rest/v1/rpc/reserve_partner_support_search", supabaseUrl), {
+      method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace, p_request_id: supportRequestId, p_search_query: query }),
+    });
+    const support = supportReserve.ok ? await supportReserve.json() : null;
+    if (!supportReserve.ok) return json({ error: "Could not verify partner support search allowance. Please try again." }, 503);
+    if (support?.allowed !== true) return json({ error: "Partner support search allowance is unavailable.", code: support?.reason ?? "PARTNER_SUPPORT_DENIED", usage: support }, 403);
+    if (support?.duplicate) return json({ error: "This partner support search request has already been processed. Please start a new search.", code: "DUPLICATE_REQUEST" }, 409);
+    partnerSupportCharged = true;
+  } else if (!isOwner && !isLinkedPartner) {
     const pilotReserve = await fetch(new URL("/rest/v1/rpc/reserve_seller_pilot_search", supabaseUrl), {
       method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
       body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace }),
@@ -689,7 +716,7 @@ Deno.serve(async (req: Request) => {
       const cachedAccessories = cachedRanked.accessories;
       const cachedTotal = cachedProducts.length + cachedRelated.length + cachedAccessories.length;
       let cacheCreditCharged = false;
-      if (!isOwner && !pilotCharged) {
+      if (!isOwner && !pilotCharged && !partnerSupportCharged) {
         const reserve = await fetch(new URL("/rest/v1/rpc/reserve_monthly_search_credit", supabaseUrl), {
           method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
           body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace, p_request_id: requestId }),
@@ -748,7 +775,7 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Search limit reached. Please try again in an hour." }, 429);
     }
 
-    let charged = !isOwner && !pilotCharged;
+    let charged = !isOwner && !pilotCharged && !partnerSupportCharged;
     if (charged) {
       const reserve = await fetch(new URL("/rest/v1/rpc/reserve_monthly_search_credit", supabaseUrl), {
         method: "POST",
