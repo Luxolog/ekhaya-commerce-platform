@@ -891,8 +891,10 @@ Deno.serve(async (req: Request) => {
 
         let discoveryRanked = rankMarketplaceProducts(raw, intent);
         const discoveryResults = [...discoveryRanked.products, ...discoveryRanked.related_products, ...discoveryRanked.accessories];
-        const additionalQueries = selectAdditionalDiscoveryQueries(intent, discoveryResults, usedQueries, 2);
-        for (const discoveryQuery of additionalQueries) {
+        for (let additionalAttempt = 0; additionalAttempt < 2; additionalAttempt++) {
+          const currentResults = [...discoveryRanked.products, ...discoveryRanked.related_products, ...discoveryRanked.accessories];
+          const discoveryQuery = selectAdditionalDiscoveryQueries(intent, currentResults, usedQueries, 1)[0];
+          if (!discoveryQuery) break;
           usedQueries.push(discoveryQuery);
           try {
             const additionalPayload = await callTakealot(discoveryQuery);
