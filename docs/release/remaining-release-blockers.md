@@ -4,19 +4,27 @@
 |---|---|---|---|
 | Isolated Supabase Auth + database test environment absent | Owner / platform setup | Provide isolated project, test users and non-production secrets | No production approval; separate test setup |
 | Invitation and activation full E2E not run | Engineering + isolated Supabase | Test owner create, duplicate rejection, invite, accept, account link and activate | No, if isolated |
-| Invitation linking/status update is a multi-step write | Engineering | Design and test atomic acceptance/rollback behaviour | Yes before any production change |
+| Atomic partner acceptance integration coverage | Engineering + isolated Supabase | Test atomic RPC under concurrent acceptance, duplicate referral code, wrong email, expiry and rollback | No, if isolated |
 | Live referral signup and attribution row unverified | QA + isolated Supabase | Complete controlled signup and inspect resulting referral row | No, if isolated |
 | SMTP delivery unverified | Owner / email provider | Configure sandbox and test owner + partner notifications | No real recipients |
 | Seller signup/workspace E2E unverified | QA + isolated Supabase | Verify email confirmation, acknowledgements, referral and workspace | No, if isolated |
-| Query planner not integrated with provider orchestration | Engineering | Implement bounded adapter flow with budget and failure tests | Branch-only first; no deployment |
-| Credit lifecycle integration coverage missing | Engineering | Mock RPC/provider adapters for cache, retries, failure, duplicate and concurrency cases | Branch-only |
-| Provider timeout/partial failure coverage missing | Engineering | Add deterministic mocked adapter tests | Branch-only |
+| Takealot orchestration tests missing | Engineering | Add mocked provider adapter tests for initial + two follow-up calls, partial failures, deduplication and per-attempt usage ledger | Branch-only first; no deployment |
+| Credit lifecycle integration coverage missing | Engineering | Mock RPC/provider adapters for cache hits, retries, refunds, duplicate requests and concurrent limits; verify cache-hit release for pilot and partner allowances | Branch-only |
+| Provider timeout/partial failure coverage missing | Engineering | Test provider timeouts, non-2xx responses, failed-call reported charges and request IDs; confirm successful Takealot results survive failed follow-ups | Branch-only |
 | Billing source/webhook idempotency not verifiable | Engineering + payment sandbox | Locate authoritative billing source and add sandbox tests | No real payments |
 | Production/branch migration reconciliation unavailable | Owner / Supabase access | Read-only inventory, staging preflight, migration diff | Approval before production migration |
 | RLS/Auth dashboard settings unverified | Owner / Supabase access | Inspect private table RLS, leaked-password protection and redirect allowlist | Do not change without approval |
 | Deployed Edge Function source parity unverified | Owner / Supabase access | Compare deployed source with branch, especially marketplace-search v59 | No deployment |
 | PR dependency branch needs reconciliation | Engineering / owner | Review commits in `feature/partner-admin-email-otp` and determine safe base before release | Owner review before base/merge change |
 | Vercel deployment rate limit | Owner / hosting | Previous bot report shows `api-deployments-free-per-day`; do not retry until deliberately approved | Yes |
+
+## Prompt 10 implementation update
+
+- Bounded Takealot discovery is integrated in branch source (one initial query plus up to two targeted follow-ups).
+- Takealot provider attempts are written individually to the usage ledger, including provider-reported credits and request IDs when available.
+- Cache hits no longer reserve monthly seller credits. Pilot reservations are released on cache hits; a service-role-only partner support refund RPC was added for the same purpose.
+- Atomic partner invitation acceptance is implemented through a service-role-only database RPC and used by the acceptance Edge Function.
+- These are source-level changes. New migrations are not applied, and isolated database/provider integration tests remain outstanding.
 
 ## Release decision
 
