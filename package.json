@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "cap:sync": "cap sync android",
-    "android:debug": "cap sync android && cd android && ./gradlew assembleDebug"
+    "android:debug": "cap sync android && cd android && ./gradlew assembleDebug",
+    "prebuild": "node scripts/generate-icons.mjs",
+    "verify:pwa": "node scripts/verify-pwa.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",
@@ -26,7 +28,8 @@
     "eslint": "^9.0.0",
     "eslint-config-next": "^15.3.0",
     "typescript": "^5.8.0",
-    "@eslint/eslintrc": "^3.3.1"
+    "@eslint/eslintrc": "^3.3.1",
+    "sharp": "^0.34.3"
   },
   "overrides": {
     "postcss": "^8.5.23",
