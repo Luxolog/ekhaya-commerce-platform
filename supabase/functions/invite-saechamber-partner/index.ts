@@ -94,6 +94,32 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ success: true, partner, message: "Partner programme registered in pending status. It will not attribute referrals until activated." }), { status: 201, headers: cors });
   }
 
+  if (body.action === "activate_partner") {
+    const partnerId = typeof body.partner_id === "string" ? body.partner_id.trim() : "";
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(partnerId)) {
+      return new Response(JSON.stringify({ error: "Select a valid partner programme." }), { status: 400, headers: cors });
+    }
+    const { data: partner, error: partnerError } = await admin.from("partner_programs")
+      .select("id,partner_name,partner_slug,referral_code,partner_user_id,status,program_live_at")
+      .eq("id", partnerId).maybeSingle();
+    if (partnerError || !partner) return new Response(JSON.stringify({ error: "Partner programme not found." }), { status: 404, headers: cors });
+    if (partner.status === "active") return new Response(JSON.stringify({ success: true, partner, message: "This partner programme is already active." }), { status: 200, headers: cors });
+    if (!partner.partner_user_id) return new Response(JSON.stringify({ error: "The partner owner must accept the invitation and link their Ekhaya account before activation." }), { status: 409, headers: cors });
+    const { data: acceptedInvite, error: acceptedInviteError } = await admin.from("partner_invitations")
+      .select("id").eq("partner_id", partnerId).eq("status", "accepted").limit(1).maybeSingle();
+    if (acceptedInviteError || !acceptedInvite) return new Response(JSON.stringify({ error: "No accepted partner invitation was found. Activation is blocked until the invitation is accepted." }), { status: 409, headers: cors });
+    const activatedAt = new Date().toISOString();
+    const { data: activated, error: activationError } = await admin.from("partner_programs")
+      .update({ status: "active", program_live_at: activatedAt, updated_at: activatedAt })
+      .eq("id", partnerId).eq("partner_user_id", partner.partner_user_id)
+      .select("id,partner_name,partner_slug,referral_code,partner_user_id,status,program_live_at,created_at").maybeSingle();
+    if (activationError || !activated) {
+      console.error("Partner activation failed:", activationError);
+      return new Response(JSON.stringify({ error: "Could not activate this partner programme. Refresh and try again." }), { status: 500, headers: cors });
+    }
+    return new Response(JSON.stringify({ success: true, partner: activated, message: "Partner programme activated. New referrals can now be attributed." }), { status: 200, headers: cors });
+  }
+
   if (body.action === "list") {
     const { data, error } = await admin.from("partner_invitations")
       .select("id,partner_id,invited_email,contact_name,status,invited_at,expires_at,accepted_at")
