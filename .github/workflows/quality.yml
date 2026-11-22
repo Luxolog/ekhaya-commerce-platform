@@ -4,10 +4,11 @@ on:
   push:
     branches:
       - main
+      - feature/saechamber-public-showcase
   pull_request:
     branches:
       - main
-      - feature/partner-admin-email-otp
+      - feature/saechamber-public-showcase
 
 permissions:
   contents: read
