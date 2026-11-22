@@ -131,3 +131,35 @@ Deno.test("uses marketplace product identifiers as the strongest listing identit
  ],intent);
  assertEquals(result.products.length + result.related_products.length,1);
 });
+
+
+Deno.test("recognises Dell Inspiron charging-jack intent instead of treating it as a laptop search",()=>{
+ const intent=understandProductQuery("dell inspiron 15 3000 charging jack");
+ assertEquals(intent.category,"charger");
+ assertEquals(intent.accessoryIntent,true);
+ assertEquals(intent.normalizedQuery,"dell inspiron 15 3000 charging jack");
+});
+
+Deno.test("ranks matching Dell DC charging jacks above complete laptops for an accessory query",()=>{
+ const intent=understandProductQuery("dell inspiron 15 3000 charging jack");
+ const result=rankMarketplaceProducts([
+  {id:"jack",title:"Kanyisa DC Power Charging Jack For Dell Inspiron 15 3000 3558",brand:"Kanyisa"},
+  {id:"laptop",title:"Refurbished Dell Inspiron 15 3000 Laptop",brand:"Dell"},
+  {id:"wrong-jack",title:"HP DC Power Charging Jack For EliteBook 840",brand:"HP"}
+ ],intent);
+ assertEquals(result.products.length,1);
+ assertEquals(result.products[0].id,"jack");
+ assertEquals(result.products[0].match_classification,"Exact match");
+ assertEquals(result.related_products.some(p=>p.id==="laptop"),true);
+ assertEquals(result.related_products.some(p=>p.id==="wrong-jack"),true);
+});
+
+Deno.test("keeps laptop replacement parts out of primary laptop results",()=>{
+ const intent=understandProductQuery("dell inspiron 15 3000 laptop");
+ const result=rankMarketplaceProducts([
+  {id:"laptop",title:"Dell Inspiron 15 3000 Laptop",brand:"Dell"},
+  {id:"jack",title:"DC Charging Jack For Dell Inspiron 15 3000",brand:"Generic"}
+ ],intent);
+ assertEquals(result.products.some(p=>p.id==="laptop"),true);
+ assertEquals(result.accessories.some(p=>p.id==="jack"),true);
+});
