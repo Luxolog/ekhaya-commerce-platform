@@ -683,7 +683,11 @@ Deno.serve(async (req: Request) => {
     const settings = settingsRows?.[0] ?? { refresh_enabled: true, cache_ttl_minutes: 360 };
     const fresh = cache && new Date(cache.expires_at) > new Date();
     if (cache && !body.force_refresh && (fresh || settings.refresh_enabled === false)) {
-      const cachedRanked = rankMarketplaceProducts(cache.source_payload?.raw_products ?? cache.source_payload?.products ?? [], intent);\n      const cachedProducts = cache.source_payload?.products ? cache.source_payload.products : cachedRanked.products;\n      const cachedRelated = cache.source_payload?.related_products ?? cachedRanked.related_products;\n      const cachedAccessories = cache.source_payload?.accessories ?? cachedRanked.accessories;\n      const cachedTotal = cachedProducts.length + cachedRelated.length + cachedAccessories.length;
+      const cachedRanked = rankMarketplaceProducts(cache.source_payload?.raw_products ?? cache.source_payload?.products ?? [], intent);
+      const cachedProducts = cachedRanked.products;
+      const cachedRelated = cachedRanked.related_products;
+      const cachedAccessories = cachedRanked.accessories;
+      const cachedTotal = cachedProducts.length + cachedRelated.length + cachedAccessories.length;
       let cacheCreditCharged = false;
       if (!isOwner && !pilotCharged) {
         const reserve = await fetch(new URL("/rest/v1/rpc/reserve_monthly_search_credit", supabaseUrl), {
