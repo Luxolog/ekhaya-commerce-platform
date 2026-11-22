@@ -19,8 +19,10 @@ The current branch contains migrations including:
 - `20261122043000_partner_acceptance_notification_details.sql`
 - `20261122090359_standard_ekhaya_account_ids.sql`
 - `20261122120000_partner_referral_signup_email.sql`
+- `20261122143000_atomic_saechamber_partner_acceptance.sql`
+- `20261122160000_partner_support_cache_hit_refunds.sql`
 
-These are branch files only. Their presence does not mean they are applied to production.
+These are branch files only. Their presence does not mean they are applied to production. The latest atomic partner acceptance and partner-support cache-refund migrations have not been applied to any Supabase environment.
 
 ## Unverified production dependencies
 
