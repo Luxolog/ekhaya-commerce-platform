@@ -3,7 +3,7 @@
 **Audit date:** 2026-11-22  
 **Repository:** `Luxolog/ekhaya-commerce-platform`  
 **Branch:** `feature/saechamber-public-showcase`  
-**Audited head:** `80c0862fde0b9e40644eeb412184ce23d3d85bc3`  
+**Audited head:** `4efb61bb2038e7309d7cb35663bdaf43a429c6ed`  
 **PR:** [#33](https://github.com/Luxolog/ekhaya-commerce-platform/pull/33), open and unmerged
 
 ## Executive result
@@ -28,7 +28,7 @@ This is a conservative engineering estimate using the weighted scorecard below. 
 
 ## Verified CI on audited head
 
-Commit: `80c0862fde0b9e40644eeb412184ce23d3d85bc3`
+Commit: `4efb61bb2038e7309d7cb35663bdaf43a429c6ed`
 
 - [Quality checks run 45010909803](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45010909803): passed — ESLint, TypeScript and Next.js production build.
 - [Security checks run 45010909826](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45010909826): passed — Gitleaks, dependency audit, CodeQL, Edge Function type-check and Deno regression tests.
