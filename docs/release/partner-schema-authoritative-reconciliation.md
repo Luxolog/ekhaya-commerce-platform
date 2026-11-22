@@ -220,3 +220,16 @@ This is a critical advisor result. These tables are in the `private` schema, so 
 - Recover full function definitions and privileges for payment/webhook/notification processing and partner acceptance.
 - Reconcile migration version drift against object definitions and the production history.
 - Assemble the complete dependency chain in a disposable local Supabase environment; only then design a forward-only migration and prove empty-database replay.
+
+
+## 9. Batch 9 implementation update
+
+Commit: `924775d32a88f55090601ae5fc0ba70706a9a233`.
+
+A forward-only branch migration, `supabase/migrations/20261121020000_partner_payment_foundation.sql`, now establishes the verified partner/payment schema before `20261121023000_public_active_referral_partners.sql`. It uses the live catalog's current columns, keys, constraints, indexes, RLS policies and grants, and the documented current partner trigger/notification logic. It does not create a substitute payment table or weaken the commission foreign key.
+
+The migration also removes the conflicting `ensure_partner_program_active_before_insert` trigger. Live catalog inspection showed that trigger forced all newly inserted partner programmes to active, while the current owner-registration service creates them pending and the activation endpoint explicitly requires accepted invitation + linked account. The forward migration therefore preserves the current application workflow: a newly registered programme remains pending until the explicit activation action. This change is branch-only and has not been applied to production.
+
+A pgTAP test file, `supabase/tests/partner-foundation.test.sql`, covers table existence, RLS, commission-payment FK uniqueness, notification idempotency, service-role write access and pending-by-default behaviour.
+
+**Important remaining limit:** this migration restores the table needed by partner commission integrity, but does not recreate the complete production subscription billing/webhook/paid-credit allocation subsystem. The original `subscription_billing_foundation` migration source and the `allocate_search_credits_after_payment` dependency chain remain absent. Do not call the full billing foundation restored until those migrations/functions and their tests are added. Local migration replay and pgTAP results are still pending final CI confirmation.
