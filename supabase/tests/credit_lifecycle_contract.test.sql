@@ -1,6 +1,6 @@
 begin;
 
-select plan(20);
+select plan(23);
 
 select ok(
   to_regclass('public.seller_pilot_search_events') is not null,
@@ -90,6 +90,18 @@ select ok(
 select ok(
   to_regprocedure('public.accept_saechamber_partner_invitation(uuid,uuid,text,text)') is not null,
   'atomic partner invitation acceptance function exists'
+);
+select ok(
+  (select prosecdef from pg_proc where oid='public.accept_saechamber_partner_invitation(uuid,uuid,text,text)'::regprocedure),
+  'atomic partner acceptance function is SECURITY DEFINER'
+);
+select ok(
+  not has_function_privilege('anon','public.accept_saechamber_partner_invitation(uuid,uuid,text,text)','EXECUTE'),
+  'anonymous users cannot execute partner invitation acceptance'
+);
+select ok(
+  has_function_privilege('service_role','public.accept_saechamber_partner_invitation(uuid,uuid,text,text)','EXECUTE'),
+  'service role can execute partner invitation acceptance'
 );
 
 select * from finish();
