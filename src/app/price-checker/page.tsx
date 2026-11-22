@@ -219,7 +219,7 @@ export default function PriceCheckerPage() {
       {p.url&&<a href={p.url} target="_blank" rel="noreferrer">View marketplace listing ↗</a>}</div></article>;
   };
   return <main className="page">
-    <header className="top"><Link href="/" aria-label="Ekhaya Technologies home"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={900} height={300} className="logo" priority/></Link><span className="pill">PRICE INTELLIGENCE · LIVE RESEARCH</span><Link href="/account/" className="pill">SELLER ACCOUNT</Link></header>
+    <header className="top"><Link href="/" aria-label="Ekhaya Technologies home" style={{display:"block",width:"220px",minWidth:"220px",flex:"0 0 220px"}}><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={900} height={300} className="logo" priority style={{display:"block",width:"100%",height:"auto",maxWidth:"100%"}}/></Link><span className="pill">PRICE INTELLIGENCE · LIVE RESEARCH</span><Link href="/account/" className="pill">SELLER ACCOUNT</Link></header>
     <section className="hero"><p className="eyebrow">SELL SMARTER. PRICE WITH CONFIDENCE.</p><h1>Know your numbers<br/><em>before you buy.</em></h1><p>Find a product, enter your buying price and compare estimated profit after marketplace fulfilment fees.</p></section>
     <section className="panel">
       <div className="heading"><div><small>01 / FIND A PRODUCT</small><h2>How would you like to search?</h2></div><span className="connected">● MARKETPLACE DATA</span></div>
