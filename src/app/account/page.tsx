@@ -30,6 +30,9 @@ export default function AccountPage() {
   const [signedIn,setSignedIn] = useState(false);
   const [availableRoles,setAvailableRoles] = useState<string[]>([]);
   const [checkingAccess,setCheckingAccess] = useState(false);
+  const [pendingPartnerInvitation,setPendingPartnerInvitation] = useState<{id:string;partner_name:string;partner_slug:string;referral_code:string}|null>(null);
+  const [pendingPartnerCode,setPendingPartnerCode] = useState("");
+  const [acceptingPartnerInvitation,setAcceptingPartnerInvitation] = useState(false);
   const [otpPending,setOtpPending] = useState(false);
   const [otpCode,setOtpCode] = useState("");
   const [otpEmailHint,setOtpEmailHint] = useState("");
@@ -45,6 +48,50 @@ export default function AccountPage() {
     const result = await response.json().catch(()=>({}));
     if(!response.ok) throw new Error(result.error ?? "Email verification could not be completed.");
     return result;
+  }
+  async function lookupPendingPartnerInvitation(accessToken: string) {
+    const response = await fetch(supabaseUrl+"/functions/v1/accept-saechamber-partner-invitation", {
+      method:"POST",
+      headers:{"Content-Type":"application/json",apikey:anonKey,Authorization:"Bearer "+accessToken},
+      body:JSON.stringify({action:"lookup_pending"}),
+      cache:"no-store"
+    });
+    if(!response.ok) return;
+    const result = await response.json().catch(()=>({}));
+    const invitation = result.invitation;
+    if(invitation?.id && invitation?.partner_name) {
+      setPendingPartnerInvitation({
+        id:String(invitation.id),
+        partner_name:String(invitation.partner_name),
+        partner_slug:String(invitation.partner_slug ?? ""),
+        referral_code:String(invitation.referral_code ?? "")
+      });
+      setPendingPartnerCode(String(invitation.referral_code ?? "PARTNER"));
+    }
+  }
+  async function acceptPendingPartnerInvitation() {
+    setAcceptingPartnerInvitation(true);
+    setMessage("");
+    try {
+      const raw=localStorage.getItem("ekhaya_session");
+      const session=raw?JSON.parse(raw):null;
+      if(!session?.access_token) throw new Error("Your sign-in session has expired. Please sign in again.");
+      const response=await fetch(supabaseUrl+"/functions/v1/accept-saechamber-partner-invitation",{
+        method:"POST",
+        headers:{"Content-Type":"application/json",apikey:anonKey,Authorization:"Bearer "+session.access_token},
+        body:JSON.stringify({invitation_id:pendingPartnerInvitation?.id,referral_code:pendingPartnerCode}),
+        cache:"no-store"
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(result.error??"Unable to accept the partner invitation.");
+      setPendingPartnerInvitation(null);
+      setMessage("Partner invitation accepted. Your partner workspace is now linked. Opening your partner account…");
+      window.location.href="/partner/";
+    } catch(error) {
+      setMessage(error instanceof Error?error.message:"Unable to accept the partner invitation.");
+    } finally {
+      setAcceptingPartnerInvitation(false);
+    }
   }
   async function requireEmailOtp(accessToken: string, roles: string[]) {
     if(!roles.includes("partner") && !roles.includes("owner")) return false;
@@ -195,6 +242,7 @@ export default function AccountPage() {
           loadAccountRoles(session.access_token).then(async roles=>{
             if(!active) return;
             setAvailableRoles(roles);
+            await lookupPendingPartnerInvitation(session.access_token);
             if(await requireEmailOtp(session.access_token, roles)) return;
             if(hasPartnerInvite) return;
             const requested = new URLSearchParams(window.location.search).get("account");
@@ -317,6 +365,13 @@ export default function AccountPage() {
           {([{id:"seller",title:"Seller account",href:"/price-checker/"},{id:"partner",title:"Partner account",href:"/partner/"},{id:"owner",title:"Admin / Owner account",href:"/owner/"}] as const).filter(item=>availableRoles.includes(item.id)).map(item=><Link key={item.id} href={item.href} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff",border:"1px solid #DCE8F1",borderRadius:8,padding:"10px 12px",color:"#087EAC",fontSize:13,fontWeight:700,textDecoration:"none"}}>{item.title}<span>Open →</span></Link>)}
           {!availableRoles.length&&<p style={{fontSize:12,color:"#60758A",margin:0}}>Your account permissions could not be confirmed. Please sign in again.</p>}
         </div>}
+      </div>}
+      {signedIn&&!otpPending&&pendingPartnerInvitation&&<div style={{background:"#FFF9E9",border:"1px solid #EBD59B",borderRadius:10,padding:16,marginBottom:14}}>
+        <strong style={{fontSize:14,color:"#071B31"}}>Partner invitation waiting for you</strong>
+        <p style={{fontSize:12,color:"#40566B",lineHeight:1.6,marginBottom:10}}>You are signed in with the invited email address. Accept the invitation to link this account to <strong>{pendingPartnerInvitation.partner_name}</strong>.</p>
+        <label htmlFor="pending-partner-code" style={{display:"block",fontSize:12,fontWeight:700,color:"#40566B",marginBottom:6}}>Partner referral code</label>
+        <input id="pending-partner-code" value={pendingPartnerCode} onChange={e=>setPendingPartnerCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,20))} placeholder="5–20 letters or numbers" style={field}/>
+        <button onClick={acceptPendingPartnerInvitation} disabled={acceptingPartnerInvitation||pendingPartnerCode.length<5} style={{width:"100%",padding:13,background:"#079BD3",border:0,borderRadius:8,color:"#fff",fontWeight:700,marginTop:12,cursor:"pointer"}}>{acceptingPartnerInvitation?"Accepting invitation…":"Accept partner invitation"}</button>
       </div>}
       {!signedIn&&mode==="signup"&&accountType==="seller"&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={field}/>}
       {!signedIn&&mode==="signup"&&accountType==="seller"&&<div style={{marginTop:10}}><label htmlFor="signup-partner" style={{display:"block",fontSize:12,fontWeight:700,color:"#40566B",marginBottom:6}}>Were you referred by a partner? <span style={{fontWeight:400,color:"#71869A"}}>(optional)</span></label><select id="signup-partner" value={incomingReferralCode ? (referralPartners.find(partner=>partner.referral_code.toUpperCase()===incomingReferralCode)?.id ?? "") : selectedPartnerId} disabled={Boolean(incomingReferralCode)} onChange={e=>{setSelectedPartnerId(e.target.value);}} style={{...field,marginTop:0,background:incomingReferralCode?"#F3F6F9":"#fff"}}><option value="">No partner / I was not referred</option>{referralPartners.map(partner=><option key={partner.id} value={partner.id}>{partner.partner_name}</option>)}</select><p style={{fontSize:11,color:"#71869A",lineHeight:1.5,margin:"6px 0 0"}}>{selectedPartnerId?"Your referral will be linked to the selected partner.":"Select the partner who referred you, if applicable."}</p>{incomingReferralCode&&!selectedPartnerId&&!referralPartners.some(partner=>partner.referral_code.toUpperCase()===incomingReferralCode)?<p role="status" style={{fontSize:11,color:"#9A5B00",lineHeight:1.5,margin:"6px 0 0"}}>We detected referral code {incomingReferralCode}, but that partner programme is not currently active. Your registration cannot be attributed to it until the programme is activated.</p>:null}</div>}
