@@ -144,12 +144,14 @@ Deno.test("ranks matching Dell DC charging jacks above complete laptops for an a
  const intent=understandProductQuery("dell inspiron 15 3000 charging jack");
  const result=rankMarketplaceProducts([
   {id:"jack",title:"Kanyisa DC Power Charging Jack For Dell Inspiron 15 3000 3558",brand:"Kanyisa"},
+  {id:"family-jack",title:"DC Charging Jack For Dell Inspiron 13/14/15-5000 5558 3000 DC30100UD00",brand:"Generic"},
   {id:"laptop",title:"Refurbished Dell Inspiron 15 3000 Laptop",brand:"Dell"},
   {id:"wrong-jack",title:"HP DC Power Charging Jack For EliteBook 840",brand:"HP"}
  ],intent);
- assertEquals(result.products.length,1);
+ assertEquals(result.products.length,2);
  assertEquals(result.products[0].id,"jack");
  assertEquals(result.products[0].match_classification,"Exact match");
+ assertEquals(result.products.some(p=>p.id==="family-jack" && p.match_classification==="Strong match"),true);
  assertEquals(result.related_products.some(p=>p.id==="laptop"),false);
  assertEquals(result.related_products.some(p=>p.id==="wrong-jack"),false);
 });
