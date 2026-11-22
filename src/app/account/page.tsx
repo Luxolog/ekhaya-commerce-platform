@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { findReferralPartner, signupAcknowledgementError } from "@/lib/auth-guards";
 
 const supabaseUrl = "https://itxxnhcjjiynrmivexcb.supabase.co";
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -213,9 +214,9 @@ export default function AccountPage() {
     setBusy(true); setMessage("");
     try {
       if(!anonKey) throw new Error("Account services are not configured. Please contact Ekhaya support.");
-      if(mode==="signup" && !privacyAccepted) throw new Error("Please read and acknowledge the Privacy Notice before creating an account.");
-      if(mode==="signup" && !marketplaceFeesAccepted) throw new Error("Please acknowledge the Marketplace Fees and Estimated Profit disclaimer before creating an account.");
-      const matchedReferralPartner = incomingReferralCode ? referralPartners.find(partner => partner.referral_code.toUpperCase() === incomingReferralCode) : undefined;
+      const acknowledgementError = signupAcknowledgementError(mode, privacyAccepted, marketplaceFeesAccepted);
+      if(acknowledgementError) throw new Error(acknowledgementError);
+      const matchedReferralPartner = incomingReferralCode ? findReferralPartner(incomingReferralCode, referralPartners) : undefined;
       if(mode==="signup" && incomingReferralCode && !matchedReferralPartner) throw new Error("Your referral code was detected but that exact partner programme is not active or could not be matched. Please contact Ekhaya support before completing registration.");
       if(mode==="reset"){
         const response=await fetch(supabaseUrl+"/auth/v1/recover?redirect_to="+encodeURIComponent(window.location.origin+"/account/"),{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:JSON.stringify({email})});
