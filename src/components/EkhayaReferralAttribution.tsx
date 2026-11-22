@@ -57,13 +57,17 @@ export default function EkhayaReferralAttribution() {
       if (anchor.target && anchor.target.toLowerCase() !== "_self") return;
 
       const rawHref = anchor.getAttribute("href");
-      if (!rawHref || rawHref.startsWith("#") || rawHref.startsWith("mailto:") || rawHref.startsWith("tel:") || rawHref.startsWith("javascript:")) return;
+      if (!rawHref || rawHref.startsWith("#") || rawHref.startsWith("mailto:") || rawHref.startsWith("tel:")) return;
 
       const code = currentCode() || incoming;
       if (!code) return;
 
       let destination: URL;
       try { destination = new URL(rawHref, window.location.href); } catch { return; }
+
+      // Only carry attribution across same-origin web navigation. Reject executable,
+      // data and other non-web schemes rather than maintaining a denylist.
+      if (destination.protocol !== "http:" && destination.protocol !== "https:") return;
       if (destination.origin !== window.location.origin || isPrivateRoute(destination.pathname)) return;
 
       // The previous approach only rewrote the rendered <a href>. Next.js Link can
