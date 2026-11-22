@@ -96,6 +96,12 @@ on conflict (code) do update set
   display_order=excluded.display_order,
   updated_at=now();
 
+alter table public.plan_search_allowances
+  drop constraint if exists plan_search_allowances_plan_code_check;
+alter table public.plan_search_allowances
+  add constraint plan_search_allowances_plan_code_check
+  check (plan_code in ('free','starter','growth','pro','business'));
+
 insert into public.plan_search_allowances(plan_code,monthly_search_credits)
 values
   ('starter',50),('growth',100),('pro',250),('business',350)
