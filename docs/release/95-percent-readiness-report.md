@@ -95,3 +95,26 @@ No evidence supports a clean replay, completed SQL regression, full Auth/partner
 **NOT READY for production deployment or live seller onboarding.** The acceptance criteria in Batch 8 are not met. Do not recommend deployment until the authoritative partner foundation schema is reconciled, clean replay and SQL tests pass, behavioural regression is completed, performance/capacity is measured with repeatable mocks, and environment/runbook gates are evidenced.
 
 No Vercel deployment, production Supabase migration/write, paid provider traffic, real invitation, email or payment was performed.
+
+
+## Batch 9 reassessment — 2026-11-22
+
+**Tested code head:** `8f1f583a706f820894942e7e86542c0d56de773f`  
+**PR:** #33 remains open and unmerged.
+
+### Newly passed database gate
+
+- Isolated Supabase replay [run 45057734774](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45057734774) applied all 21 branch migrations successfully.
+- `supabase test db` passed both SQL files: 23 credit lifecycle assertions and 25 partner/billing foundation assertions — 48 total.
+- The account-ID migration's explicit transaction fix was verified by the clean replay.
+- Quality [run 45057738336](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45057738336) passed ESLint, TypeScript and production build.
+- Security [run 45057738264](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45057738264) passed CodeQL, secret scanning, dependency audit and Supabase Edge Function type-check.
+- Ekhaya Security Scanning [run 45057734776](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45057734776) passed.
+
+### Readiness interpretation
+
+The original 62% score above is a historical conservative estimate from the earlier audit, not a recalculated score for this head. The database migration and schema-contract gates have materially improved, but 48 pgTAP assertions are not a substitute for behavioural transaction/concurrency tests or full E2E.
+
+Still unverified: concurrent partner acceptance, full seller signup/workspace, owner partner create/invite/accept/link/activate, real referral attribution, provider webhook/renewal lifecycle, SMTP delivery, mocked provider orchestration, repeatable performance/load benchmarks, production migration-history provenance, deployed Edge Function parity and environment/runbook sign-off.
+
+**Final decision remains NOT READY for production deployment or live onboarding.** No Vercel deployment, production Supabase write, paid provider traffic, real email, invitation or payment was performed. The Paystack checkout release gate remains disabled.
