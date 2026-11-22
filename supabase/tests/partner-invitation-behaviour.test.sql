@@ -3,9 +3,6 @@ begin;
 select plan(9);
 
 -- Synthetic identities and invitation fixtures only; transaction is rolled back.
-alter table public.profiles alter column marketplace_access
-  set default array['takealot']::text[];
-
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -41,8 +38,6 @@ insert into auth.users (
   '{"provider":"email","providers":["email"]}'::jsonb,'{}'::jsonb,now(),now()
 );
 
-alter table public.profiles alter column marketplace_access
-  set default '{}'::text[];
 
 select throws_ok(
   $$select public.accept_saechamber_partner_invitation(
