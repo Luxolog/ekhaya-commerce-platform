@@ -362,11 +362,11 @@ Deno.serve(async (req: Request) => {
   }
   if (body.action === "owner_create_partner") {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
-    const partnerName = typeof body.partner_name === "string" ? body.partner_name.trim().replace(/\\s+/g, " ") : "";
+    const partnerName = typeof body.partner_name === "string" ? body.partner_name.trim().replace(/\s+/g, " ") : "";
     const requestedSlug = typeof body.partner_slug === "string" ? body.partner_slug.trim().toLowerCase() : "";
     const requestedCode = typeof body.referral_code === "string" ? body.referral_code.trim().toUpperCase() : "";
     const slug = (requestedSlug || partnerName.toLowerCase())
-      .normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "")
+      .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
     const referralCode = (requestedCode || slug.replace(/-/g, "").toUpperCase()).replace(/[^A-Z0-9]/g, "").slice(0, 24);
     if (partnerName.length < 2 || partnerName.length > 120) {
