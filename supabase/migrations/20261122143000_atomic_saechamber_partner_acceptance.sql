@@ -31,6 +31,7 @@ begin
 
   if not found
      or v_invitation.status <> 'pending'
+     or v_invitation.expires_at is null
      or v_invitation.expires_at <= now()
      or lower(v_invitation.invited_email) <> v_email then
     raise exception 'INVITATION_INVALID_EXPIRED_OR_ALREADY_USED' using errcode = 'P0001';
