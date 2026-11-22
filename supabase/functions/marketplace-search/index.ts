@@ -799,13 +799,24 @@ Deno.serve(async (req: Request) => {
         });
         payload = await upstream.json() as ProviderResponse;
         providerPayload = payload;
+        await recordProviderUsage({
+          marketplace, lookupKey: `search:${lookupKey}:attempt:1`,
+          credits: Number(payload?.meta?.charged_credits ?? 0),
+          status: upstream.ok && payload?.ok !== false ? "success" : "failed",
+          responseCount: upstream.ok && payload?.ok !== false ? (payload?.data?.products?.length ?? 0) : 0,
+          providerRequestId: typeof payload?.meta?.request_id === "string" ? payload.meta.request_id : null,
+          actorId: charged ? userId : null,
+        });
+        providerUsageLogged = true;
         if (!upstream.ok || payload?.ok === false) throw new Error(payload?.error?.message ?? payload?.error?.detail ?? upstream.statusText ?? "ReefAPI Makro search failed");
         raw = payload?.data?.products ?? [];
       } else if (marketplace === "amazon") {
         if (!reefKey) throw new Error("Amazon search is not configured. Add REEFAPI_KEY to Supabase Edge Function secrets.");
         const searchParams = { query: providerQuery, marketplace: "co.za", page: 1 };
+        let amazonAttempt = 0;
         const callAmazon = async () => {
           providerAttempted = true;
+          amazonAttempt += 1;
           const upstream = await fetch("https://api.reefapi.com/amazon/v1/search", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
@@ -814,7 +825,17 @@ Deno.serve(async (req: Request) => {
           });
           const result = await upstream.json() as ProviderResponse;
           providerPayload = result;
-          if (!upstream.ok || result?.ok === false) {
+          const succeeded = upstream.ok && result?.ok !== false;
+          await recordProviderUsage({
+            marketplace, lookupKey: `search:${lookupKey}:attempt:${amazonAttempt}`,
+            credits: Number(result?.meta?.charged_credits ?? 0),
+            status: succeeded ? "success" : "failed",
+            responseCount: succeeded ? (result?.data?.results?.length ?? result?.data?.products?.length ?? 0) : 0,
+            providerRequestId: typeof result?.meta?.request_id === "string" ? result.meta.request_id : null,
+            actorId: charged ? userId : null,
+          });
+          providerUsageLogged = true;
+          if (!succeeded) {
             const providerError = result?.error ?? {};
             const failure = new Error(String(providerError.message ?? providerError.detail ?? upstream.statusText ?? "ReefAPI Amazon search failed"));
             (failure as Error & { retryable?: boolean }).retryable =
@@ -983,7 +1004,7 @@ Deno.serve(async (req: Request) => {
       const relatedProducts = ranked.related_products;
       const accessories = ranked.accessories;
       const totalResults = products.length + relatedProducts.length + accessories.length;
-      if (marketplace !== "takealot") {
+      if (marketplace !== "takealot" && !providerUsageLogged) {
         await recordProviderUsage({
           marketplace, lookupKey: `search:${lookupKey}`, credits: Number(payload.meta?.charged_credits ?? 0),
           status: "success", responseCount: totalResults, providerRequestId: typeof payload.meta?.request_id === "string" ? payload.meta.request_id : null,
