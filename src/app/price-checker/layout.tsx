@@ -11,9 +11,12 @@ export const metadata: Metadata = {
     statusBarStyle: "default"
   },
   icons: {
-    icon: "/price-checker/app-icon.svg",
-    shortcut: "/price-checker/app-icon.svg",
-    apple: "/price-checker/app-icon.svg"
+    icon: [
+      { url: "/price-checker/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/price-checker/icon-512.png", sizes: "512x512", type: "image/png" }
+    ],
+    shortcut: "/price-checker/icon-192.png",
+    apple: [{ url: "/price-checker/apple-touch-icon.png", sizes: "180x180", type: "image/png" }]
   }
 };
 
