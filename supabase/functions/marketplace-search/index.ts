@@ -394,6 +394,12 @@ Deno.serve(async (req: Request) => {
     const [partners, referrals, commissions, statements, allActivity, profiles, planAllowances, monthlyUsage, freeUsage, subscriptions, payments, apiUsage] =
       await Promise.all(responses.map(response => response.json()));
     const partnerById = new Map<string, Record<string, unknown>>(partners.map((p: Record<string, unknown>) => [String(p.id), p]));
+    const partnersWithAccountIds = partners.map((partner: Record<string, unknown>) => ({
+      ...partner,
+      account_id: partner.partner_user_id
+        ? (profileById.get(String(partner.partner_user_id))?.account_id ?? null)
+        : null
+    }));
     const referralByUser = new Map<string, Record<string, unknown>>(referrals.map((r: Record<string, unknown>) => [String(r.referred_user_id), r]));
     const profileById = new Map<string, Record<string, unknown>>(profiles.map((p: Record<string, unknown>) => [String(p.id), p]));
     const latestSubscription = new Map<string, Record<string, unknown>>();
@@ -500,7 +506,7 @@ Deno.serve(async (req: Request) => {
         monthly_searches_remaining: sellers.filter((s: Record<string, unknown>) => s.role !== "owner").reduce((sum: number, s: Record<string, unknown>) => sum + Number(s.monthly_searches_remaining ?? 0), 0)
       },
       sellers, all_activity: allPlatformActivity.slice(0, 20000), api_usage: apiUsage,
-      partners, referrals: referrals.map((r: Record<string, unknown>) => {
+      partners: partnersWithAccountIds, referrals: referrals.map((r: Record<string, unknown>) => {
         const partner = partnerById.get(String(r.partner_id)) as Record<string, unknown> | undefined;
         const profile = profileById.get(String(r.referred_user_id)) as Record<string, unknown> | undefined;
         return { ...r, partner_name: partner?.partner_name ?? "Unknown partner", seller_display_name: profile?.display_name ?? null,
