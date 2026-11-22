@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import EkhayaReferralAttribution from '@/components/EkhayaReferralAttribution';
+import EkhayaAuthCallback from '@/components/EkhayaAuthCallback';
 
 export const metadata: Metadata = {
   title: 'Ekhaya Price Checker | Ekhaya Technologies',
@@ -11,5 +12,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en-ZA"><body><EkhayaReferralAttribution />{children}</body></html>;
+  return <html lang="en-ZA"><body><EkhayaReferralAttribution /><EkhayaAuthCallback />{children}</body></html>;
 }
