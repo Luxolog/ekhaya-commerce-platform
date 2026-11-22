@@ -2,6 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const allowedOrigins = new Set([
+  "https://ekhayatech.co.za",
+  "https://www.ekhayatech.co.za",
   "https://pricechecker.ekhayatech.co.za",
   "https://ekhaya-commerce-platform-8ewwsmmvz-luxolog.vercel.app",
   "https://ekhaya-commerce-platform-git-feature-sa-echamber-9c60e1-luxolog.vercel.app",
@@ -14,7 +16,7 @@ const corsFor = (req: Request) => {
   return {
   "Access-Control-Allow-Origin": isAllowedOrigin(origin) ? origin : "https://pricechecker.ekhayatech.co.za",
   "Vary": "Origin",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json",
   };
@@ -102,7 +104,7 @@ Deno.serve(async (req: Request) => {
   if (insertError || !invitation) return new Response(JSON.stringify({ error: "Could not create invitation record" }), { status: 500, headers: cors });
 
   const requestOrigin = req.headers.get("Origin") || "";
-  const redirectOrigin = isAllowedOrigin(requestOrigin) ? requestOrigin : "https://pricechecker.ekhayatech.co.za";
+  const redirectOrigin = isAllowedOrigin(requestOrigin) ? requestOrigin : "https://ekhayatech.co.za";
   const redirectTo = redirectOrigin + "/account/?partner_invite=" + invitation.id;
   // Existing Ekhaya users keep their current account and password. Send a
   // magic sign-in link that returns them to the partner invitation acceptance.
