@@ -81,7 +81,7 @@ select ok(
 );
 
 insert into public.partner_programs(partner_name,partner_slug,referral_code,status)
-values ('Batch 9 Migration Test','batch9-migration-test','BATCH9MIGRATIONTEST','pending')
+values ('Batch 9 Migration Test','batch9-migration-test','BATCH9MIGRATIONTEST')
 on conflict (partner_slug) do update set status='pending';
 
 select ok(
