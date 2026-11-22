@@ -51,7 +51,7 @@ create table if not exists public.partner_programs (
   partner_slug text not null unique,
   referral_code text not null unique,
   partner_user_id uuid unique references auth.users(id) on delete set null,
-  status text not null default 'active'
+  status text not null default 'pending'
     check (status in ('pending','active','suspended')),
   program_live_at timestamptz,
   created_at timestamptz not null default now(),
