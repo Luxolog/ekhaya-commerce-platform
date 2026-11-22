@@ -14,7 +14,8 @@ export default function AccountPage() {
   const [password,setPassword] = useState("");
   const [name,setName] = useState("");
   const [privacyAccepted,setPrivacyAccepted] = useState(false);
-  const [marketplaceFeesAccepted,setMarketplaceFeesAccepted] = useState(false);\n  const [selectedMarketplaces,setSelectedMarketplaces] = useState<Array<"takealot"|"amazon"|"makro">>([]);
+  const [marketplaceFeesAccepted,setMarketplaceFeesAccepted] = useState(false);
+  const [selectedMarketplaces,setSelectedMarketplaces] = useState<Array<"takealot"|"amazon"|"makro">>([]);
   const [marketingOptIn,setMarketingOptIn] = useState(false);
   const [message,setMessage] = useState("");
   const [busy,setBusy] = useState(false);
@@ -262,6 +263,8 @@ export default function AccountPage() {
       if(!anonKey) throw new Error("Account services are not configured. Please contact Ekhaya support.");
       const acknowledgementError = signupAcknowledgementError(mode, privacyAccepted, marketplaceFeesAccepted);
       if(acknowledgementError) throw new Error(acknowledgementError);
+      const marketplaceSelectionError = signupMarketplaceSelectionError(mode, selectedMarketplaces);
+      if(marketplaceSelectionError) throw new Error(marketplaceSelectionError);
       const matchedReferralPartner = incomingReferralCode ? findReferralPartner(incomingReferralCode, referralPartners) : undefined;
       if(mode==="signup" && incomingReferralCode && !matchedReferralPartner) throw new Error("Your referral code was detected but that exact partner programme is not active or could not be matched. Please contact Ekhaya support before completing registration.");
       if(mode==="reset"){
