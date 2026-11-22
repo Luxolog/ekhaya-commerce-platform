@@ -2,7 +2,7 @@
 
 | Blocker | Owner / dependency | Required action | Production approval? |
 |---|---|---|---|
-| Isolated Supabase Auth + database test environment absent | Owner / platform setup | Provide isolated project, test users and non-production secrets | No production approval; separate test setup |
+| Local Supabase database harness not yet executed | Engineering / GitHub Actions runner | Run the newly added local Supabase workflow; add behavioural transaction fixtures after validating migration bootstrap | No production approval; local only |
 | Invitation and activation full E2E not run | Engineering + isolated Supabase | Test owner create, duplicate rejection, invite, accept, account link and activate | No, if isolated |
 | Atomic partner acceptance integration coverage | Engineering + isolated Supabase | Test atomic RPC under concurrent acceptance, duplicate referral code, wrong email, expiry and rollback | No, if isolated |
 | Live referral signup and attribution row unverified | QA + isolated Supabase | Complete controlled signup and inspect resulting referral row | No, if isolated |
@@ -18,7 +18,7 @@
 | PR dependency branch needs reconciliation | Engineering / owner | Review commits in `feature/partner-admin-email-otp` and determine safe base before release | Owner review before base/merge change |
 | Vercel deployment rate limit | Owner / hosting | Previous bot report shows `api-deployments-free-per-day`; do not retry until deliberately approved | Yes |
 
-## Prompt 10 implementation update
+## Local testing harness update\n\n- Added `supabase/config.toml` for a separate local project ID, local ports, and disabled automatic seed data. No production credentials or project link are configured.\n- Added `supabase/tests/credit_lifecycle_contract.test.sql` with 23 pgTAP contract assertions covering pilot/partner RPC presence, SECURITY DEFINER, RLS, unique request constraint and service-role-only execution. These are contract checks, not yet transaction/concurrency behaviour tests.\n- Added `.github/workflows/local-supabase-tests.yml` to start an isolated local Supabase stack and run `supabase test db`. First execution is pending.\n\n## Prompt 10 implementation update
 
 - Bounded Takealot discovery is integrated in branch source (one initial query plus up to two targeted follow-ups).
 - Takealot provider attempts are written individually to the usage ledger, including provider-reported credits and request IDs when available.
