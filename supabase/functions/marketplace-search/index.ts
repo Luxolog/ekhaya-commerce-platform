@@ -719,36 +719,23 @@ Deno.serve(async (req: Request) => {
       const cachedRelated = cachedRanked.related_products;
       const cachedAccessories = cachedRanked.accessories;
       const cachedTotal = cachedProducts.length + cachedRelated.length + cachedAccessories.length;
-      let cacheCreditCharged = false;
-      if (!isOwner && !pilotCharged && !partnerSupportCharged) {
-        const reserve = await fetch(new URL("/rest/v1/rpc/reserve_monthly_search_credit", supabaseUrl), {
-          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
-          body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace, p_request_id: requestId }),
-        });
-        const reservation = reserve.ok ? await reserve.json() : null;
-        if (!reserve.ok || reservation?.allowed !== true) return json({ error: "You have used all your available marketplace search credits. Purchase another allocation to continue.", code: reservation?.reason ?? "CREDIT_RESERVATION_FAILED", usage: reservation }, 402);
-        if (reservation.duplicate) return json({ error: "This search request has already been processed. Please start a new search.", code: "DUPLICATE_REQUEST" }, 409);
-        cacheCreditCharged = true;
-      }
-      if (cachedTotal === 0 && cacheCreditCharged) {
-        await fetch(new URL("/rest/v1/rpc/refund_monthly_search_credit", supabaseUrl), {
-          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
-          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
-        });
-        cacheCreditCharged = false;
-      }
-      if (cachedTotal > 0 && cacheCreditCharged) {
-        await fetch(new URL("/rest/v1/rpc/complete_monthly_search_credit", supabaseUrl), {
-          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
-          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
-        });
-      }
-      if (cachedTotal === 0 && pilotCharged) {
+      // Cache hits are free for every account type. Allowances are only reserved
+      // after the cache-miss path has been selected below.
+      const cacheCreditCharged = false;
+      if (pilotCharged) {
         await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
           method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
           body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }),
         });
         pilotCharged = false;
+      }
+      if (partnerSupportCharged) {
+        const supportRefund = await fetch(new URL("/rest/v1/rpc/refund_partner_support_search", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }),
+        });
+        if (!supportRefund.ok) console.error("Could not release partner support allowance for cache hit:", await supportRefund.text());
+        else partnerSupportCharged = false;
       }
       if (!isOwner && !isActivePartner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:cachedTotal,result_status:cachedTotal?"success":"empty",source:fresh?"cache":"stale-cache"})});
       return json({
