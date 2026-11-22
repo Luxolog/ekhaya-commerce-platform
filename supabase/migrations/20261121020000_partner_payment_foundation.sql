@@ -58,6 +58,9 @@ create table if not exists public.partner_programs (
   updated_at timestamptz not null default now()
 );
 
+-- Reconcile existing installations too: new programmes must default to pending.
+alter table public.partner_programs alter column status set default 'pending';
+
 create table if not exists public.partner_referrals (
   id uuid primary key default gen_random_uuid(),
   partner_id uuid not null references public.partner_programs(id),
