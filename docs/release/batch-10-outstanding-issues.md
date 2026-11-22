@@ -28,8 +28,9 @@
 ### Marketplace signup and onboarding
 
 - Fixed the profile bootstrap conflict by allowing an empty marketplace selection during initial profile creation.
-- Marketplace selection is not captured in the account signup request; the Price Checker UI presents marketplace choices later.
-- Full browser-level enforcement of required Privacy Notice and marketplace-fee estimate acknowledgements is not yet verified.
+- Seller signup now requires at least one selection from Takealot, Amazon South Africa and Makro, sends the selection in auth metadata, and the profile bootstrap persists only supported values to profiles.marketplace_access.
+- Marketplace selection is stored as a seller preference; it is not used as a substitute for plan/search entitlements.
+- Latest signup preference migration and UI changes are awaiting CI. Full browser-level enforcement of required Privacy Notice, marketplace-fee estimate acknowledgements and marketplace selection is not yet verified.
 - The fee disclaimer remains a signup-only acknowledgement, not a repeated login checklist.
 
 ### Notifications
