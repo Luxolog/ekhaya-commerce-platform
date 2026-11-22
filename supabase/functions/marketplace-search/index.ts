@@ -817,32 +817,46 @@ Deno.serve(async (req: Request) => {
         const callAmazon = async () => {
           providerAttempted = true;
           amazonAttempt += 1;
-          const upstream = await fetch("https://api.reefapi.com/amazon/v1/search", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
-            body: JSON.stringify(searchParams),
-            signal: AbortSignal.timeout(15000),
-          });
-          const result = await upstream.json() as ProviderResponse;
-          providerPayload = result;
-          const succeeded = upstream.ok && result?.ok !== false;
-          await recordProviderUsage({
-            marketplace, lookupKey: `search:${lookupKey}:attempt:${amazonAttempt}`,
-            credits: Number(result?.meta?.charged_credits ?? 0),
-            status: succeeded ? "success" : "failed",
-            responseCount: succeeded ? (result?.data?.results?.length ?? result?.data?.products?.length ?? 0) : 0,
-            providerRequestId: typeof result?.meta?.request_id === "string" ? result.meta.request_id : null,
-            actorId: charged ? userId : null,
-          });
-          providerUsageLogged = true;
-          if (!succeeded) {
-            const providerError = result?.error ?? {};
-            const failure = new Error(String(providerError.message ?? providerError.detail ?? upstream.statusText ?? "ReefAPI Amazon search failed"));
-            (failure as Error & { retryable?: boolean }).retryable =
-              providerError.retryable === true || upstream.status === 429 || upstream.status >= 500;
-            throw failure;
+          let attemptRecorded = false;
+          try {
+            const upstream = await fetch("https://api.reefapi.com/amazon/v1/search", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
+              body: JSON.stringify(searchParams),
+              signal: AbortSignal.timeout(15000),
+            });
+            const result = await upstream.json() as ProviderResponse;
+            providerPayload = result;
+            const succeeded = upstream.ok && result?.ok !== false;
+            await recordProviderUsage({
+              marketplace, lookupKey: `search:${lookupKey}:attempt:${amazonAttempt}`,
+              credits: Number(result?.meta?.charged_credits ?? 0),
+              status: succeeded ? "success" : "failed",
+              responseCount: succeeded ? (result?.data?.results?.length ?? result?.data?.products?.length ?? 0) : 0,
+              providerRequestId: typeof result?.meta?.request_id === "string" ? result.meta.request_id : null,
+              actorId: charged ? userId : null,
+            });
+            attemptRecorded = true;
+            providerUsageLogged = true;
+            if (!succeeded) {
+              const providerError = result?.error ?? {};
+              const failure = new Error(String(providerError.message ?? providerError.detail ?? upstream.statusText ?? "ReefAPI Amazon search failed"));
+              (failure as Error & { retryable?: boolean }).retryable =
+                providerError.retryable === true || upstream.status === 429 || upstream.status >= 500;
+              throw failure;
+            }
+            return result;
+          } catch (error) {
+            if (!attemptRecorded) {
+              await recordProviderUsage({
+                marketplace, lookupKey: `search:${lookupKey}:attempt:${amazonAttempt}`,
+                credits: 0, status: "failed", responseCount: 0,
+                providerRequestId: null, actorId: charged ? userId : null,
+              });
+              providerUsageLogged = true;
+            }
+            throw error;
           }
-          return result;
         };
         try {
           payload = await callAmazon();
