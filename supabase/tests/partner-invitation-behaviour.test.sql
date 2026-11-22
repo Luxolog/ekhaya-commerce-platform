@@ -3,24 +3,6 @@ begin;
 select plan(11);
 
 -- Synthetic identities and invitation fixtures only; transaction is rolled back.
-insert into public.partner_invitations (
-  id, partner_id, invited_email, invited_by, status, expires_at, contact_name
-) values
-(
-  'b9100000-0000-4000-8000-000000000022',
-  'b9100000-0000-4000-8000-000000000011',
-  'batch10-expired@example.invalid',
-  'b9100000-0000-4000-8000-000000000001',
-  'pending', now() - interval '1 minute', 'Expired Invitee'
-),
-(
-  'b9100000-0000-4000-8000-000000000023',
-  'b9100000-0000-4000-8000-000000000011',
-  'batch10-revoked@example.invalid',
-  'b9100000-0000-4000-8000-000000000001',
-  'revoked', now() + interval '7 days', 'Revoked Invitee'
-);
-
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -45,6 +27,24 @@ insert into public.partner_invitations (
   'batch10-invitee@example.invalid',
   'b9100000-0000-4000-8000-000000000001',
   'pending', now() + interval '7 days', 'Batch 10 Invitee'
+);
+
+insert into public.partner_invitations (
+  id, partner_id, invited_email, invited_by, status, expires_at, contact_name
+) values
+(
+  'b9100000-0000-4000-8000-000000000022',
+  'b9100000-0000-4000-8000-000000000011',
+  'batch10-expired@example.invalid',
+  'b9100000-0000-4000-8000-000000000001',
+  'pending', now() - interval '1 minute', 'Expired Invitee'
+),
+(
+  'b9100000-0000-4000-8000-000000000023',
+  'b9100000-0000-4000-8000-000000000011',
+  'batch10-revoked@example.invalid',
+  'b9100000-0000-4000-8000-000000000001',
+  'revoked', now() + interval '7 days', 'Revoked Invitee'
 );
 
 insert into auth.users (
