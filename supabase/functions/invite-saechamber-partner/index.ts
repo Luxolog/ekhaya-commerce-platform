@@ -59,6 +59,41 @@ Deno.serve(async (req: Request) => {
   let body: { action?: string; partner_id?: string; email?: string; contact_name?: string };
   try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid request body" }), { status: 400, headers: cors }); }
 
+  if (body.action === "create_partner") {
+    const partnerName = typeof body.partner_name === "string" ? body.partner_name.trim().replace(/\s+/g, " ") : "";
+    const requestedSlug = typeof body.partner_slug === "string" ? body.partner_slug.trim().toLowerCase() : "";
+    const requestedCode = typeof body.referral_code === "string" ? body.referral_code.trim().toUpperCase() : "";
+    const slug = (requestedSlug || partnerName.toLowerCase())
+      .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+    const referralCode = (requestedCode || slug.replace(/-/g, "").toUpperCase()).replace(/[^A-Z0-9]/g, "").slice(0, 24);
+    if (partnerName.length < 2 || partnerName.length > 120)
+      return new Response(JSON.stringify({ error: "Enter a partner organisation name between 2 and 120 characters." }), { status: 400, headers: cors });
+    if (!slug || slug.length < 2 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug))
+      return new Response(JSON.stringify({ error: "Enter a valid partner slug using letters, numbers and hyphens." }), { status: 400, headers: cors });
+    if (referralCode.length < 4 || referralCode.length > 24)
+      return new Response(JSON.stringify({ error: "Referral codes must contain 4 to 24 letters or numbers." }), { status: 400, headers: cors });
+    const { data: existing, error: lookupError } = await admin.from("partner_programs")
+      .select("id,partner_name,partner_slug,referral_code")
+      .or("partner_slug.eq." + slug + ",referral_code.eq." + referralCode);
+    if (lookupError) return new Response(JSON.stringify({ error: "Could not check existing partner names and referral codes." }), { status: 500, headers: cors });
+    if (existing?.length) {
+      const slugTaken = existing.some(item => item.partner_slug === slug);
+      const codeTaken = existing.some(item => item.referral_code === referralCode);
+      return new Response(JSON.stringify({ error: slugTaken ? "That partner slug is already in use." : codeTaken ? "That referral code is already in use." : "A partner with those details already exists." }), { status: 409, headers: cors });
+    }
+    const { data: partner, error: createError } = await admin.from("partner_programs")
+      .insert({ partner_name: partnerName, partner_slug: slug, referral_code: referralCode, status: "pending" })
+      .select("id,partner_name,partner_slug,referral_code,partner_user_id,status,program_live_at,created_at")
+      .single();
+    if (createError || !partner) {
+      if (createError?.code === "23505") return new Response(JSON.stringify({ error: "The partner slug or referral code is already registered. Refresh and try different values." }), { status: 409, headers: cors });
+      console.error("Partner programme creation failed:", createError);
+      return new Response(JSON.stringify({ error: "Could not register the partner programme." }), { status: 500, headers: cors });
+    }
+    return new Response(JSON.stringify({ success: true, partner, message: "Partner programme registered in pending status. It will not attribute referrals until activated." }), { status: 201, headers: cors });
+  }
+
   if (body.action === "list") {
     const { data, error } = await admin.from("partner_invitations")
       .select("id,partner_id,invited_email,contact_name,status,invited_at,expires_at,accepted_at")
