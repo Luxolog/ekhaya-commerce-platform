@@ -858,18 +858,45 @@ Deno.serve(async (req: Request) => {
         let providerCreditsTotal = 0;
         const callTakealot = async (searchQuery: string): Promise<ProviderResponse> => {
           providerAttempted = true;
-          const upstream = await fetch("https://api.reefapi.com/takealot/v1/search", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
-            body: JSON.stringify({ query: searchQuery, country: "za" }),
-            signal: AbortSignal.timeout(9000),
-          });
-          const result = await upstream.json() as ProviderResponse;
-          if (!upstream.ok || result?.ok === false) {
-            throw new Error(result?.error?.message ?? result?.error?.detail ?? upstream.statusText ?? "Provider lookup failed");
+          let attemptRecorded = false;
+          let attemptCredits = 0;
+          let attemptRequestId: string | null = null;
+          try {
+            const upstream = await fetch("https://api.reefapi.com/takealot/v1/search", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
+              body: JSON.stringify({ query: searchQuery, country: "za" }),
+              signal: AbortSignal.timeout(9000),
+            });
+            const result = await upstream.json() as ProviderResponse;
+            attemptCredits = Math.max(0, Number(result.meta?.charged_credits) || 0);
+            attemptRequestId = typeof result.meta?.request_id === "string" ? result.meta.request_id : null;
+            providerCreditsTotal += attemptCredits;
+            providerPayload = result;
+            const succeeded = upstream.ok && result?.ok !== false;
+            await recordProviderUsage({
+              marketplace, lookupKey: `search:${lookupKey}:${searchQuery}`,
+              credits: attemptCredits, status: succeeded ? "success" : "failed",
+              responseCount: succeeded ? (result.data?.results?.length ?? result.data?.products?.length ?? 0) : 0,
+              providerRequestId: attemptRequestId, actorId: charged ? userId : null,
+            });
+            attemptRecorded = true;
+            providerUsageLogged = true;
+            if (!succeeded) {
+              throw new Error(result?.error?.message ?? result?.error?.detail ?? upstream.statusText ?? "Provider lookup failed");
+            }
+            return result;
+          } catch (error) {
+            if (!attemptRecorded) {
+              await recordProviderUsage({
+                marketplace, lookupKey: `search:${lookupKey}:${searchQuery}`,
+                credits: attemptCredits, status: "failed", responseCount: 0,
+                providerRequestId: attemptRequestId, actorId: charged ? userId : null,
+              });
+              providerUsageLogged = true;
+            }
+            throw error;
           }
-          providerCreditsTotal += Math.max(0, Number(result.meta?.charged_credits) || 0);
-          return result;
         };
 
         payload = await callTakealot(providerQuery);
@@ -956,12 +983,14 @@ Deno.serve(async (req: Request) => {
       const relatedProducts = ranked.related_products;
       const accessories = ranked.accessories;
       const totalResults = products.length + relatedProducts.length + accessories.length;
-      await recordProviderUsage({
-        marketplace, lookupKey: `search:${lookupKey}`, credits: Number(payload.meta?.charged_credits ?? 0),
-        status: "success", responseCount: totalResults, providerRequestId: typeof payload.meta?.request_id === "string" ? payload.meta.request_id : null,
-        actorId: charged ? userId : null,
-      });
-      providerUsageLogged = true;
+      if (marketplace !== "takealot") {
+        await recordProviderUsage({
+          marketplace, lookupKey: `search:${lookupKey}`, credits: Number(payload.meta?.charged_credits ?? 0),
+          status: "success", responseCount: totalResults, providerRequestId: typeof payload.meta?.request_id === "string" ? payload.meta.request_id : null,
+          actorId: charged ? userId : null,
+        });
+        providerUsageLogged = true;
+      }
       const now = new Date();
       const ttl = Math.max(5, Math.min(10080, Number(settings.cache_ttl_minutes) || 360));
       const expires = new Date(now.getTime() + ttl * 60 * 1000);
@@ -1003,7 +1032,7 @@ Deno.serve(async (req: Request) => {
       if (!isOwner && !isActivePartner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:totalResults,result_status:totalResults?"success":"empty",source:"live"})});
       return json({ source: "live", marketplace, fetched_at: now.toISOString(), products, related_products: relatedProducts, accessories, query_understanding: { brand: intent.brand, category: intent.category, normalized_query: providerQuery }, provider_meta: payload.meta ?? null, credit_charged: charged });
     } catch (error) {
-      if (providerAttempted && !providerUsageLogged) {
+      if (providerAttempted && !providerUsageLogged && marketplace !== "takealot") {
         await recordProviderUsage({
           marketplace, lookupKey: `search:${lookupKey}`,
           credits: Number(providerPayload?.meta?.charged_credits ?? 0), status: "failed",
