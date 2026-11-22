@@ -24,6 +24,17 @@ The current PR branch has no migration creating `partner_programs`, `partner_inv
 | Current PR source/migrations | OTP policies, partner notification and support logic, referral/acceptance flows | Authoritative for current code usage, but assumes earlier schema objects exist |
 | Older `partner-program-foundation` branch | Legacy partners/applications/commissions/payouts model | Incompatible; explicitly excluded from current design |
 
+## 2A. Related branch recovery search
+
+The following currently available related branches were inspected by their Git trees:
+
+- `feature/partner-admin-account-routing` — contains the same core/search migration family and the standalone partner schema document; no current partner foundation migration and no payment/billing foundation migration.
+- `feature/sa-echamber-partner-portal` — contains the same core/search migration family and the standalone partner schema document; no current partner foundation migration and no payment/billing foundation migration.
+- `partner-program-foundation` — contains the legacy `0002_partner_program.sql` model; it is incompatible with the current `partner_programs` / `payment_transactions` model and was excluded.
+- PR base `feature/partner-admin-email-otp` — 11 migration files; no partner foundation or billing foundation migration.
+
+A repository-wide GitHub commit search for `subscription_billing_foundation`, `payment_transactions` and `partner_programs` did not return a recoverable source commit. This does not prove no source exists in a deleted/private archive, but no compatible authoritative migration source was recoverable from the currently available repository branches and commit search.
+
 ## 3. Entity-by-entity reconciliation
 
 ### 3.1 `public.partner_programs`
