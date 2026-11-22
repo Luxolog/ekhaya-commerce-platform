@@ -144,7 +144,21 @@ export function rankMarketplaceProducts<T extends Record<string,unknown>>(items:
     ));
     const classification:RankedProduct["match_classification"]=accessory?"Accessory":score>=80?"Exact match":score>=55?"Strong match":"Related product";
     const result_group:RankedProduct["result_group"]=accessory?"accessory":score>=55?"best_match":"related";
-    const identity=String(p.url??p.id??title).toLowerCase();
+    const stableId = p.asin ?? p.plid ?? p.product_id ?? p.item_id ?? p.id;
+    const rawUrl = typeof p.url === "string" ? p.url.trim() : "";
+    let canonicalUrl = rawUrl.toLowerCase();
+    if (rawUrl) {
+      try {
+        const parsed = new URL(rawUrl);
+        parsed.search = "";
+        parsed.hash = "";
+        canonicalUrl = parsed.toString().replace(/\\/$/, "").toLowerCase();
+      } catch {
+        canonicalUrl = rawUrl.split(/[?#]/, 1)[0].replace(/\\/$/, "").toLowerCase();
+      }
+    }
+    const fallbackTitle = [p.brand, title].map(v => String(v ?? "").trim().toLowerCase()).filter(Boolean).join(" ");
+    const identity = String(stableId ?? canonicalUrl || fallbackTitle).toLowerCase();
     return {...p,relevance_score:Math.round(score),match_classification:classification,result_group,condition_label,_identity:identity};
   }).filter(p=>{
     if(seen.has(p._identity)) return false;
