@@ -1,6 +1,6 @@
 begin;
 
-select plan(12);
+select plan(15);
 
 -- All fixtures are isolated to this pgTAP transaction. No external provider,
 -- SMTP, or production service is contacted.
@@ -162,6 +162,59 @@ select is(
    where source_reference='batch9-behaviour-credit-001'),
   100,
   'mismatched replay leaves original allocation amount unchanged'
+);
+
+-- Exercise the payment-completion trigger with a synthetic subscription.
+insert into public.subscriptions(
+  id,user_id,plan_code,status,billing_mode
+) values (
+  'b9000000-0000-4000-8000-000000000031',
+  'b9000000-0000-4000-8000-000000000003',
+  'growth','active','manual'
+);
+
+insert into public.payment_transactions(
+  id,user_id,subscription_id,payment_provider,merchant_reference,
+  payment_kind,billing_mode,amount,currency,status,paid_at
+) values (
+  'b9000000-0000-4000-8000-000000000032',
+  'b9000000-0000-4000-8000-000000000003',
+  'b9000000-0000-4000-8000-000000000031',
+  'test','batch10-payment-trigger-001',
+  'introductory','manual',49,'ZAR','pending',null
+);
+
+update public.payment_transactions
+set status='failed'
+where id='b9000000-0000-4000-8000-000000000032';
+
+select is(
+  (select count(*)::integer from public.search_credit_allocations
+   where source_reference='payment:b9000000-0000-4000-8000-000000000032'),
+  0,
+  'failed subscription payment does not allocate paid search credits'
+);
+
+update public.payment_transactions
+set status='complete',paid_at='2026-11-22T13:00:00Z'
+where id='b9000000-0000-4000-8000-000000000032';
+
+select is(
+  (select credits_allocated from public.search_credit_allocations
+   where source_reference='payment:b9000000-0000-4000-8000-000000000032'),
+  100,
+  'confirmed complete subscription payment allocates the configured plan credits'
+);
+
+update public.payment_transactions
+set paid_at='2026-11-23T13:00:00Z'
+where id='b9000000-0000-4000-8000-000000000032';
+
+select is(
+  (select count(*)::integer from public.search_credit_allocations
+   where source_reference='payment:b9000000-0000-4000-8000-000000000032'),
+  1,
+  'replayed completion update does not create a duplicate paid-credit allocation'
 );
 
 select * from finish();
