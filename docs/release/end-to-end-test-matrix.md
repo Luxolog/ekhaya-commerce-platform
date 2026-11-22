@@ -55,3 +55,34 @@ A passing pure-function unit test is not a database integration test. A passing 
 | Full Auth, partner, seller, search and billing E2E | No passing evidence | NOT TESTED / BLOCKED | Unit/source checks do not establish end-to-end behaviour. |
 
 **Interpretation:** Quality and security CI are green, but the database migration gate is red. No full regression-suite completion is claimed.
+
+
+## Batch 8 execution update — 2026-11-22
+
+**Audited commit:** `59dcd4c3a8721469f5a763ad1099492e7a5c02e5`  
+**PR:** #33 — remains open and unmerged.
+
+### Final-head CI evidence
+
+| Gate | Workflow run | Result | Evidence |
+|---|---:|---|---|
+| ESLint | [45051417372](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45051417372) | PASS | Lint step completed successfully |
+| TypeScript | [45051417372](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45051417372) | PASS | `npx tsc --noEmit` completed successfully |
+| Production build | [45051417372](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45051417372) | PASS | `npm run build` completed successfully |
+| Dependency audit | [45051417457](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45051417457) | PASS | `npm audit --audit-level=moderate` |
+| Secret scan | [45051417457](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45051417457) | PASS | Gitleaks action completed successfully |
+| CodeQL | [45051417457](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45051417457) | PASS | Analysis completed successfully |
+| Deno / Edge Function checks | [45051417457](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45051417457) | PASS | Six configured Edge Functions type-checked; auth guard Deno tests passed |
+| Clean local migration replay | [45051417432](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45051417432) | FAIL | Replay stops at `20261121023000_public_active_referral_partners.sql`: `public.partner_programs` is missing |
+| pgTAP SQL contract suite | [45051417432](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45051417432) | NOT RUN | Test step skipped because migration startup failed |
+
+### Contract tests versus behavioural tests
+
+- **Contract coverage only:** the committed pgTAP suite contains 23 assertions for schema/function presence, SECURITY DEFINER attributes, RLS, uniqueness and service-role grants. It has not executed on a clean database.
+- **Behavioural database coverage:** reservation, completion, refund, limits, concurrency, invitation acceptance and rollback have no passing isolated database evidence.
+- **Unit/source coverage:** auth guards, acknowledgement checks, referral matching, search relevance and helper-level routing are not substitutes for database or full API/UI E2E tests.
+- **Full integration/E2E:** seller signup/workspace, partner create/invite/accept/link/activate/referral, billing/webhooks and SMTP delivery remain unverified or blocked.
+
+### Result
+
+The quality and security workflows are green on the audited commit, but the migration gate is red and SQL contract tests did not run. The complete regression suite is **NOT COMPLETE**. No clean migration replay, full regression pass or production readiness claim is made.
