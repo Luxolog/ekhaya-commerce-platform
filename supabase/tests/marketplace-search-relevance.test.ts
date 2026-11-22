@@ -131,3 +131,12 @@ Deno.test("uses marketplace product identifiers as the strongest listing identit
  ],intent);
  assertEquals(result.products.length + result.related_products.length,1);
 });
+
+Deno.test("bounds additional discovery to two unique queries and excludes queries already used",()=>{
+ const intent=understandProductQuery("dell inspirion 15 3000");
+ const first=buildDiscoveryQueries(intent,4)[0];
+ const followups=selectAdditionalDiscoveryQueries(intent,[],[first],10);
+ assertEquals(followups.length<=2,true);
+ assertEquals(followups.includes(first),false);
+ assertEquals(new Set(followups.map(q=>q.toLowerCase().replace(/[^a-z0-9]+/g," ").trim())).size,followups.length);
+});
