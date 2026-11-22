@@ -4,11 +4,10 @@ select plan(12);
 
 -- All fixtures are isolated to this pgTAP transaction. No external provider,
 -- SMTP, or production service is contacted.
--- The current local schema's auth profile bootstrap has a separate marketplace-access
--- constraint that is outside this partner/payment contract. Disable only that profile
--- bootstrap trigger while creating fixtures; referral/payment triggers remain enabled.
--- Create the minimum valid profiles explicitly so this test isolates its intended scope.
-alter table auth.users disable trigger on_auth_user_created_profile;
+-- The profile bootstrap trigger enforces at least one marketplace in the profile.
+-- Give synthetic test users a valid temporary default, then restore the normal default.
+alter table public.profiles alter column marketplace_access
+  set default array['takealot']::text[];
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -32,13 +31,8 @@ insert into auth.users (
   '{"provider":"email","providers":["email"]}'::jsonb,'{}'::jsonb,now(),now()
 );
 
-alter table auth.users enable trigger on_auth_user_created_profile;
-
-insert into public.profiles (id, display_name, marketplace_access)
-values
-  ('b9000000-0000-4000-8000-000000000001','Batch 9 Partner',array['takealot']::text[]),
-  ('b9000000-0000-4000-8000-000000000002','Batch 9 Referral',array['takealot']::text[]),
-  ('b9000000-0000-4000-8000-000000000003','Batch 9 Payment',array['takealot']::text[]);
+alter table public.profiles alter column marketplace_access
+  set default '{}'::text[];
 
 insert into public.partner_programs (
   id, partner_name, partner_slug, referral_code, partner_user_id, status
