@@ -41,10 +41,39 @@ export default function EkhayaOwnerDashboard() {
   const [inviteFeedback, setInviteFeedback] = useState("");
   const [inviteBusy, setInviteBusy] = useState(false);
   const [partnerInvitations, setPartnerInvitations] = useState<Array<{id:string;partner_id:string;invited_email:string;contact_name:string|null;status:string;invited_at:string;expires_at:string;accepted_at:string|null}>>([]);
+  const getOwnerSession = async (forceRefresh = false) => {
+    let session = JSON.parse(localStorage.getItem("ekhaya_session") ?? "null");
+    if (!session?.access_token) throw new Error("Your owner session is missing. Sign in once and return here; this screen will preserve your work.");
+    const expiresAt = Number(session.expires_at ?? 0);
+    if (session.refresh_token && (forceRefresh || !expiresAt || expiresAt <= Math.floor(Date.now() / 1000) + 90)) {
+      const refreshed = await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/auth/v1/token?grant_type=refresh_token", {
+        method: "POST", headers: { apikey: KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: session.refresh_token }), cache: "no-store"
+      });
+      const next = await refreshed.json().catch(() => ({}));
+      if (!refreshed.ok || !next.access_token) {
+        localStorage.removeItem("ekhaya_session");
+        throw new Error("Your owner session has expired. Please sign in again; your current dashboard selections will remain on this screen.");
+      }
+      session = { ...session, ...next, expires_at: Math.floor(Date.now() / 1000) + Number(next.expires_in ?? 3600) };
+      localStorage.setItem("ekhaya_session", JSON.stringify(session));
+    }
+    return session;
+  };
+  const ownerFetch = async (url: string, init: RequestInit = {}) => {
+    let session = await getOwnerSession();
+    const send = (token: string) => fetch(url, { ...init, headers: { ...(init.headers as Record<string,string> ?? {}), apikey: KEY, Authorization: "Bearer " + token }, cache: "no-store" });
+    let response = await send(session.access_token);
+    if (response.status === 401 && session.refresh_token) {
+      session = await getOwnerSession(true);
+      response = await send(session.access_token);
+    }
+    return response;
+  };
   const manageInvitations = async (payload: Record<string,string>) => {
-    const session = JSON.parse(localStorage.getItem("ekhaya_session") ?? "null");
-    if (!session?.access_token) throw new Error("Sign in with the Ekhaya owner account first.");
-    const response = await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/invite-saechamber-partner", { method: "POST", headers: { apikey: KEY, Authorization: "Bearer " + session.access_token, "Content-Type": "application/json" }, body: JSON.stringify(payload), cache: "no-store" });
+    const response = await ownerFetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/invite-saechamber-partner", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+    });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || "Partner invitation request failed.");
     return body;
@@ -78,13 +107,10 @@ export default function EkhayaOwnerDashboard() {
   const load = useCallback(async () => {
     setBusy(true); setError("");
     try {
-      const session = JSON.parse(localStorage.getItem("ekhaya_session") ?? "null");
-      if (!session?.access_token) throw new Error("Sign in with the Ekhaya owner account to access this dashboard.");
-      const response = await fetch(API, {
+      const response = await ownerFetch(API, {
         method: "POST",
-        headers: { apikey: KEY, Authorization: "Bearer " + session.access_token, "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "owner_partner_analytics" }),
-        cache: "no-store"
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "owner_partner_analytics" })
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? (response.status === 403 ? "This account does not have Ekhaya owner permissions." : "Could not load owner dashboard."));
@@ -107,13 +133,10 @@ export default function EkhayaOwnerDashboard() {
   const reviewSeller = async (seller: Seller, status: "active" | "inactive") => {
     setSellerReviewBusyId(seller.id); setSellerReviewFeedback("");
     try {
-      const session = JSON.parse(localStorage.getItem("ekhaya_session") ?? "null");
-      if (!session?.access_token) throw new Error("Sign in with the Ekhaya owner account first.");
-      const response = await fetch(API, {
+      const response = await ownerFetch(API, {
         method: "POST",
-        headers: { apikey: KEY, Authorization: "Bearer " + session.access_token, "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "set_user_status", user_id: seller.id, status, reason: status === "active" ? "Approved by Ekhaya owner" : "Seller application declined by Ekhaya owner" }),
-        cache: "no-store"
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_user_status", user_id: seller.id, status, reason: status === "active" ? "Approved by Ekhaya owner" : "Seller application declined by Ekhaya owner" })
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Seller review could not be saved.");
