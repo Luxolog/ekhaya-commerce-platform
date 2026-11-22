@@ -85,6 +85,8 @@ export function rankMarketplaceProducts<T extends Record<string,unknown>>(items:
     const modelConflict=intent.modelTokens.some(t=>/[0-9]/.test(t)&&!titleTokens.includes(t));
     const categoryMatch=!intent.category || (intent.category==="laptop" ? /\b(laptop|notebook|inspiron|elitebook|thinkpad|pavilion|latitude|vivobook|ideapad|macbook)\b/.test(text) && !accessory : intent.category==="smartphone" ? /\b(iphone|smartphone|galaxy|pixel)\b/.test(text) && !accessory : intent.category==="tablet" ? /\b(tablet|ipad|galaxy tab)\b/.test(text) && !accessory : text.includes(intent.category));
     const exact=titleTokens.join(" ")===tokens(intent.normalizedQuery).join(" ");
+    const condition_label=conditionOf(text);
+    const conditionConflict=!!intent.requestedCondition && condition_label.toLowerCase()!==intent.requestedCondition;
     const score=Math.max(0,Math.min(100,
       (exact?35:Math.min(35,modelRatio*35))+
       (brandMatch?20:0)+(categoryMatch?20:0)+(modelRatio*15)+
@@ -97,8 +99,6 @@ export function rankMarketplaceProducts<T extends Record<string,unknown>>(items:
     ));
     const classification:RankedProduct["match_classification"]=accessory?"Accessory":score>=80?"Exact match":score>=55?"Strong match":"Related product";
     const result_group:RankedProduct["result_group"]=accessory?"accessory":score>=55?"best_match":"related";
-    const condition_label=conditionOf(text);
-    const conditionConflict=!!intent.requestedCondition && condition_label.toLowerCase()!==intent.requestedCondition;
     const identity=String(p.url??p.id??title).toLowerCase();
     return {...p,relevance_score:Math.round(score),match_classification:classification,result_group,condition_label,_identity:identity};
   }).filter(p=>{
