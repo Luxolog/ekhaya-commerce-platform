@@ -76,7 +76,7 @@ export function buildDiscoveryQueries(intent:ProductIntent, maxRequests=3):strin
   const unique:string[]=[];
   const seen=new Set<string>();
   for (const candidate of candidates) {
-    const value=candidate.replace(/\\s+/g," ").trim();
+    const value=candidate.replace(/\s+/g," ").trim();
     const key=queryKey(value);
     if (!value || !key || seen.has(key)) continue;
     seen.add(key); unique.push(value);
