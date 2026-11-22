@@ -10,10 +10,14 @@ concurrency:
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - feature/saechamber-public-showcase
   push:
     branches:
       - main
       - feat/shared-price-cache-android
+      - recovery/restore-owner-partner-preserve-pricing
 
 jobs:
   build-debug-apk:
