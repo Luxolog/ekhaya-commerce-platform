@@ -77,7 +77,7 @@ export default function OwnerUsersPage() {
 
   return <main style={{minHeight:"100vh",background:"#F4F8FC",padding:"28px 5%",color:"#071B31",fontFamily:"Arial,sans-serif"}}>
     <header style={{maxWidth:980,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"1px solid #DCE8F1",paddingBottom:18}}>
-      <b style={{letterSpacing:1}}>EKHAYA TECHNOLOGIES</b>
+      <Link href="/" aria-label="Go to Ekhaya Technologies home" style={{letterSpacing:1,fontWeight:800,color:"#078FC4",textDecoration:"none"}}>EKHAYA TECHNOLOGIES ↗</Link>
       <nav style={{display:"flex",gap:18,fontSize:13}}><Link href="/owner/cache/" style={{color:"#079BD3"}}>Cache controls</Link><Link href="/price-checker/" style={{color:"#079BD3"}}>Price checker →</Link></nav>
     </header>
     <section style={{maxWidth:980,margin:"42px auto",background:"#fff",border:"1px solid #DCE8F1",borderRadius:14,padding:26,boxShadow:"0 8px 30px #071b3108"}}>
