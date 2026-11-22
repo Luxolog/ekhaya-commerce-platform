@@ -4,9 +4,11 @@ on:
   pull_request:
     branches:
       - release/price-checker-search-balances
+      - feature/saechamber-public-showcase
   push:
     branches:
       - feat/price-checker-download-experience
+      - recovery/restore-owner-partner-preserve-pricing
 
 permissions:
   contents: read
