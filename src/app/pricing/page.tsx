@@ -34,18 +34,9 @@ export default function PricingPage() {
           <ul style={{...muted,paddingLeft:19,margin:0}}>{plan.features.map(feature=><li key={feature} style={{marginBottom:7}}>{feature}</li>)}</ul>
         </article>)}
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"minmax(280px, 0.95fr) minmax(0, 3fr)",gap:18,alignItems:"stretch",marginTop:18}}>
-        <article style={{...card,background:"#071B31",color:"#fff",borderColor:"#071B31",borderRadius:22,padding:30}}>
-          <h3 style={{fontFamily:"Manrope,sans-serif",fontSize:23,margin:"0 0 8px"}}>Custom</h3>
-          <p style={{fontFamily:"Manrope,sans-serif",fontSize:29,fontWeight:800,margin:"10px 0"}}>Let&apos;s talk</p>
-          <p style={{color:"#C5D7E5",fontSize:14,lineHeight:1.75}}>For businesses needing a tailored search allowance or a specific arrangement. Photograph search can be included.</p>
-          <ul style={{color:"#C5D7E5",fontSize:13,lineHeight:1.8,paddingLeft:19}}><li>Custom monthly search allowance</li><li>Product and photograph search access</li><li>Business-specific arrangements by agreement</li></ul>
-          <a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Price%20Checker%20Custom%20Plan" style={{display:"inline-block",marginTop:12,color:"#fff",fontWeight:800,fontSize:12}}>REQUEST A CUSTOM PLAN →</a>
-        </article>
-        <a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Price%20Checker%20Custom%20Plan" style={{display:"flex",alignItems:"flex-start",padding:"34px clamp(24px,4vw,58px)",minHeight:205,border:"1px solid #079BD3",borderRadius:12,background:"#F4F8FC",color:"#079BD3",textDecoration:"none",fontFamily:"Manrope,sans-serif",fontSize:"clamp(20px,2.2vw,30px)",lineHeight:1.35,fontWeight:600}}>
-          Need a Price Checker custom plan? Let&apos;s talk.
-        </a>
-      </div>
+      <a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Price%20Checker%20Custom%20Plan" style={{display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center",padding:"24px clamp(20px,4vw,48px)",minHeight:112,marginTop:18,border:"1px solid #079BD3",borderRadius:12,background:"#F4F8FC",color:"#079BD3",textDecoration:"none",fontFamily:"Manrope,sans-serif",fontSize:18,lineHeight:1.5,fontWeight:600}}>
+        Need a Price Checker custom plan? Let&apos;s talk.
+      </a>
       <p style={{...muted,fontSize:12,marginTop:14}}>New accounts receive 5 welcome searches once per account. Monthly plan allowances reset each billing month. When your searches are used, you must upgrade to continue; search top-ups are not available. Search allowances apply per seller account and are not shared between sellers.</p>
       <p role="note" style={{...muted,fontSize:13,marginTop:18,padding:16,background:"#FFF7E6",border:"1px solid #F2D9A6",borderRadius:10}}>
         Paid-plan online checkout is not enabled yet. Contact Ekhaya Technologies to request paid-plan activation. Do not send payment details by email or use unofficial payment links.
