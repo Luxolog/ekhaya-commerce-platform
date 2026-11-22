@@ -33,13 +33,18 @@ export default function PricingPage() {
           <p style={{...muted,margin:"0 0 14px"}}>{plan.description}</p>
           <ul style={{...muted,paddingLeft:19,margin:0}}>{plan.features.map(feature=><li key={feature} style={{marginBottom:7}}>{feature}</li>)}</ul>
         </article>)}
-        <article style={{...card,background:"#071B31",color:"#fff",borderColor:"#071B31"}}>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"minmax(280px, 0.95fr) minmax(0, 3fr)",gap:18,alignItems:"stretch",marginTop:18}}>
+        <article style={{...card,background:"#071B31",color:"#fff",borderColor:"#071B31",borderRadius:22,padding:30}}>
           <h3 style={{fontFamily:"Manrope,sans-serif",fontSize:23,margin:"0 0 8px"}}>Custom</h3>
           <p style={{fontFamily:"Manrope,sans-serif",fontSize:29,fontWeight:800,margin:"10px 0"}}>Let&apos;s talk</p>
           <p style={{color:"#C5D7E5",fontSize:14,lineHeight:1.75}}>For businesses needing a tailored search allowance or a specific arrangement. Photograph search can be included.</p>
           <ul style={{color:"#C5D7E5",fontSize:13,lineHeight:1.8,paddingLeft:19}}><li>Custom monthly search allowance</li><li>Product and photograph search access</li><li>Business-specific arrangements by agreement</li></ul>
           <a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Price%20Checker%20Custom%20Plan" style={{display:"inline-block",marginTop:12,color:"#fff",fontWeight:800,fontSize:12}}>REQUEST A CUSTOM PLAN →</a>
         </article>
+        <a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Price%20Checker%20Custom%20Plan" style={{display:"flex",alignItems:"flex-start",padding:"34px clamp(24px,4vw,58px)",minHeight:205,border:"1px solid #079BD3",borderRadius:12,background:"#F4F8FC",color:"#079BD3",textDecoration:"none",fontFamily:"Manrope,sans-serif",fontSize:"clamp(20px,2.2vw,30px)",lineHeight:1.35,fontWeight:600}}>
+          Need a Price Checker custom plan? Let&apos;s talk.
+        </a>
       </div>
       <p style={{...muted,fontSize:12,marginTop:14}}>New accounts receive 5 welcome searches once per account. Monthly plan allowances reset each billing month. When your searches are used, you must upgrade to continue; search top-ups are not available. Search allowances apply per seller account and are not shared between sellers.</p>
       <p role="note" style={{...muted,fontSize:13,marginTop:18,padding:16,background:"#FFF7E6",border:"1px solid #F2D9A6",borderRadius:10}}>
@@ -58,10 +63,12 @@ export default function PricingPage() {
         <article style={card}><h3 style={{fontFamily:"Manrope,sans-serif",fontSize:21,margin:"0 0 8px"}}>Custom business applications</h3><p style={{...muted,margin:"0 0 10px"}}>Custom quotation after requirements review.</p><ul style={muted}><li>Discovery and requirements definition</li><li>Role-based workflows and dashboards</li><li>Database and authentication design</li><li>Third-party API and payment integrations</li><li>Testing, handover and support options</li></ul></article>
         <article style={card}><h3 style={{fontFamily:"Manrope,sans-serif",fontSize:21,margin:"0 0 8px"}}>Business systems, integrations & intelligence</h3><p style={{...muted,margin:"0 0 10px"}}>Custom project quotation based on your integration, automation and reporting requirements.</p><ul style={muted}><li>Connect existing business tools and synchronise approved data</li><li>Automate repeatable workflows and monitor integrations</li><li>Business performance dashboards and operational reporting</li><li>Data consolidation, visualisation and decision-support insights</li><li>Reporting exports and ongoing support options</li></ul></article>
       </div>
-      <div style={{marginTop:26,background:"#071B31",color:"#fff",padding:28,borderRadius:16}}>
-        <h2 style={{fontFamily:"Manrope,sans-serif",fontSize:26,margin:"0 0 8px"}}>Need a tailored solution?</h2>
-        <p style={{color:"#C5D7E5",fontSize:14,lineHeight:1.7}}>Tell us what your business needs. We will discuss the scope and provide a clear quotation before work begins.</p>
-        <a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Technologies%20Enquiry" style={{display:"inline-block",marginTop:8,padding:"13px 18px",borderRadius:8,background:"#079BD3",color:"#fff",fontSize:12,fontWeight:800,textDecoration:"none"}}>CONTACT EKHAYA →</a>
+      <div style={{marginTop:26,background:"#071B31",color:"#fff",padding:"38px clamp(24px,3vw,42px)",borderRadius:22,display:"flex",alignItems:"flex-start",justifyContent:"flex-start",minHeight:220}}>
+        <div style={{maxWidth:760,display:"flex",flexDirection:"column",alignItems:"flex-start"}}>
+          <h2 style={{fontFamily:"Manrope,sans-serif",fontSize:26,margin:"0 0 12px"}}>Need a tailored solution?</h2>
+          <p style={{color:"#C5D7E5",fontSize:14,lineHeight:1.7,margin:"0 0 18px"}}>Tell us what your business needs. We will discuss the scope and provide a clear quotation before work begins.</p>
+          <a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Technologies%20Enquiry" style={{display:"inline-block",marginTop:0,padding:"16px 24px",borderRadius:10,background:"#079BD3",color:"#fff",fontSize:13,fontWeight:800,textDecoration:"none"}}>CONTACT EKHAYA →</a>
+        </div>
       </div>
     </section>
     <SiteFooter />
