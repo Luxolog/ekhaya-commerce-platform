@@ -107,7 +107,13 @@ The connected project tools available during this audit did not expose the Auth 
 
 No Auth dashboard settings were changed.
 
-## 5. Production Edge Function inventory
+## 5. Database migration drift
+
+The branch contains `supabase/migrations/20261122100000_standard_ekhaya_account_ids.sql`, but the live Supabase migration history currently ends at `20261122043601` (`partner_acceptance_notification_newline_format`). The account-ID migration is therefore **not recorded as applied in production**.
+
+The branch adds `profiles.account_id` and updates owner-side partner/account presentation to read that field. Treat this as a release dependency: before deploying code that selects `profiles.account_id`, review the migration against production row counts, sequence bounds and existing profile data, then apply it through the approved release process and verify the column/index/constraint. Do not apply it during this GitHub-only sprint.
+
+## 6. Production Edge Function inventory
 
 Live project status: `ACTIVE_HEALTHY`.
 
@@ -124,7 +130,7 @@ Live project status: `ACTIVE_HEALTHY`.
 
 Do not overwrite or redeploy these functions as part of this branch-only audit. Compare production and repository source before any future release, particularly `marketplace-search`.
 
-## 6. GitHub release checks
+## 7. GitHub release checks
 
 The existing `.github/workflows/security.yml` previously ran pull-request security checks only when the PR base was `main`, so it did not cover PR #33 while that PR targeted `feature/partner-admin-email-otp`.
 
@@ -138,7 +144,7 @@ Updated on this branch to:
 
 The existing `.github/workflows/quality.yml` runs ESLint, TypeScript and production build. The repository currently has no `test` script, no visible test framework dependency and no committed package lockfile. Full auth E2E coverage is therefore still outstanding; do not represent the current lint/build checks as auth E2E tests.
 
-## 7. Remaining release blockers
+## 8. Remaining release blockers
 
 1. Enable leaked-password protection in Supabase Auth and verify it.
 2. Confirm exact Auth Site URL and redirect allowlist in the dashboard.
