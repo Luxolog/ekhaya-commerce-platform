@@ -28,6 +28,11 @@ export default function EkhayaOwnerDashboard() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<(typeof OWNER_TABS)[number]>("overview");
+  const [newPartnerName, setNewPartnerName] = useState("");
+  const [newPartnerSlug, setNewPartnerSlug] = useState("");
+  const [newPartnerReferralCode, setNewPartnerReferralCode] = useState("");
+  const [newPartnerFeedback, setNewPartnerFeedback] = useState("");
+  const [newPartnerBusy, setNewPartnerBusy] = useState(false);
   const [invitePartnerId, setInvitePartnerId] = useState("");
   const [inviteContactName, setInviteContactName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -52,6 +57,29 @@ export default function EkhayaOwnerDashboard() {
     try { const result = await manageInvitations({ partner_id: invitePartnerId, contact_name: inviteContactName.trim(), email: inviteEmail.trim() }); setInviteFeedback("Invitation sent to " + result.invited_email + " for " + result.partner_name + ". It expires in 14 days."); setInviteContactName(""); setInviteEmail(""); await loadPartnerInvitations(); }
     catch (e) { setInviteFeedback(e instanceof Error ? e.message : "Invitation could not be sent."); }
     finally { setInviteBusy(false); }
+  };
+
+  const registerPartner = async () => {
+    if (!newPartnerName.trim()) return;
+    setNewPartnerBusy(true); setNewPartnerFeedback("");
+    try {
+      const session = JSON.parse(localStorage.getItem("ekhaya_session") ?? "null");
+      if (!session?.access_token) throw new Error("Sign in with the Ekhaya owner account first.");
+      const response = await fetch(API, {
+        method: "POST",
+        headers: { apikey: KEY, Authorization: "Bearer " + session.access_token, "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "owner_create_partner", partner_name: newPartnerName.trim(), partner_slug: newPartnerSlug.trim(), referral_code: newPartnerReferralCode.trim() }),
+        cache: "no-store"
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "Could not register partner programme.");
+      setNewPartnerFeedback("Partner programme registered: " + body.partner.partner_name + " · " + body.partner.referral_code + ". Status: pending. You can now invite its owner.");
+      setNewPartnerName(""); setNewPartnerSlug(""); setNewPartnerReferralCode("");
+      await load();
+      setInvitePartnerId(body.partner.id);
+    } catch (e) {
+      setNewPartnerFeedback(e instanceof Error ? e.message : "Partner registration failed.");
+    } finally { setNewPartnerBusy(false); }
   };
 
   const load = useCallback(async () => {
@@ -210,6 +238,23 @@ export default function EkhayaOwnerDashboard() {
           <div style={{ ...panel, borderColor: "#E8D8B5" }}><b>Important distinction</b><p style={{ ...small, marginBottom: 0 }}>Remaining means the seller’s remaining platform search credits for the current month. The connected marketplace provider’s own external account quota is not exposed in the current integration, so it is not represented as a remaining provider quota.</p></div>
         </div>}
         {tab === "partners" && <div style={{ display: "grid", gap: 16 }}>
+          <section style={panel}>
+            <h2 style={{ marginTop: 0, fontSize: 18 }}>Register a new partner</h2>
+            <p style={small}>Create a separate programme and unique referral code for each partner organisation. New programmes start as pending and do not attribute referrals until they are activated.</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
+              <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 700 }}>Partner organisation name
+                <input value={newPartnerName} onChange={e=>setNewPartnerName(e.target.value)} maxLength={120} placeholder="e.g. Retail RockIT" style={{ padding: 11, border: "1px solid #DDE6EF", borderRadius: 8 }} />
+              </label>
+              <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 700 }}>Partner slug <span style={small}>Optional · generated from organisation name</span>
+                <input value={newPartnerSlug} onChange={e=>setNewPartnerSlug(e.target.value)} maxLength={60} placeholder="retail-rockit" style={{ padding: 11, border: "1px solid #DDE6EF", borderRadius: 8 }} />
+              </label>
+              <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 700 }}>Referral code <span style={small}>Optional · generated from slug</span>
+                <input value={newPartnerReferralCode} onChange={e=>setNewPartnerReferralCode(e.target.value.toUpperCase())} maxLength={24} placeholder="RETAILROCKIT" style={{ padding: 11, border: "1px solid #DDE6EF", borderRadius: 8, textTransform: "uppercase" }} />
+              </label>
+            </div>
+            <button onClick={()=>void registerPartner()} disabled={newPartnerBusy || newPartnerName.trim().length < 2} style={{ marginTop: 12, border: 0, borderRadius: 8, padding: "11px 16px", background: "#10243A", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{newPartnerBusy ? "Registering…" : "Register new partner"}</button>
+            {newPartnerFeedback && <p role="status" style={{ ...small, marginTop: 10 }}>{newPartnerFeedback}</p>}
+          </section>
           <section style={panel}>
             <h2 style={{ marginTop: 0, fontSize: 18 }}>Invite a partner owner</h2>
             <p style={small}>Select any registered partner programme. The email is personalised with the contact and partner names and expires after 14 days. No email is sent until you press the button.</p>
