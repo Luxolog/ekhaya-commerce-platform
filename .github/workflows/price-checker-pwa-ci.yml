@@ -1,0 +1,31 @@
+name: Price Checker PWA verification
+
+on:
+  pull_request:
+    branches:
+      - release/price-checker-search-balances
+      - feature/saechamber-public-showcase
+  push:
+    branches:
+      - feat/price-checker-download-experience
+      - recovery/restore-owner-partner-preserve-pricing
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install
+      - name: Build static website
+        run: npm run build
+      - name: Verify PWA assets and cache boundaries
+        run: node scripts/verify-pwa.mjs
