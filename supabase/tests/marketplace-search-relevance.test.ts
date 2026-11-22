@@ -103,3 +103,12 @@ Deno.test("conditional discovery allows targeted follow-ups for weak results onl
  const followups=selectAdditionalDiscoveryQueries(intent,weak,["hp elitebook 840 g5 laptop"],2);
  assertEquals(followups.length<=2,true);
 });
+
+Deno.test("discovery query planner normalizes repeated whitespace before deduplication",()=>{
+ const intent=understandProductQuery("dell inspirion 15 3000");
+ const plan=buildDiscoveryQueries(intent,4);
+ for (const query of plan) {
+  assertEquals(/\\s{2,}/.test(query),false);
+ }
+ assertEquals(plan[0],"dell inspirion 15 3000");
+});
