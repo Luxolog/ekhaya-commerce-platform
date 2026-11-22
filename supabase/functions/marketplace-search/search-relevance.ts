@@ -158,7 +158,7 @@ export function rankMarketplaceProducts<T extends Record<string,unknown>>(items:
       }
     }
     const fallbackTitle = [p.brand, title].map(v => String(v ?? "").trim().toLowerCase()).filter(Boolean).join(" ");
-    const identity = String(stableId ?? canonicalUrl || fallbackTitle).toLowerCase();
+    const identity = String(stableId ?? (canonicalUrl || fallbackTitle)).toLowerCase();
     return {...p,relevance_score:Math.round(score),match_classification:classification,result_group,condition_label,_identity:identity};
   }).filter(p=>{
     if(seen.has(p._identity)) return false;
