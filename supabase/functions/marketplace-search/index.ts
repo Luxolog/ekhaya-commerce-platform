@@ -136,12 +136,6 @@ Deno.serve(async (req: Request) => {
     const profiles = await profilesResponse.json();
     const pilotById = new Map<string, Record<string, unknown>>(pilots.map((p: Record<string, unknown>) => [String(p.user_id), p]));
     const profileById = new Map<string, Record<string, unknown>>(profiles.map((p: Record<string, unknown>) => [String(p.id), p]));
-    const partnersWithAccountIds = partners.map((partner: Record<string, unknown>) => ({
-      ...partner,
-      account_id: partner.partner_user_id
-        ? (profileById.get(String(partner.partner_user_id))?.account_id ?? null)
-        : null
-    }));
     return json({ ok: true, users: authUsers.map((u: Record<string, unknown>) => {
       const meta = asRecord(u.user_metadata);
       const app = asRecord(u.app_metadata);
@@ -402,6 +396,12 @@ Deno.serve(async (req: Request) => {
     const partnerById = new Map<string, Record<string, unknown>>(partners.map((p: Record<string, unknown>) => [String(p.id), p]));
     const referralByUser = new Map<string, Record<string, unknown>>(referrals.map((r: Record<string, unknown>) => [String(r.referred_user_id), r]));
     const profileById = new Map<string, Record<string, unknown>>(profiles.map((p: Record<string, unknown>) => [String(p.id), p]));
+    const partnersWithAccountIds = partners.map((partner: Record<string, unknown>) => ({
+      ...partner,
+      account_id: partner.partner_user_id
+        ? (profileById.get(String(partner.partner_user_id))?.account_id ?? null)
+        : null
+    }));
     const latestSubscription = new Map<string, Record<string, unknown>>();
     for (const sub of subscriptions) if (!latestSubscription.has(String(sub.user_id))) latestSubscription.set(String(sub.user_id), sub);
     const userPayments = new Map<string, Record<string, unknown>[]>();
