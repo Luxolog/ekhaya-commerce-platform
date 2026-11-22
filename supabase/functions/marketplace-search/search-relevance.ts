@@ -82,7 +82,7 @@ export function rankMarketplaceProducts<T extends Record<string,unknown>>(items:
     const brandMatch=!!intent.brand && (String(p.brand??"").toLowerCase()===intent.brand.toLowerCase() || includesPhrase(text,intent.brand.toLowerCase()));
     const matchedModel=intent.modelTokens.filter(t=>titleTokens.includes(t));
     const modelRatio=intent.modelTokens.length?matchedModel.length/intent.modelTokens.length:0;
-    const modelConflict=intent.modelTokens.some(t=>/\\d/.test(t)&&!titleTokens.includes(t));
+    const modelConflict=intent.modelTokens.some(t=>/[0-9]/.test(t)&&!titleTokens.includes(t));
     const categoryMatch=!intent.category || (intent.category==="laptop" ? /\b(laptop|notebook|inspiron|elitebook|thinkpad|pavilion|latitude|vivobook|ideapad|macbook)\b/.test(text) && !accessory : intent.category==="smartphone" ? /\b(iphone|smartphone|galaxy|pixel)\b/.test(text) && !accessory : intent.category==="tablet" ? /\b(tablet|ipad|galaxy tab)\b/.test(text) && !accessory : text.includes(intent.category));
     const exact=titleTokens.join(" ")===tokens(intent.normalizedQuery).join(" ");
     const score=Math.max(0,Math.min(100,
