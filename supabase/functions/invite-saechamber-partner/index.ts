@@ -56,7 +56,7 @@ Deno.serve(async (req: Request) => {
     if (!verified) return new Response(JSON.stringify({ error: "Email verification is required to manage partner invitations.", code: "EMAIL_OTP_REQUIRED" }), { status: 403, headers: cors });
   }
 
-  let body: { action?: string; partner_id?: string; email?: string; contact_name?: string };
+  let body: { action?: string; partner_id?: string; email?: string; contact_name?: string; partner_name?: string; partner_slug?: string; referral_code?: string };
   try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid request body" }), { status: 400, headers: cors }); }
 
   if (body.action === "create_partner") {
