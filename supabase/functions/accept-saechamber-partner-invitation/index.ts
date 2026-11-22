@@ -58,21 +58,26 @@ Deno.serve(async (req: Request) => {
   if (!isValidInvitationId(invitationId))
     return new Response(JSON.stringify({ error: "Invalid invitation reference" }), { status: 400, headers: cors });
   if (!isValidReferralCode(code)) return new Response(JSON.stringify({ error: "Choose a link code using 5–20 letters or numbers" }), { status: 400, headers: cors });
-  const { data: invitation, error: inviteError } = await admin.from("partner_invitations")
-    .select("id,partner_id,invited_email,status,expires_at").eq("id", invitationId).single();
-  if (inviteError || !invitation || !isPendingAndUnexpiredInvitation(invitation))
-    return new Response(JSON.stringify({ error: "This invitation is invalid, expired or already used" }), { status: 410, headers: cors });
-  if (!isInvitationForUser(invitation, user.email))
-    return new Response(JSON.stringify({ error: "Please sign in using the email address that received this partner invitation" }), { status: 403, headers: cors });
-  const { data: duplicate } = await admin.from("partner_programs").select("id").eq("referral_code", code).neq("id", invitation.partner_id).maybeSingle();
-  if (duplicate) return new Response(JSON.stringify({ error: "That referral code is already in use. Choose another." }), { status: 409, headers: cors });
-  const { data: linked, error: linkError } = await admin.from("partner_programs")
-    .update({ partner_user_id: user.id, referral_code: code, updated_at: new Date().toISOString() })
-    .eq("id", invitation.partner_id).is("partner_user_id", null)
-    .select("id,partner_name,partner_slug,referral_code,status").maybeSingle();
-  if (linkError || !linked) return new Response(JSON.stringify({ error: "This partner programme has already been linked. Contact Ekhaya support if you need help." }), { status: 409, headers: cors });
-  const { error: acceptedError } = await admin.from("partner_invitations")
-    .update({ status: "accepted", accepted_at: new Date().toISOString() }).eq("id", invitationId).eq("status", "pending");
-  if (acceptedError) return new Response(JSON.stringify({ error: "Partner access was linked, but the invitation status could not be updated. Contact Ekhaya support." }), { status: 500, headers: cors });
-  return new Response(JSON.stringify({ success: true, partner: linked, user_id: user.id }), { status: 200, headers: cors });
+  const { data: accepted, error: acceptanceError } = await admin.rpc("accept_saechamber_partner_invitation", {
+    p_invitation_id: invitationId,
+    p_user_id: user.id,
+    p_user_email: user.email,
+    p_referral_code: code,
+  });
+  if (acceptanceError) {
+    const message = String(acceptanceError.message ?? "");
+    const duplicateCode = message.includes("REFERRAL_CODE_ALREADY_IN_USE") || acceptanceError.code === "23505";
+    const unavailable = message.includes("INVITATION_INVALID_EXPIRED_OR_ALREADY_USED");
+    const alreadyLinked = message.includes("PARTNER_PROGRAM_ALREADY_LINKED");
+    return new Response(JSON.stringify({
+      error: duplicateCode
+        ? "That referral code is already in use. Choose another."
+        : alreadyLinked
+          ? "This partner programme has already been linked. Contact Ekhaya support if you need help."
+          : unavailable
+            ? "This invitation is invalid, expired or already used."
+            : "Could not safely accept this invitation. No partial account link was saved.",
+    }), { status: duplicateCode || alreadyLinked ? 409 : unavailable ? 410 : 500, headers: cors });
+  }
+  return new Response(JSON.stringify({ success: true, partner: accepted, user_id: user.id }), { status: 200, headers: cors });
 });
