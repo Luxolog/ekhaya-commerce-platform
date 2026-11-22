@@ -279,13 +279,43 @@ The two previously corrected defects in invitation handling and notification HTM
 
 `notification-worker` and `paystack-billing` have JWT verification disabled in the live project; their in-function worker authentication and webhook signature checks must be reviewed before any change to their deployed code or JWT settings.
 
-## 11. Latest sprint implementation and CI status
+## 11. Final pre-testing sprint implementation and CI status
 
-- Latest branch HEAD: `72928d93a0a197aa4e682a98538d69a7f079c9b8`.
-- Signup acknowledgement and referral matching helper added and integrated into the account page.
-- Deno unit tests added for those pure guards and wired into `.github/workflows/security.yml`.
-- Latest branch secret-scanning workflow completed successfully.
-- Latest quality/security push and PR workflows were still pending/in progress at the time of this update; no passing result is claimed for this latest HEAD.
-- PR #33 remains open, unmerged and based on `feature/partner-admin-email-otp`.
+### Engineering changes committed
+- Extracted signup acknowledgement and referral-code matching guards into `src/lib/auth-guards.ts` and integrated them into `src/app/account/page.tsx`.
+- Added Deno unit tests in `supabase/tests/auth-guards.test.ts` covering referral normalization/matching, unknown/empty codes and required signup acknowledgements.
+- Added the Deno regression test command to the security workflow. Excluded Deno test files from the Next.js application TypeScript project while preserving their independent Deno type-check/test run.
+- Hardened the account-ID migration with an ACCESS EXCLUSIVE profile-table lock, preservation of existing IDs, malformed/duplicate ID rejection, five-digit capacity checks, deterministic backfill above the existing maximum, sequence ownership/default, NOT NULL, unique index and format constraint.
+- Added read-only preflight/postflight verification SQL at `supabase/verification/standard_ekhaya_account_ids_preflight.sql`.
+- Added `docs/pre-testing-acceptance-checklist.md` with PASS / BLOCKED / REQUIRES HUMAN APPROVAL classifications and the Auth dashboard checklist.
+- Updated CI concurrency groups to include the commit SHA so checks for separate commits are not superseded by a newer pending run.
 
-**Decision remains NOT READY.** The branch has new unit coverage, but full auth E2E, isolated Supabase/SMTP testing, migration-history reconciliation, production Auth dashboard settings, and the Edge Function release differences remain unresolved.
+### Latest CI evidence
+On source-code commit `edadea8d6e21db1b028ca70d4c8b192370d1f7ee`, PR quality checks and PR security checks completed successfully:
+- ESLint: passed.
+- Application TypeScript: passed.
+- Production build: passed.
+- npm audit: passed.
+- Gitleaks: passed.
+- Deno Edge Function type checks: passed.
+- Signup/referral guard Deno tests: passed.
+- CodeQL: passed.
+
+The separate push quality check also completed successfully on that commit. The latest docs-only checklist commit followed; its own workflow checks must be verified before declaring all checks complete for the final HEAD.
+
+### Supabase security state
+- Project remains `ACTIVE_HEALTHY`.
+- Security advisor reports 22 public RLS-enabled tables with no policies (INFO), the public SECURITY DEFINER referral RPC (WARN), and leaked-password protection disabled (WARN).
+- A fresh table inventory reconfirmed RLS is disabled on `private.payment_webhook_events` and `private.billing_notification_queue` (CRITICAL advisor finding). Earlier direct grant inspection found no anon schema usage or authenticated table SELECT grants, but those grant checks must be repeated during an approved review. Treat the RLS-disabled condition as unresolved defence-in-depth risk; do not add blanket policies or execute remediation in this sprint.
+- No production SQL, RLS, grants, Auth settings, migration, Edge Function, account or email changes were made.
+
+### Outstanding blockers and decision
+- Production migration history is not reproducible from the current branch: 44 live migration versions versus 14 SQL files in the branch, with only three exact version identifiers in common. Historical SQL must be recovered from an authoritative archive and reconciled before any clean-environment test or release.
+- Account-ID migration is hardened but still requires staging review and approved execution; it remains unapplied in production.
+- Production Edge Function versions differ from branch source for `marketplace-search`, `product-identify`, `invite-saechamber-partner` and `notification-worker`. The invitation and notification fixes are branch-only. `paystack-billing` and `marketplace-search-test` have no source directory in the branch.
+- Auth dashboard settings (especially leaked-password protection and exact redirects) require owner approval.
+- Full Auth/referral/partner/OTP/seller E2E testing requires an isolated non-production Supabase project, dedicated test identities and SMTP sandbox. These are not available in the current sprint.
+- Real invitation, partner acceptance/activation, SMTP delivery, referral persistence, seller workspace, role separation and billing-boundary tests remain BLOCKED.
+- PR #33 remains open and unmerged, with base `feature/partner-admin-email-otp`; release-base reconciliation is a deliberate owner decision.
+
+**Final decision: NOT READY FOR CONTROLLED TESTING.** The automated unit/build/security foundation is materially improved and passed on the latest source-code commit, but migration-history drift, live/branch function differences, unresolved security configuration and the unavailable isolated E2E environment prevent a PRE-TEST READY declaration.
