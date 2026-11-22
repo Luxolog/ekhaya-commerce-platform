@@ -34,11 +34,18 @@ export default function PricingPage() {
           <ul style={{...muted,paddingLeft:19,margin:0}}>{plan.features.map(feature=><li key={feature} style={{marginBottom:7}}>{feature}</li>)}</ul>
         </article>)}
       </div>
-      <section style={{marginTop:18,padding:"28px clamp(22px,3vw,36px)",minHeight:180,border:"1px solid #079BD3",borderRadius:12,background:"#F4F8FC",display:"flex",flexDirection:"column",alignItems:"flex-start",justifyContent:"center",gap:10}}>
-        <h3 style={{fontFamily:"Manrope,sans-serif",fontSize:20,lineHeight:1.3,margin:0,color:"#071B31"}}>Need a custom Price Checker plan?</h3>
-        <p style={{...muted,fontSize:14,maxWidth:760,margin:0}}>For businesses that need a tailored monthly search allowance or a specific arrangement. We can include product and photograph search access and agree on a solution that fits your business.</p>
-        <p style={{...muted,fontSize:13,margin:0}}>Custom monthly search allowance · Product and photograph search access · Business-specific arrangements by agreement</p>
-        <a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Price%20Checker%20Custom%20Plan" style={{display:"inline-block",marginTop:4,color:"#079BD3",fontSize:13,fontWeight:800,textDecoration:"none"}}>EMAIL EKHAYA ABOUT A CUSTOM PLAN →</a>
+      <section aria-labelledby="custom-plan-title" style={{marginTop:22,padding:"clamp(26px,4vw,42px)",borderRadius:18,background:"linear-gradient(125deg,#071B31 0%,#123B59 100%)",color:"#fff",display:"grid",gridTemplateColumns:"minmax(0,1.5fr) minmax(230px,0.9fr)",gap:28,alignItems:"center",boxShadow:"0 16px 38px #071B3118"}}>
+        <div>
+          <p style={{color:"#78D5F5",fontSize:10,fontWeight:800,letterSpacing:2,margin:"0 0 10px"}}>BUILT AROUND YOUR OPERATION</p>
+          <h3 id="custom-plan-title" style={{fontFamily:"Manrope,sans-serif",fontSize:"clamp(23px,3vw,32px)",lineHeight:1.2,letterSpacing:"-.03em",margin:"0 0 12px",color:"#fff"}}>Need more room to research and grow?</h3>
+          <p style={{color:"#D3E1EC",fontSize:14,lineHeight:1.8,maxWidth:650,margin:"0 0 18px"}}>If your team needs a higher monthly search allowance or a tailored Price Checker arrangement, speak to Ekhaya. We’ll understand your workflow first and recommend a suitable option before any agreement is made.</p>
+          <a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Price%20Checker%20Custom%20Plan&body=Hello%20Ekhaya%20Technologies%2C%0A%0AI%27d%20like%20to%20discuss%20a%20custom%20Price%20Checker%20plan.%0A%0ABusiness%20name%3A%0AEstimated%20monthly%20searches%3A%0ANumber%20of%20team%20members%3A%0AAdditional%20requirements%3A%0A%0AThank%20you." style={{display:"inline-flex",alignItems:"center",gap:10,padding:"13px 18px",borderRadius:9,background:"#079BD3",color:"#fff",fontSize:13,fontWeight:800,textDecoration:"none"}}>DISCUSS A CUSTOM PLAN <span aria-hidden="true">→</span></a>
+        </div>
+        <div style={{background:"#FFFFFF10",border:"1px solid #FFFFFF2B",borderRadius:14,padding:20}}>
+          <h4 style={{fontSize:14,margin:"0 0 14px",color:"#fff"}}>A conversation about your needs</h4>
+          {["Higher monthly search volumes","Product and photograph search requirements","Business-specific arrangements by agreement"].map((item,index)=><div key={item} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"11px 0",borderTop:index===0?"0":"1px solid #FFFFFF24",color:"#E1ECF4",fontSize:12,lineHeight:1.6}}><span style={{color:"#78D5F5",fontWeight:900}}>✓</span><span>{item}</span></div>)}
+          <p style={{color:"#AFC5D6",fontSize:11,lineHeight:1.6,margin:"12px 0 0"}}>No commitment. We’ll confirm scope and pricing with you before proceeding.</p>
+        </div>
       </section>
       <p style={{...muted,fontSize:12,marginTop:14}}>New accounts receive 5 welcome searches once per account. Monthly plan allowances reset each billing month. When your searches are used, you must upgrade to continue; search top-ups are not available. Search allowances apply per seller account and are not shared between sellers.</p>
       <p role="note" style={{...muted,fontSize:13,marginTop:18,padding:16,background:"#FFF7E6",border:"1px solid #F2D9A6",borderRadius:10}}>
