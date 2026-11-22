@@ -82,3 +82,23 @@ Do not change production until the owner approves the maintenance/release window
 - [ ] PR #33 dependency branch and intended release base reconciled.
 
 **No production test, deployment, migration, merge or real email action is authorised by this checklist.**
+
+
+## Marketplace search intelligence — 22 November 2026
+
+| Acceptance item | Status | Evidence / next action |
+|---|---|---|
+| Expanded product vocabulary and spelling corrections | IMPLEMENTED — CI PENDING | `search-relevance.ts`; additional Deno fixtures added |
+| Weighted description relevance | IMPLEMENTED — CI PENDING | Description-token similarity contributes to ranking; verify calibration against broader fixtures |
+| Bounded query-plan helper | IMPLEMENTED — CI PENDING | Original, normalized, brand/model and category candidates; maximum four unique candidates |
+| Conditional follow-up selector | IMPLEMENTED — CI PENDING | Stops for adequate exact results; permits up to two follow-ups for weak/empty results |
+| Live provider orchestration uses discovery plan | NOT IMPLEMENTED | `index.ts` still sends the normalized query only; integrate before claiming intelligent live discovery |
+| Provider request budget across discovery and retries | NOT IMPLEMENTED | Add a strict per-marketplace request budget and mocked tests |
+| Cross-variation listing deduplication | NOT IMPLEMENTED | Merge by stable marketplace listing identity/URL |
+| Per-response provider usage/cost metadata | NOT IMPLEMENTED | Record actual metadata only; never estimate ReefAPI costs |
+| Provider partial failure isolation | NOT IMPLEMENTED | Preserve successful responses when a follow-up fails |
+| Seller-credit lifecycle regression for multi-request discovery | NOT IMPLEMENTED | Prove one reserve/complete/refund lifecycle per selected marketplace request |
+| Isolated live marketplace validation | BLOCKED | No approved staging project/provider credentials; no paid requests made |
+| Final-head CI | PENDING | Quality and security workflows triggered for the latest branch head; verify completed conclusions before release |
+
+**Current marketplace-search decision: NOT READY.** This change set adds tested-intent foundations and documentation; it does not yet deliver live multi-query provider discovery.
