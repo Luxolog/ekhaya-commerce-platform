@@ -104,6 +104,7 @@ create table public.orders (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (store_id, order_number),
+  unique (store_id, id),
   foreign key (store_id, customer_id) references public.customers(store_id, id)
 );
 
