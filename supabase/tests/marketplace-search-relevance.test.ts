@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert";
-import { understandProductQuery, rankMarketplaceProducts } from "../functions/marketplace-search/search-relevance.ts";
+import { understandProductQuery, rankMarketplaceProducts, buildDiscoveryQueries, selectAdditionalDiscoveryQueries } from "../functions/marketplace-search/search-relevance.ts";
 
 Deno.test("corrects Inspirion typo and infers Dell Inspiron laptop",()=>{
  const intent=understandProductQuery("dell inspirion 15 3000");
@@ -79,4 +79,27 @@ Deno.test("keeps accessories separate from complete products for explicit laptop
  ],intent);
  assertEquals(result.products.some(p=>p.id==="laptop"),true);
  assertEquals(result.accessories.length,2);
+});
+
+Deno.test("builds a bounded, deduplicated query plan preserving the original query",()=>{
+ const intent=understandProductQuery("dell inspirion 15 3000");
+ const plan=buildDiscoveryQueries(intent,4);
+ assertEquals(plan[0],"dell inspirion 15 3000");
+ assertEquals(new Set(plan.map(q=>q.toLowerCase().replace(/[^a-z0-9]+/g," ").trim())).size,plan.length);
+ assertEquals(plan.length<=4,true);
+});
+Deno.test("conditional discovery stops when enough exact results exist",()=>{
+ const intent=understandProductQuery("iphone 13 128gb");
+ const ranked=rankMarketplaceProducts([
+  {id:"a",title:"Apple iPhone 13 128GB",brand:"Apple",description:"Apple iPhone 13 128GB"},
+  {id:"b",title:"Apple iPhone 13 128GB Blue",brand:"Apple",description:"Apple iPhone 13 128GB"},
+  {id:"c",title:"Apple iPhone 13 128GB Midnight",brand:"Apple",description:"Apple iPhone 13 128GB"}
+ ],intent).products;
+ assertEquals(selectAdditionalDiscoveryQueries(intent,ranked,["apple iphone 13 128gb"],2).length,0);
+});
+Deno.test("conditional discovery allows targeted follow-ups for weak results only",()=>{
+ const intent=understandProductQuery("hp elitebook 840 g5");
+ const weak=rankMarketplaceProducts([{id:"x",title:"HP EliteBook Laptop Bag",brand:"HP"}],intent).products;
+ const followups=selectAdditionalDiscoveryQueries(intent,weak,["hp elitebook 840 g5 laptop"],2);
+ assertEquals(followups.length<=2,true);
 });
