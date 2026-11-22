@@ -6,16 +6,20 @@ on:
       - main
       - feature/saechamber-public-showcase
   pull_request:
+    # These are BASE branches. PR #33 currently targets
+    # feature/partner-admin-email-otp, not the feature head branch.
     branches:
       - main
-      - feature/saechamber-public-showcase
+      - feature/partner-admin-email-otp
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: quality-${{ github.ref }}
-  cancel-in-progress: true
+  group: quality-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Do not cancel a required release check when another commit is pushed.
+  cancel-in-progress: false
 
 jobs:
   quality:
