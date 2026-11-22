@@ -3,9 +3,8 @@ import SiteFooter from "@/components/SiteFooter";
 
 const services = [
   ["💻", "Custom Business Applications", "Purpose-built web and mobile applications designed around the way your business works."],
-  ["📊", "Business Intelligence & Analytics", "Useful reporting, data visibility and insights to support better business decisions."],
+  ["🧩", "Business Systems, Integrations & Intelligence", "Connected business tools, automated workflows, consolidated data, performance dashboards and reporting that support better business decisions."],
   ["🛒", "E-commerce & Marketplaces", "Online stores, marketplace platforms and product sourcing tools."],
-  ["🧩", "Business Systems & Integrations", "Connected tools and workflows that reduce repetitive work and keep information organised."],
   ["🛠️", "Ongoing Support & Maintenance", "Practical technical support, improvements and maintenance as your business grows."],
 ];
 
