@@ -150,8 +150,8 @@ Deno.test("ranks matching Dell DC charging jacks above complete laptops for an a
  assertEquals(result.products.length,1);
  assertEquals(result.products[0].id,"jack");
  assertEquals(result.products[0].match_classification,"Exact match");
- assertEquals(result.related_products.some(p=>p.id==="laptop"),true);
- assertEquals(result.related_products.some(p=>p.id==="wrong-jack"),true);
+ assertEquals(result.related_products.some(p=>p.id==="laptop"),false);
+ assertEquals(result.related_products.some(p=>p.id==="wrong-jack"),false);
 });
 
 Deno.test("keeps laptop replacement parts out of primary laptop results",()=>{
