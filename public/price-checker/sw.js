@@ -1,10 +1,14 @@
-const CACHE_NAME = "ekhaya-price-checker-v2";
+const CACHE_NAME = "ekhaya-price-checker-v3";
 const APP_PATH = "/price-checker/";
 const OFFLINE_PATH = "/price-checker/offline.html";
 const APP_SHELL = [
   OFFLINE_PATH,
   "/price-checker/manifest.webmanifest",
-  "/price-checker/app-icon.svg"
+  "/price-checker/app-icon.svg",
+  "/price-checker/icon-192.png",
+  "/price-checker/icon-512.png",
+  "/price-checker/icon-maskable-512.png",
+  "/price-checker/apple-touch-icon.png"
 ];
 
 self.addEventListener("install", (event) => {
