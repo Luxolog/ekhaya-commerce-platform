@@ -31,6 +31,25 @@ Deno.serve(async (req: Request) => {
   if (authError || !user || !user.email) return new Response(JSON.stringify({ error: "Invalid invitation session" }), { status: 401, headers: cors });
   let body: { invitation_id?: string; referral_code?: string };
   try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid request body" }), { status: 400, headers: cors }); }
+  if (body.action === "lookup_pending") {
+    const { data: pending, error: pendingError } = await admin.from("partner_invitations")
+      .select("id,partner_id,invited_email,status,expires_at,partner:partner_programs!partner_invitations_partner_id_fkey(partner_name,partner_slug,referral_code)")
+      .eq("invited_email", user.email.toLowerCase())
+      .eq("status", "pending")
+      .gt("expires_at", new Date().toISOString())
+      .order("invited_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (pendingError) return new Response(JSON.stringify({ error: "Could not check pending partner invitations" }), { status: 500, headers: cors });
+    const partner = Array.isArray(pending?.partner) ? pending.partner[0] : pending?.partner;
+    if (!pending || !partner) return new Response(JSON.stringify({ invitation: null }), { status: 200, headers: cors });
+    return new Response(JSON.stringify({ invitation: {
+      id: pending.id,
+      partner_name: partner.partner_name,
+      partner_slug: partner.partner_slug,
+      referral_code: partner.referral_code
+    }}), { status: 200, headers: cors });
+  }
   const invitationId = body.invitation_id || "";
   const code = (body.referral_code || "").trim().toUpperCase();
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(invitationId))
