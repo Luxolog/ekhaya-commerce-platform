@@ -39,7 +39,7 @@ declare
   v_total_used integer;
   v_event_id bigint;
 begin
-  if p_user_id is null or p_request_id is null
+  if p_user_id is null or p_request_id is null or p_marketplace is null
      or p_marketplace not in ('takealot','amazon','makro') then
     return jsonb_build_object('allowed',false,'reason','INVALID_REQUEST');
   end if;
