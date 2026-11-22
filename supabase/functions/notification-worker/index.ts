@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
         </div>
         <p style="font-size:14px;line-height:1.7;color:#40536a;margin:0">For assistance, contact <a href="mailto:support@ekhayatech.co.za" style="color:#1769aa;text-decoration:none;font-weight:700">support@ekhayatech.co.za</a>.</p>
         <p style="font-size:14px;line-height:1.7;color:#40536a;margin:14px 0 0">Thank you for helping us improve Ekhaya Price Checker. We appreciate your participation and feedback.</p>
-      ` : `${isPilotApproval ? pilotDetailsHtml : `<div style="font-size:15px;line-height:1.75;color:#40536a">${safeMessage}</div>`}`;
+      ` : "";
       const greetingHtml = `<p style="font-size:15px;line-height:1.65;color:#30445d;margin:0 0 14px">Hello ${safeName},</p>`;
 
       await transporter.sendMail({
