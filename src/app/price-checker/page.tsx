@@ -7,6 +7,7 @@ import { BrowserMultiFormatReader } from "@zxing/browser";
 
 type MarketplaceProduct = { marketplace?: string; id: string; title: string; brand?: string | null; price: number | null; original_price?: number | null; discount_percent?: number | null; pack_size?: string | null; sold_by_makro?: boolean | null; availability?: string | null; key_specs?: string[]; currency: string; image?: string | null; url?: string | null; in_stock?: boolean | null; rating?: number | null; review_count?: number | null; seller?: string | null; relevance_score?: number; match_classification?: string; result_group?: string; condition_label?: string; };
 type Mode = "name" | "barcode" | "photo";
+type BeforeInstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }> };
 const money = (v: number) => new Intl.NumberFormat("en-ZA",{style:"currency",currency:"ZAR",maximumFractionDigits:2}).format(v);
 const categories = [
   ["general","General / other"],["beauty","Beauty & personal care"],["electronics","Electronics / computers"],
@@ -24,7 +25,7 @@ function takealotFulfilment(category:string, volume:number, kg:number) {
 }
 export default function PriceCheckerPage() {
   const [mode,setMode]=useState<Mode>("name");
-  const [installPrompt,setInstallPrompt]=useState<any>(null);
+  const [installPrompt,setInstallPrompt]=useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled,setIsInstalled]=useState(false);
   const [installHelpOpen,setInstallHelpOpen]=useState(false);
   const [installPlatform,setInstallPlatform]=useState("other");
@@ -59,14 +60,14 @@ export default function PriceCheckerPage() {
 
   useEffect(()=>{
     if(typeof window==="undefined") return;
-    setIsInstalled(window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone===true);
+    setIsInstalled(window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone===true);
     const ua=navigator.userAgent;
     if(/iPhone|iPad|iPod/i.test(ua)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1)) setInstallPlatform("ios");
     else if(/Android/i.test(ua) && /Firefox/i.test(ua)) setInstallPlatform("firefox-android");
     else if(/Android/i.test(ua)) setInstallPlatform("android");
     else if(/Firefox/i.test(ua)) setInstallPlatform("firefox-desktop");
     else if(/Chrome|Chromium|Edg/i.test(ua)) setInstallPlatform("chromium");
-    const onBeforeInstall=(event:Event)=>{event.preventDefault();setInstallPrompt(event);};
+    const onBeforeInstall=(event:Event)=>{event.preventDefault();setInstallPrompt(event as BeforeInstallPromptEvent);};
     window.addEventListener("beforeinstallprompt",onBeforeInstall);
     const onInstalled=()=>{setIsInstalled(true);setInstallPrompt(null);};
     window.addEventListener("appinstalled",onInstalled);
