@@ -27,7 +27,7 @@ declare
   v_limit constant integer := 10;
   v_inserted_id bigint;
 begin
-  if p_user_id is null or p_request_id is null
+  if p_user_id is null or p_request_id is null or p_marketplace is null
      or p_marketplace not in ('takealot','amazon','makro')
      or length(btrim(coalesce(p_search_query,''))) < 2
      or length(btrim(p_search_query)) > 160 then
