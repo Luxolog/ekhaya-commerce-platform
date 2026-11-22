@@ -51,3 +51,10 @@ Deno.test("normalizes common Samsung and Apple product searches",()=>{
  assertEquals(understandProductQuery("samsng s24 ultra").normalizedQuery,"samsung s24 ultra");
  assertEquals(understandProductQuery("ipone 13 128gb").normalizedQuery,"apple iphone 13 128gb");
 });
+
+Deno.test("different model numbers do not qualify as strong matches",()=>{
+ const intent=understandProductQuery("dell inspiron 15 3000");
+ const result=rankMarketplaceProducts([{id:"wrong",title:"Dell Inspiron 15 5000 Laptop",brand:"Dell"}],intent);
+ assertEquals(result.products.length,0);
+ assertEquals(result.related_products.length,1);
+});
