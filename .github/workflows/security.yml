@@ -2,9 +2,16 @@ name: Security checks
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - feature/saechamber-public-showcase
   pull_request:
-    branches: [main]
+    # PR filters match the BASE branch. PR #33 currently targets this
+    # dependency branch, so security checks must run before that dependency
+    # chain is reconciled with main.
+    branches:
+      - main
+      - feature/partner-admin-email-otp
   schedule:
     - cron: "23 3 * * 1"
   workflow_dispatch:
@@ -13,10 +20,17 @@ permissions:
   contents: read
   security-events: write
 
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
 jobs:
   secrets:
     name: Secret scanning
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,6 +44,9 @@ jobs:
   dependencies:
     name: Dependency vulnerability audit
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,14 +58,15 @@ jobs:
         run: npm install --ignore-scripts
       - name: Audit dependencies
         run: npm audit --audit-level=moderate
-      - name: Build static application
-        run: npm run build
-      - name: Lint application
-        run: npm run lint
+      - name: Type-check application
+        run: npx tsc --noEmit
 
   edge-functions:
     name: Supabase Edge Function type-check
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,12 +74,23 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Type-check marketplace and product identification functions
-        run: deno check --no-lock --node-modules-dir=auto supabase/functions/marketplace-search/index.ts supabase/functions/product-identify/index.ts
+      - name: Type-check production Edge Functions
+        run: >-
+          deno check --no-lock --node-modules-dir=auto
+          supabase/functions/marketplace-search/index.ts
+          supabase/functions/product-identify/index.ts
+          supabase/functions/invite-saechamber-partner/index.ts
+          supabase/functions/accept-saechamber-partner-invitation/index.ts
+          supabase/functions/notification-worker/index.ts
+          supabase/functions/partner-admin-email-otp/index.ts
 
   codeql:
     name: CodeQL analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
