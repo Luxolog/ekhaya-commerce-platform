@@ -157,11 +157,15 @@ export default function AccountPage() {
       if(raw){
         const session=JSON.parse(raw);
         if(session?.access_token){
-          setSignedIn(true); setMode("signin"); setCheckingAccess(true);
+          const hasPartnerInvite = new URLSearchParams(window.location.search).has("partner_invite");
+          setSignedIn(true);
+          if(!hasPartnerInvite) setMode("signin");
+          setCheckingAccess(true);
           loadAccountRoles(session.access_token).then(async roles=>{
             if(!active) return;
             setAvailableRoles(roles);
             if(await requireEmailOtp(session.access_token, roles)) return;
+            if(hasPartnerInvite) return;
             const requested = new URLSearchParams(window.location.search).get("account");
             if(requested === "partner" && roles.includes("partner")) window.location.replace(destinations.partner);
             else if(requested === "owner" && roles.includes("owner")) window.location.replace(destinations.owner);
