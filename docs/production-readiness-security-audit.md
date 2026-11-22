@@ -158,3 +158,42 @@ The existing `.github/workflows/quality.yml` runs ESLint, TypeScript and product
 **Deployment decision: NOT READY — DASHBOARD CONFIGURATION, SECURITY AND TESTING BLOCKERS.**
 
 No production deployment, merge, live migration, privilege change, Auth setting change or Edge Function deployment was performed during this audit.
+
+
+## 9. Pre-test sprint update — 2026-11-22
+
+### Confirmed latest GitHub state
+- Branch HEAD remains `c29867c7a3caa9477dab0b78df7ae88319e06952`.
+- PR #33 remains open and unmerged; base is `feature/partner-admin-email-otp`.
+- Quality push and PR checks passed on the latest HEAD.
+- Security push and PR checks passed on the latest HEAD, including dependency audit, secret scan, CodeQL and Edge Function type checking.
+- The latest successful runs are linked in the release readiness report.
+
+### Added safe engineering work
+- Extracted signup acknowledgement and referral-code matching guards into a pure helper module.
+- Added Deno regression tests for acknowledgement enforcement, referral code normalization, exact active-catalog matching, invalid/empty referral codes and non-signup flows.
+- Added the regression test command to the security workflow.
+- Reworked the account-ID migration to lock profiles during backfill, preserve existing IDs, reject malformed/duplicate IDs, detect five-digit range exhaustion, assign missing IDs deterministically above the current maximum, and align the sequence/default/NOT NULL/unique/format constraints.
+- Added a read-only account-ID preflight/postflight verification SQL script.
+
+### Tests and environment limits
+The new guard tests are deterministic unit tests; they are not a substitute for Supabase Auth integration or browser end-to-end tests. No isolated non-production Supabase project or dedicated test credentials were available during this sprint. Real invitation, SMTP, seller signup, account linking, OTP and role-separation journeys remain BLOCKED pending an isolated test environment and authorised test identities.
+
+### Migration execution order and recovery
+1. Confirm the intended production backup/restore point and pause profile-creation traffic for the migration window.
+2. Run the read-only preflight script and investigate malformed IDs, duplicates, capacity, and unexpected existing values.
+3. Review the migration in staging against a production-like populated copy.
+4. Apply the account-ID migration only through the approved production release process; its ACCESS EXCLUSIVE table lock blocks profile writes for the migration transaction.
+5. Run the postflight verification script; confirm every profile has a unique ETxxxxx value, the sequence/default/constraint/index exist, and UUID primary keys are unchanged.
+6. Deploy application code that reads `profiles.account_id` only after the migration is verified.
+7. If migration fails, PostgreSQL transactional DDL should roll back the migration transaction. If a later application release fails after migration commits, keep account IDs and the sequence in place; roll back application code to the previous UUID-based display path. Do not drop or regenerate assigned IDs. Any manual data repair must preserve all existing non-null IDs.
+
+### Remaining blockers
+- Enable leaked-password protection and verify Auth Site URL/redirect allowlist manually in the Supabase dashboard.
+- Review private-table RLS enablement after validating every worker/function access path in staging.
+- Full auth/referral E2E tests require isolated Supabase Auth, database and SMTP sandbox credentials.
+- Compare deployed Edge Function source bodies with branch source before any future deployment; live versions and JWT flags are inventoried, but deployment remains prohibited in this sprint.
+- Real invitation acceptance, email delivery, referral attribution and seller workspace checks remain BLOCKED.
+- PR dependency-base reconciliation and a controlled test release require explicit release planning.
+
+**Current decision remains NOT READY FOR CONTROLLED TESTING.**
