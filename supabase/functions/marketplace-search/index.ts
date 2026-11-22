@@ -1,4 +1,5 @@
 import { understandProductQuery, rankMarketplaceProducts, selectAdditionalDiscoveryQueries } from "./search-relevance.ts";
+import { resolveSearchEntitlement } from "./search-entitlements.ts";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const cors = {
@@ -689,7 +690,11 @@ Deno.serve(async (req: Request) => {
     const settingsRows = settingsResponse.ok ? await settingsResponse.json() : [];
     const settings = settingsRows?.[0] ?? { refresh_enabled: true, cache_ttl_minutes: 360 };
     const fresh = cache && new Date(cache.expires_at) > new Date();
-    if (cache && !body.force_refresh && (fresh || settings.refresh_enabled === false)) {
+    const cacheHit = Boolean(cache && !body.force_refresh && (fresh || settings.refresh_enabled === false));
+    const entitlement = resolveSearchEntitlement({
+      isOwner, isLinkedPartner, isActivePartner, cacheHit,
+    });
+    if (cacheHit && entitlement === "free_cache") {
       const cachedRanked = rankMarketplaceProducts(cache.source_payload?.raw_products ?? cache.source_payload?.products ?? [], intent);
       const cachedProducts = cachedRanked.products;
       const cachedRelated = cachedRanked.related_products;
@@ -713,7 +718,7 @@ Deno.serve(async (req: Request) => {
 
     // Reserve a single entitlement only after a cache miss has been confirmed.
     // A cache hit never consumes a seller credit, pilot search or partner support search.
-    if (!isOwner && isActivePartner) {
+    if (entitlement === "partner_support") {
       const supportReserve = await fetch(new URL("/rest/v1/rpc/reserve_partner_support_search", supabaseUrl), {
         method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
         body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace, p_request_id: requestId, p_search_query: query }),
@@ -723,7 +728,7 @@ Deno.serve(async (req: Request) => {
       if (support?.allowed !== true) return json({ error: "Partner support search allowance is unavailable.", code: support?.reason ?? "PARTNER_SUPPORT_DENIED", usage: support }, 403);
       if (support?.duplicate) return json({ error: "This partner support search request has already been processed. Please start a new search.", code: "DUPLICATE_REQUEST" }, 409);
       partnerSupportCharged = true;
-    } else if (!isOwner && !isLinkedPartner) {
+    } else if (entitlement === "seller_pilot_or_monthly" && !isLinkedPartner) {
       const pilotReserve = await fetch(new URL("/rest/v1/rpc/reserve_seller_pilot_search", supabaseUrl), {
         method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
         body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace }),
