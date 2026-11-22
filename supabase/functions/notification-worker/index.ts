@@ -84,6 +84,8 @@ Deno.serve(async (req) => {
       const metadata = user.user_metadata ?? {};
       const recipientName = String(metadata.full_name ?? metadata.name ?? metadata.display_name ?? "there").trim() || "there";
       const title = String(item.title ?? "Ekhaya Price Checker notification");
+      const isPartnerOwnerNotification = String(item.event_key ?? "").startsWith("partner-invitation-accepted:owner:");
+      const emailRecipient = isPartnerOwnerNotification ? "support@ekhayatech.co.za" : user.email;
       const message = String(item.message ?? "");
       const action = item.action_url ? String(item.action_url) : "";
       let safeAction = "";
@@ -128,7 +130,7 @@ Deno.serve(async (req) => {
 
       await transporter.sendMail({
         from: { name: "Ekhaya Technologies", address: username },
-        to: user.email,
+        to: emailRecipient,
         subject: title,
         text: textBody,
         html: `<!doctype html><html><body style="margin:0;padding:0;background:#f2f5f9;font-family:Arial,Helvetica,sans-serif;color:#182b45">
