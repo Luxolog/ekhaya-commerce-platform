@@ -17,15 +17,15 @@
 | Referral attribution locked to original active partner | UI/source guard described in PR | PARTIAL | Real signup and referral row verification |
 | Search relevance/ranking | `marketplace-search-relevance.test.ts` | PASS (unit) | Marketplace fixture regression |
 | Query planning and follow-up selection | Helper unit tests plus source integration in `marketplace-search/index.ts` | PARTIAL | Mock provider orchestration tests for success, partial failure, deduplication and max-three-call budget |
-| Seller pilot reservation lifecycle | Request-scoped pilot event table and reserve/complete/refund RPCs; local Supabase config and pgTAP database contract suite added; execution pending | PENDING (workflow added) | Run local migration application and transaction/concurrency tests; expand contract suite into behavioural SQL fixtures |
+| Seller pilot reservation lifecycle | Request-scoped pilot event table and reserve/complete/refund RPCs; clean local replay and pgTAP suite passed | PASS (schema/contract only) | Run local migration application and transaction/concurrency tests; expand contract suite into behavioural SQL fixtures |
 | Cache hit credit semantics | Shared cache is checked before any pilot, partner or monthly reservation; pure entitlement-routing tests cover owner, partner and seller cache hits | PASS (unit/source) | Isolated database test proving no usage rows/counters are created for cache hits |
-| Partner support reservation lifecycle | Request-scoped status and completion/refund RPCs; local pgTAP checks added for schema/function/privilege contract; execution pending | PENDING (workflow added) | Run behavioural SQL tests for daily cap, duplicate IDs, completion, exactly-once refund and concurrent requests |
+| Partner support reservation lifecycle | Request-scoped status and completion/refund RPCs; clean local replay and pgTAP suite passed | PASS (schema/contract only) | Run behavioural SQL tests for daily cap, duplicate IDs, completion, exactly-once refund and concurrent requests |
 | Billing/webhook idempotency | Insufficient source/test evidence | BLOCKED | Obtain billing source and sandbox |
 | Owner acceptance notification row | Historical transaction-only test documented in PR | PARTIAL | Repeat in isolated DB |
 | SMTP owner/partner email delivery | No real delivery evidence | BLOCKED | SMTP sandbox |
 | Full seller signup and workspace access | Not run | BLOCKED | Isolated Supabase Auth environment |
 
-| Atomic partner acceptance RPC | Function source locks invitation and partner rows; local pgTAP checks added for existence, SECURITY DEFINER and grants | PENDING (workflow added) | Execute valid/invalid/concurrent acceptance fixtures and rollback assertions |
+| Atomic partner acceptance RPC | Function source locks invitation and partner rows; clean local replay and pgTAP checks passed for existence, SECURITY DEFINER and grants | PASS (contract only) | Execute valid/invalid/concurrent acceptance fixtures and rollback assertions |
 
 ## CI
 
@@ -86,3 +86,41 @@ A passing pure-function unit test is not a database integration test. A passing 
 ### Result
 
 The quality and security workflows are green on the audited commit, but the migration gate is red and SQL contract tests did not run. The complete regression suite is **NOT COMPLETE**. No clean migration replay, full regression pass or production readiness claim is made.
+
+
+## Batch 9 execution update — 2026-11-22
+
+**Tested code head:** `8f1f583a706f820894942e7e86542c0d56de773f`  
+**PR:** #33 — remains open and unmerged.
+
+### Clean local Supabase replay and contract tests
+
+<badge color="success">PASS</badge>
+
+- Workflow: [45057734774](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45057734774)
+- The isolated Supabase stack started successfully.
+- All 21 branch migrations applied in order, including the new `20261121020000_partner_payment_foundation.sql`.
+- `20261122090359_standard_ekhaya_account_ids.sql` passed after its `LOCK TABLE` operation was wrapped in an explicit transaction.
+- `supabase test db` passed both SQL files:
+  - `credit_lifecycle_contract.test.sql`: 23 assertions.
+  - `partner-foundation.test.sql`: 25 assertions.
+- Total: **48 assertions passed**. Local Supabase stack stopped cleanly.
+
+### Quality and security
+
+| Gate | Workflow | Result |
+|---|---|---|
+| ESLint, TypeScript, production build | [45057738336](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45057738336) | PASS |
+| CodeQL | [45057738264](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45057738264) | PASS |
+| Secret scanning | [45057738264](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45057738264) | PASS |
+| Dependency vulnerability audit | [45057738264](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45057738264) | PASS |
+| Supabase Edge Function type-check | [45057738264](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45057738264) | PASS |
+| Ekhaya Security Scanning | [45057734776](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45057734776) | PASS |
+
+### What this proves — and what it does not
+
+- **Proven:** empty local database migration replay; presence of partner/payment/paid-credit schema; RLS enabled on key partner/payment tables; commission-payment FK and uniqueness; notification idempotency; role grants; pending partner programme default; existing credit-lifecycle contracts.
+- **Not proven:** concurrent invitation acceptance, actual partner referral capture against Auth, payment webhook processing with provider sandbox, actual paid credit allocation on a completed payment, renewal/reminder jobs, SMTP delivery, full owner dashboard journey, or seller signup/workspace E2E.
+- The current live Paystack Edge Function source has a hard checkout release gate set to disabled. No provider request was sent and no paid checkout was tested.
+
+**Release interpretation:** database migration replay and schema contract gate are now green. Full behavioural regression and live acceptance remain incomplete; this is not production deployment approval.
