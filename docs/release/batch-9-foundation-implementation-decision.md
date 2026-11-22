@@ -9,7 +9,7 @@
 
 **Status: BLOCKED — NO MIGRATION CREATED**
 
-The foundation migration has deliberately not been implemented. This is the required safe outcome when a critical schema dependency cannot be reproduced from authoritative source artifacts.
+A verified partner/payment-table foundation migration has now been added to the feature branch. The complete subscription billing/webhook/paid-credit foundation remains blocked because its original source chain and dependencies are not all present in this repository.
 
 ## Evidence
 
@@ -22,7 +22,7 @@ The foundation migration has deliberately not been implemented. This is the requ
 
 ## Actions intentionally not taken
 
-- No `CREATE TABLE payment_transactions` placeholder or partial clone.
+- No placeholder payment table. The new migration defines the live-verified `payment_transactions` contract and preserves its constraints and commission FK. The complete billing lifecycle is still not claimed as restored.
 - No deletion, nullable conversion or weakening of the commission ledger payment FK.
 - No copying of the incompatible legacy partner schema.
 - No RLS policy removal, grant broadening, trigger bypass or SECURITY DEFINER weakening.
@@ -39,4 +39,6 @@ The foundation migration has deliberately not been implemented. This is the requ
 
 ## Result
 
-Milestone 3 is **BLOCKED / NOT IMPLEMENTED**. The migration foundation remains an explicit release blocker. This decision preserves the live financial and partner access invariants rather than making CI green by fabricating schema.
+Milestone 3 is **PARTIALLY IMPLEMENTED**. The missing partner foundation has been added as `supabase/migrations/20261121020000_partner_payment_foundation.sql`, before the dependent active-referral RPC. It preserves the live financial FK and partner/notification access boundaries. The same migration corrects the legacy auto-activation trigger conflict so new owner-created programmes remain pending until explicit acceptance/activation.
+
+The full payment/webhook/paid-credit allocation subsystem and complete production migration-history reconciliation remain blockers. The migration is not approved for production deployment until clean local replay, pgTAP, payment lifecycle regression and migration-history reconciliation are complete.
