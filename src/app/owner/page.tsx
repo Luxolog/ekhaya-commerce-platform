@@ -101,6 +101,29 @@ export default function EkhayaOwnerDashboard() {
     if (tab === "partners" && data) void loadPartnerInvitations();
   }, [tab, data]);
 
+  const [sellerReviewBusyId, setSellerReviewBusyId] = useState("");
+  const [sellerReviewFeedback, setSellerReviewFeedback] = useState("");
+
+  const reviewSeller = async (seller: Seller, status: "active" | "inactive") => {
+    setSellerReviewBusyId(seller.id); setSellerReviewFeedback("");
+    try {
+      const session = JSON.parse(localStorage.getItem("ekhaya_session") ?? "null");
+      if (!session?.access_token) throw new Error("Sign in with the Ekhaya owner account first.");
+      const response = await fetch(API, {
+        method: "POST",
+        headers: { apikey: KEY, Authorization: "Bearer " + session.access_token, "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_user_status", user_id: seller.id, status, reason: status === "active" ? "Approved by Ekhaya owner" : "Seller application declined by Ekhaya owner" }),
+        cache: "no-store"
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Seller review could not be saved.");
+      setSellerReviewFeedback(status === "active" ? (seller.email || "Seller") + " approved." : (seller.email || "Seller") + " declined.");
+      await load();
+    } catch (e) {
+      setSellerReviewFeedback(e instanceof Error ? e.message : "Seller review failed.");
+    } finally { setSellerReviewBusyId(""); }
+  };
+
   const activatePartner = async (partnerId: string) => {
     setActivationBusyId(partnerId); setActivationFeedback("");
     try {
@@ -140,7 +163,7 @@ export default function EkhayaOwnerDashboard() {
 
   return <main style={shell}>
     <header style={{ maxWidth: 1440, margin: "0 auto 28px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", borderBottom: "1px solid #DDE6EF", paddingBottom: 18 }}>
-      <div><div style={{ color: "#078FC4", fontWeight: 800, fontSize: 11, letterSpacing: 2 }}>EKHAYA TECHNOLOGIES</div><h1 style={{ fontSize: 30, margin: "7px 0 4px" }}>Owner Dashboard</h1><div style={small}>Central administration · Partners · Sellers · Activity · Commissions</div></div>
+      <div><Link href="/" aria-label="Go to Ekhaya Technologies home" style={{ color: "#078FC4", fontWeight: 800, fontSize: 11, letterSpacing: 2, textDecoration: "none" }}>EKHAYA TECHNOLOGIES ↗</Link><h1 style={{ fontSize: 30, margin: "7px 0 4px" }}>Owner Dashboard</h1><div style={small}>Central administration · Partners · Sellers · Activity · Commissions</div></div>
       <nav style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", fontSize: 13 }}>
         <Link href="/account/security/" style={{ color: "#078FC4", fontWeight: 700 }}>Security settings</Link>
         <Link href="/owner/users/" style={{ color: "#078FC4", fontWeight: 700 }}>Users</Link>
@@ -218,7 +241,15 @@ export default function EkhayaOwnerDashboard() {
           </div>
         </div>}
 
-        {tab === "sellers" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All registered sellers and accounts</h2><p style={small}>Private owner view of every registered account, subscription, referral attribution and seller usage.</p><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Seller","Email","Plan","Subscription","Account","Partner","Searches","Failures","Last search","Payments","Joined","Last sign-in"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.sellers.filter(s=>s.role!=="owner").map(s=><tr key={s.id}><td style={td}><b>{s.display_name || "Seller"}</b><div style={small}>{s.id}</div></td><td style={td}>{s.email || "—"}</td><td style={td}>{s.plan_code}</td><td style={td}>{s.subscription_status}</td><td style={td}>{s.account_status}</td><td style={td}>{s.partner_name || "Direct"}</td><td style={td}>{s.searches}</td><td style={td}>{s.search_failures}</td><td style={td}>{when(s.last_search)}</td><td style={td}>{s.payments_count} · {money(s.payments_total)}</td><td style={td}>{when(s.created_at)}</td><td style={td}>{when(s.last_sign_in_at)}</td></tr>)}</tbody></table>{!data.sellers.some(s=>s.role!=="owner") && <p style={small}>No seller accounts found.</p>}</div>}
+        {tab === "sellers" && <div style={{ display: "grid", gap: 16 }}>
+          <section style={{ ...panel, overflowX: "auto" }}>
+            <h2 style={{ marginTop: 0, fontSize: 18 }}>Pending seller applications</h2>
+            <p style={small}>Review new seller accounts here. Approval requires a verified email and an available pilot seat. Declining marks the account inactive; it does not delete the account.</p>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Seller","Email","Email verification","Joined","Review"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.sellers.filter(s=>s.role!=="owner" && s.account_status==="pending").map(s=><tr key={s.id}><td style={td}><b>{s.display_name || "Seller"}</b><div style={small}>{s.id}</div></td><td style={td}>{s.email || "—"}</td><td style={td}>{s.email_confirmed_at ? "Verified" : "Not verified"}</td><td style={td}>{when(s.created_at)}</td><td style={td}><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button type="button" aria-label={"Approve "+(s.email||"seller")} title="Approve seller" disabled={sellerReviewBusyId===s.id || !s.email_confirmed_at} onClick={()=>void reviewSeller(s,"active")} style={{border:0,borderRadius:7,padding:"8px 12px",background:s.email_confirmed_at?"#16835D":"#E8EDF2",color:s.email_confirmed_at?"#fff":"#65788A",fontWeight:800,cursor:s.email_confirmed_at?"pointer":"not-allowed"}}>✓ Approve</button><button type="button" aria-label={"Decline "+(s.email||"seller")} title="Decline seller application" disabled={sellerReviewBusyId===s.id} onClick={()=>void reviewSeller(s,"inactive")} style={{border:0,borderRadius:7,padding:"8px 12px",background:"#9B3D3D",color:"#fff",fontWeight:800,cursor:"pointer"}}>✕ Decline</button></div></td></tr>)}</tbody></table>
+            {!data.sellers.some(s=>s.role!=="owner" && s.account_status==="pending") && <p style={small}>There are no pending seller applications.</p>}
+            {sellerReviewFeedback && <p role="status" style={{...small,marginTop:10}}>{sellerReviewFeedback}</p>}
+          </section>
+          <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All registered sellers and accounts</h2><p style={small}>Private owner view of every registered account, subscription, referral attribution and seller usage.</p><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Seller","Email","Plan","Subscription","Account","Partner","Searches","Failures","Last search","Payments","Joined","Last sign-in"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.sellers.filter(s=>s.role!=="owner").map(s=><tr key={s.id}><td style={td}><b>{s.display_name || "Seller"}</b><div style={small}>{s.id}</div></td><td style={td}>{s.email || "—"}</td><td style={td}>{s.plan_code}</td><td style={td}>{s.subscription_status}</td><td style={td}>{s.account_status}</td><td style={td}>{s.partner_name || "Direct"}</td><td style={td}>{s.searches}</td><td style={td}>{s.search_failures}</td><td style={td}>{when(s.last_search)}</td><td style={td}>{s.payments_count} · {money(s.payments_total)}</td><td style={td}>{when(s.created_at)}</td><td style={td}>{when(s.last_sign_in_at)}</td></tr>)}</tbody></table>{!data.sellers.some(s=>s.role!=="owner") && <p style={small}>No seller accounts found.</p>}</div></div>}
 
         {tab === "searches" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All seller marketplace searches</h2><p style={small}>Search history across all sellers, including marketplace, search term, result count, status and timestamp.</p><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Date","Seller","Email","Plan","Marketplace","Search query","Results","Status","Source","Partner"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.all_activity.filter(a=>a.event_type==="seller_search").map((a,i)=><tr key={String(a.user_id)+a.created_at+i}><td style={td}>{when(a.created_at)}</td><td style={td}>{a.seller_display_name || a.user_id || "Unknown"}</td><td style={td}>{a.seller_email || "—"}</td><td style={td}>{a.seller_plan}</td><td style={td}>{a.marketplace || "—"}</td><td style={td}>{a.query}</td><td style={td}>{a.result_count}</td><td style={td}>{a.result_status}</td><td style={td}>{a.source || "—"}</td><td style={td}>{a.partner_name || "Direct"}</td></tr>)}</tbody></table>{!data.all_activity.some(a=>a.event_type==="seller_search") && <p style={small}>No seller search events recorded yet.</p>}</div>}
 
@@ -247,13 +278,13 @@ export default function EkhayaOwnerDashboard() {
             <p style={small}>Create a separate programme and unique referral code for each partner organisation. New programmes start as pending and do not attribute referrals until they are activated.</p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
               <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 700 }}>Partner organisation name
-                <input value={newPartnerName} onChange={e=>setNewPartnerName(e.target.value)} maxLength={120} placeholder="e.g. Retail RockIT" style={{ padding: 11, border: "1px solid #DDE6EF", borderRadius: 8 }} />
+                <input value={newPartnerName} onChange={e=>setNewPartnerName(e.target.value)} maxLength={120} placeholder="Partner organisation name" style={{ padding: 11, border: "1px solid #DDE6EF", borderRadius: 8 }} />
               </label>
               <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 700 }}>Partner slug <span style={small}>Optional · generated from organisation name</span>
-                <input value={newPartnerSlug} onChange={e=>setNewPartnerSlug(e.target.value)} maxLength={60} placeholder="retail-rockit" style={{ padding: 11, border: "1px solid #DDE6EF", borderRadius: 8 }} />
+                <input value={newPartnerSlug} onChange={e=>setNewPartnerSlug(e.target.value)} maxLength={60} placeholder="partner-name" style={{ padding: 11, border: "1px solid #DDE6EF", borderRadius: 8 }} />
               </label>
               <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 700 }}>Referral code <span style={small}>Optional · generated from slug</span>
-                <input value={newPartnerReferralCode} onChange={e=>setNewPartnerReferralCode(e.target.value.toUpperCase())} maxLength={24} placeholder="RETAILROCKIT" style={{ padding: 11, border: "1px solid #DDE6EF", borderRadius: 8, textTransform: "uppercase" }} />
+                <input value={newPartnerReferralCode} onChange={e=>setNewPartnerReferralCode(e.target.value.toUpperCase())} maxLength={24} placeholder="REFERRALCODE" style={{ padding: 11, border: "1px solid #DDE6EF", borderRadius: 8, textTransform: "uppercase" }} />
               </label>
             </div>
             <button onClick={()=>void registerPartner()} disabled={newPartnerBusy || newPartnerName.trim().length < 2} style={{ marginTop: 12, border: 0, borderRadius: 8, padding: "11px 16px", background: "#10243A", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{newPartnerBusy ? "Registering…" : "Register new partner"}</button>
