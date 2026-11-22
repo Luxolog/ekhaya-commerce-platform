@@ -40,3 +40,14 @@ Deno.test("no price field affects relevance ranking",()=>{
  assertEquals(result.products[0].id,"cheap");
  assertEquals(result.products[1].id,"expensive");
 });
+
+Deno.test("HP laptop charger is classified as a charger accessory",()=>{
+ const intent=understandProductQuery("hp laptop charger");
+ assertEquals(intent.brand,"HP");
+ assertEquals(intent.category,"charger");
+ assertEquals(intent.accessoryIntent,true);
+});
+Deno.test("normalizes common Samsung and Apple product searches",()=>{
+ assertEquals(understandProductQuery("samsng s24 ultra").normalizedQuery,"samsung s24 ultra");
+ assertEquals(understandProductQuery("ipone 13 128gb").normalizedQuery,"apple iphone 13 128gb");
+});
