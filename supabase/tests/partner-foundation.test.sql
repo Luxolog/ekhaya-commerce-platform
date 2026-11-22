@@ -80,7 +80,7 @@ select ok(
   'partner programme creation is not silently auto-activated'
 );
 
-insert into public.partner_programs(partner_name,partner_slug,referral_code,status)
+insert into public.partner_programs(partner_name,partner_slug,referral_code)
 values ('Batch 9 Migration Test','batch9-migration-test','BATCH9MIGRATIONTEST')
 on conflict (partner_slug) do update set status='pending';
 
