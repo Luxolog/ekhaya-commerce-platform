@@ -1030,6 +1030,14 @@ Deno.serve(async (req: Request) => {
           charged = false;
         }
       }
+      if (partnerSupportCharged && totalResults > 0) {
+        const supportComplete = await fetch(new URL("/rest/v1/rpc/complete_partner_support_search", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }),
+        });
+        if (!supportComplete.ok) console.error("Could not complete partner support reservation:", await supportComplete.text());
+        else partnerSupportCharged = false;
+      }
       if (pilotCharged && totalResults > 0) {
         const pilotComplete = await fetch(new URL("/rest/v1/rpc/complete_seller_pilot_search", supabaseUrl), {
           method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
