@@ -71,3 +71,27 @@ The previous 62% score is retained as a conservative development-readiness estim
 **NOT READY for deployment or live seller onboarding.** The required acceptance condition of a clean migration replay and completed regression suite is unmet. No performance/load capacity result is claimed, and no billing, SMTP or full signup E2E pass is claimed.
 
 Next action is schema/migration reconciliation, not deployment. The standalone partner schema document must be compared against the full migration chain, current functions/triggers, application queries and production migration history before adding a foundational migration. Do not copy the document wholesale or invent missing business rules.
+
+
+## Batch 8 final-head reassessment — 2026-11-22
+
+**Audited commit:** `59dcd4c3a8721469f5a763ad1099492e7a5c02e5`  
+**PR:** #33, open and unmerged.
+
+### Evidence update
+
+- Quality [run 45051417372](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45051417372): ESLint, TypeScript and production build PASS.
+- Security [run 45051417457](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45051417457): dependency audit, Gitleaks secret scan, CodeQL, configured Edge Function type-check and auth-guard Deno tests PASS.
+- Local Supabase [run 45051417432](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45051417432): FAIL. The clean replay reaches `20261121023000_public_active_referral_partners.sql` and stops because `public.partner_programs` does not exist. The database contract test step is skipped.
+
+### Readiness interpretation
+
+The previously documented 62% development-readiness estimate is retained as a conservative historical scorecard, not promoted to 95%. It is not a measured production-readiness percentage. The latest evidence confirms that quality/security gates pass while the mandatory database gate fails.
+
+No evidence supports a clean replay, completed SQL regression, full Auth/partner/seller/search/billing E2E, SMTP delivery, repeatable performance benchmark, load/capacity result, or complete environment/runbook audit.
+
+### Final decision
+
+**NOT READY for production deployment or live seller onboarding.** The acceptance criteria in Batch 8 are not met. Do not recommend deployment until the authoritative partner foundation schema is reconciled, clean replay and SQL tests pass, behavioural regression is completed, performance/capacity is measured with repeatable mocks, and environment/runbook gates are evidenced.
+
+No Vercel deployment, production Supabase migration/write, paid provider traffic, real invitation, email or payment was performed.
