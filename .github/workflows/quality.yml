@@ -8,13 +8,14 @@ on:
   pull_request:
     branches:
       - main
+      - feature/partner-admin-email-otp
 
 permissions:
   contents: read
 
 concurrency:
   group: quality-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   quality:
