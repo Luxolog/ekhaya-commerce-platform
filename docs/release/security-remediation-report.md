@@ -1,6 +1,6 @@
 # Security Remediation Report
 
-**Audit head:** `c619920c2f69f5ac8abdd039b9f0027cff544616`
+**Audit head:** `80c0862fde0b9e40644eeb412184ce23d3d85bc3`
 
 ## Completed remediation
 
@@ -14,7 +14,7 @@
 - Marketplace search validates the bearer token against Supabase Auth before processing a request.
 - Owner actions check the authenticated user's app metadata role and require a valid session ID; configured email OTP is checked against a verified-session record.
 - Partner invitation creation checks authenticated user access against `partner_owner_access`.
-- Partner acceptance requires a verified email, a valid pending/unexpired invitation and matching invited email.
+- Partner acceptance requires a verified email, a valid pending/unexpired invitation and matching invited email. The database operation now atomically links the programme and marks the invitation accepted through a service-role-only RPC.
 - Invitation guard tests cover verified email, request parsing, invited-email matching, expiry and identifier/referral-code formats.
 - Secret scanning and dependency audit passed in the final-head security workflow.
 
@@ -24,7 +24,7 @@
 |---|---|---|
 | Owner-only partner creation/invitation/activation | PARTIAL | Isolated API tests for non-owner, expired session and OTP-required cases |
 | Invitation single-use under concurrency | PARTIAL | Transactional/concurrency test against isolated database |
-| Atomic acceptance/linking | BLOCKED | Acceptance currently links the programme before updating invitation status; failure of the second write can leave a partially completed journey. Test and design an atomic database operation before changing production. |
+| Atomic acceptance/linking | PARTIAL | Atomic service-role-only RPC is implemented in branch migration and called by the Edge Function; isolated transaction/concurrency and rollback tests remain outstanding. |
 | CORS allowlist behaviour | PARTIAL | Browser preflight and disallowed-origin tests in isolated environment |
 | Rate limiting and OTP replay/expiry | BLOCKED | Isolated Auth/DB integration tests |
 | Service-role exposure | PARTIAL | Source review and secret scan passed; production secret/configuration review remains outside this audit |
@@ -32,7 +32,7 @@
 
 ## CI evidence
 
-- [Security workflow](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45010909826): all four jobs passed.
+- Latest-head Security workflow: run 45031036260 (in progress at report preparation; final result must be checked before release).
 - [Quality workflow](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45010909803): passed.
 
 ## Safety
