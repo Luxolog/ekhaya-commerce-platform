@@ -94,8 +94,8 @@ select set_config('request.jwt.claim.sub','b9400000-0000-4000-8000-000000000001'
 
 select is(
   (select count(*)::integer from public.partner_programs),
-  2,
-  'authorised Ekhaya owner can read all partner programmes'
+  3,
+  'authorised Ekhaya owner can read all partner programmes, including the seeded SA eChamber programme'
 );
 
 select is(
