@@ -14,7 +14,7 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#071B31",
     orientation: "portrait",
     icons: [
-      { src: "/price-checker/app-icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" }
+      { src: "/price-checker/app-icon.svg", sizes: "any", type: "image/svg+xml", purpose: "maskable" }
     ]
   };
 }
