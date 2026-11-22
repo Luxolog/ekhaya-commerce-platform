@@ -1,3 +1,4 @@
+import { understandProductQuery, rankMarketplaceProducts } from "./search-relevance.ts";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const cors = {
@@ -680,7 +681,7 @@ Deno.serve(async (req: Request) => {
     const settings = settingsRows?.[0] ?? { refresh_enabled: true, cache_ttl_minutes: 360 };
     const fresh = cache && new Date(cache.expires_at) > new Date();
     if (cache && !body.force_refresh && (fresh || settings.refresh_enabled === false)) {
-      const cachedProducts = cache.source_payload?.products ?? [];
+      const cachedRanked = rankMarketplaceProducts(cache.source_payload?.raw_products ?? cache.source_payload?.products ?? [], intent);\n      const cachedProducts = cache.source_payload?.products ? cache.source_payload.products : cachedRanked.products;\n      const cachedRelated = cache.source_payload?.related_products ?? cachedRanked.related_products;\n      const cachedAccessories = cache.source_payload?.accessories ?? cachedRanked.accessories;\n      const cachedTotal = cachedProducts.length + cachedRelated.length + cachedAccessories.length;
       let cacheCreditCharged = false;
       if (!isOwner && !pilotCharged) {
         const reserve = await fetch(new URL("/rest/v1/rpc/reserve_monthly_search_credit", supabaseUrl), {
@@ -692,27 +693,27 @@ Deno.serve(async (req: Request) => {
         if (reservation.duplicate) return json({ error: "This search request has already been processed. Please start a new search.", code: "DUPLICATE_REQUEST" }, 409);
         cacheCreditCharged = true;
       }
-      if (cachedProducts.length === 0 && cacheCreditCharged) {
+      if (cachedTotal === 0 && cacheCreditCharged) {
         await fetch(new URL("/rest/v1/rpc/refund_monthly_search_credit", supabaseUrl), {
           method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
           body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
         });
         cacheCreditCharged = false;
       }
-      if (cachedProducts.length > 0 && cacheCreditCharged) {
+      if (cachedTotal > 0 && cacheCreditCharged) {
         await fetch(new URL("/rest/v1/rpc/complete_monthly_search_credit", supabaseUrl), {
           method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
           body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
         });
       }
-      if (cachedProducts.length === 0 && pilotCharged) {
+      if (cachedTotal === 0 && pilotCharged) {
         await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
           method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
           body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }),
         });
         pilotCharged = false;
       }
-      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:cachedProducts.length,result_status:"success",source:fresh?"cache":"stale-cache"})});
+      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:cachedTotal,result_status:cachedTotal?"success":"empty",source:fresh?"cache":"stale-cache"})});
       return json({
         source: fresh ? "cache" : "stale-cache",
         marketplace,
@@ -766,7 +767,7 @@ Deno.serve(async (req: Request) => {
         providerAttempted = true;
         const upstream = await fetch("https://api.reefapi.com/makro/v1/search", {
           method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
-          body: JSON.stringify({ query, page: 1, ...(postalCode ? { postal_code: postalCode } : {}) }),
+          body: JSON.stringify({ query: providerQuery, page: 1, ...(postalCode ? { postal_code: postalCode } : {}) }),
           signal: AbortSignal.timeout(15000),
         });
         payload = await upstream.json() as ProviderResponse;
@@ -775,7 +776,7 @@ Deno.serve(async (req: Request) => {
         raw = payload?.data?.products ?? [];
       } else if (marketplace === "amazon") {
         if (!reefKey) throw new Error("Amazon search is not configured. Add REEFAPI_KEY to Supabase Edge Function secrets.");
-        const searchParams = { query, marketplace: "co.za", page: 1 };
+        const searchParams = { query: providerQuery, marketplace: "co.za", page: 1 };
         const callAmazon = async () => {
           providerAttempted = true;
           const upstream = await fetch("https://api.reefapi.com/amazon/v1/search", {
@@ -828,7 +829,7 @@ Deno.serve(async (req: Request) => {
         const upstream = await fetch("https://api.reefapi.com/takealot/v1/search", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
-          body: JSON.stringify({ query, country: "za" }),
+          body: JSON.stringify({ query: providerQuery, country: "za" }),
           signal: AbortSignal.timeout(9000),
         });
         payload = await upstream.json();
@@ -845,7 +846,7 @@ Deno.serve(async (req: Request) => {
         const parsed = Number(cleaned);
         return Number.isFinite(parsed) ? parsed : null;
       };
-      const products = raw.map((p: Record<string, unknown>) => {
+      const normalizedProducts = raw.map((p: Record<string, unknown>) => {
         const isAmazon = marketplace === "amazon";
         const isMakro = marketplace === "makro";
         const asin = typeof p.asin === "string" ? p.asin : null;
@@ -892,7 +893,7 @@ Deno.serve(async (req: Request) => {
       const cacheRow = {
         marketplace, lookup_key: `search:${lookupKey}`, product_title: `Search: ${query}`,
         price: null, currency: "ZAR", fetched_at: now.toISOString(), expires_at: expires.toISOString(),
-        source_payload: { products, provider_meta: payload.meta ?? null }, last_error: null,
+        source_payload: { products, related_products: relatedProducts, accessories, raw_products: normalizedProducts, provider_meta: payload.meta ?? null }, last_error: null,
       };
       const cacheWrite = await fetch(new URL("/rest/v1/marketplace_price_cache?on_conflict=marketplace,lookup_key", supabaseUrl), {
         method: "POST",
@@ -901,7 +902,7 @@ Deno.serve(async (req: Request) => {
       });
       if (!cacheWrite.ok) throw new Error("Marketplace data was found but could not be saved to shared cache.");
 
-      if (products.length === 0) {
+      if (totalResults === 0) {
         if (pilotCharged) {
           await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
             method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
@@ -924,8 +925,8 @@ Deno.serve(async (req: Request) => {
           body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
         });
       }
-      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:products.length,result_status:"success",source:"live"})});
-      return json({ source: "live", marketplace, fetched_at: now.toISOString(), products, provider_meta: payload.meta ?? null, credit_charged: charged });
+      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:totalResults,result_status:totalResults?"success":"empty",source:"live"})});
+      return json({ source: "live", marketplace, fetched_at: now.toISOString(), products, related_products: relatedProducts, accessories, query_understanding: { brand: intent.brand, category: intent.category, normalized_query: providerQuery }, provider_meta: payload.meta ?? null, credit_charged: charged });
     } catch (error) {
       if (providerAttempted && !providerUsageLogged) {
         await recordProviderUsage({
