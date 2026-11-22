@@ -60,3 +60,8 @@ Current audited head: `3c4ca5bf44eb1343f803abdae5e2883b3a212d98`.
 - Production migration/function source parity and Auth/RLS dashboard settings; production remains outside this batch's write scope.
 
 **Release status: NOT READY.** Resolve the missing partner schema migration dependency, rerun clean replay and SQL tests, then complete behavioural and operational gates before reconsidering release.
+
+
+## Partner foundation schema reconciliation update — 2026-11-22
+
+The clean replay blocker is now traced to a missing partner foundation migration, not merely a missing `partner_programs` relation. See [partner-schema-migration-reconciliation.md](./partner-schema-migration-reconciliation.md). The standalone partner schema references a `payment_transactions` table absent from the branch migration chain, while current code also requires `partner_invitations`, `partner_owner_access` and `user_notifications` definitions not supplied by that standalone document. A foundation migration is intentionally not fabricated until those authoritative schemas and their RLS/grant/trigger contracts are available.
