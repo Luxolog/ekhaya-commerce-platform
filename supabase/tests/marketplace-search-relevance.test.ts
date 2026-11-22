@@ -4,7 +4,7 @@ import { understandProductQuery, rankMarketplaceProducts } from "../functions/ma
 Deno.test("corrects Inspirion typo and infers Dell Inspiron laptop",()=>{
  const intent=understandProductQuery("dell inspirion 15 3000");
  assertEquals(intent.originalQuery,"dell inspirion 15 3000");
- assertEquals(intent.normalizedQuery,"Dell dell inspiron 15 3000 laptop");
+ assertEquals(intent.normalizedQuery,"dell inspiron 15 3000 laptop");
  assertEquals(intent.brand,"Dell");
  assertEquals(intent.category,"laptop");
  assertEquals(intent.accessoryIntent,false);
