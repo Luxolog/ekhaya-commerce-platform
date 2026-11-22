@@ -152,9 +152,9 @@ export function rankMarketplaceProducts<T extends Record<string,unknown>>(items:
         const parsed = new URL(rawUrl);
         parsed.search = "";
         parsed.hash = "";
-        canonicalUrl = parsed.toString().replace(/\\/$/, "").toLowerCase();
+        canonicalUrl = parsed.toString().replace(/\/$/, "").toLowerCase();
       } catch {
-        canonicalUrl = rawUrl.split(/[?#]/, 1)[0].replace(/\\/$/, "").toLowerCase();
+        canonicalUrl = rawUrl.split(/[?#]/, 1)[0].replace(/\/$/, "").toLowerCase();
       }
     }
     const fallbackTitle = [p.brand, title].map(v => String(v ?? "").trim().toLowerCase()).filter(Boolean).join(" ");
