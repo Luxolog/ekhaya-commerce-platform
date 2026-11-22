@@ -56,7 +56,7 @@ export default function EkhayaOwnerDashboard() {
   const sendPartnerInvitation = async () => {
     if (!invitePartnerId || !inviteContactName.trim() || !inviteEmail.trim()) return;
     setInviteBusy(true); setInviteFeedback("");
-    try { const result = await manageInvitations({ partner_id: invitePartnerId, contact_name: inviteContactName.trim(), email: inviteEmail.trim() }); setInviteFeedback("Invitation sent to " + result.invited_email + " for " + result.partner_name + ". It expires in 14 days."); setInviteContactName(""); setInviteEmail(""); await loadPartnerInvitations(); }
+    try { const result = await manageInvitations({ partner_id: invitePartnerId, contact_name: inviteContactName.trim(), email: inviteEmail.trim() }); setInviteFeedback(result.existing_account ? (result.password_setup_required ? "A fresh secure sign-in link was sent to " + result.invited_email + ". This invited account must create its first password before accepting the partner programme." : "A fresh secure sign-in link was sent to " + result.invited_email + ". The recipient can keep their existing Ekhaya password.") : "Partner invitation email sent to " + result.invited_email + " for " + result.partner_name + ". It expires in 14 days."); setInviteContactName(""); setInviteEmail(""); await loadPartnerInvitations(); }
     catch (e) { setInviteFeedback(e instanceof Error ? e.message : "Invitation could not be sent."); }
     finally { setInviteBusy(false); }
   };
