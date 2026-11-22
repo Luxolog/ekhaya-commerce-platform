@@ -9,7 +9,7 @@
 
 **Status: BLOCKED — NO MIGRATION CREATED**
 
-A verified partner/payment-table foundation migration has now been added to the feature branch. The complete subscription billing/webhook/paid-credit foundation remains blocked because its original source chain and dependencies are not all present in this repository.
+A verified partner/payment/billing-contract foundation migration has now been added to the feature branch. It reconstructs the currently deployed partner and payment tables, subscription billing fields, billing plan catalogue, paid-credit allocation ledger and payment-completion allocation trigger from live catalog evidence. The original historical billing migration source and the complete renewal/reminder/webhook-event lifecycle are still absent.
 
 ## Evidence
 
@@ -22,7 +22,7 @@ A verified partner/payment-table foundation migration has now been added to the 
 
 ## Actions intentionally not taken
 
-- No placeholder payment table. The new migration defines the live-verified `payment_transactions` contract and preserves its constraints and commission FK. The complete billing lifecycle is still not claimed as restored.
+- No placeholder payment table. The new migration defines the live-verified `payment_transactions` contract, subscription billing fields, plan catalogue, paid-credit allocation table/function and payment-completion trigger. It preserves the commission FK and provider/payment idempotency constraints. The full renewal/reminder and private webhook-event lifecycle is still not claimed as restored.
 - No deletion, nullable conversion or weakening of the commission ledger payment FK.
 - No copying of the incompatible legacy partner schema.
 - No RLS policy removal, grant broadening, trigger bypass or SECURITY DEFINER weakening.
@@ -41,4 +41,6 @@ A verified partner/payment-table foundation migration has now been added to the 
 
 Milestone 3 is **PARTIALLY IMPLEMENTED**. The missing partner foundation has been added as `supabase/migrations/20261121020000_partner_payment_foundation.sql`, before the dependent active-referral RPC. It preserves the live financial FK and partner/notification access boundaries. The same migration corrects the legacy auto-activation trigger conflict so new owner-created programmes remain pending until explicit acceptance/activation.
 
-The full payment/webhook/paid-credit allocation subsystem and complete production migration-history reconciliation remain blockers. The migration is not approved for production deployment until clean local replay, pgTAP, payment lifecycle regression and migration-history reconciliation are complete.
+Clean local replay and database contract tests now PASS on commit `8f1f583a706f820894942e7e86542c0d56de773f`: all 21 migrations applied and 48 pgTAP assertions passed. Quality checks and security jobs also passed on that code head.
+
+Remaining blockers are the complete renewal/reminder and private webhook-event lifecycle, full payment lifecycle behavioural tests, migration-history provenance reconciliation (production has 51 records versus the branch's 21 source files), and a controlled staging review. The migration is not approved for production deployment merely because clean local replay passes.
