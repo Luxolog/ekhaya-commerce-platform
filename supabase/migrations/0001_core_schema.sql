@@ -68,6 +68,7 @@ create table public.products (
   updated_at timestamptz not null default now(),
   unique (store_id, slug),
   unique (store_id, sku),
+  unique (store_id, id),
   foreign key (store_id, category_id) references public.categories(store_id, id)
 );
 
