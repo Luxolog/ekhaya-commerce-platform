@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - feature/saechamber-public-showcase
   pull_request:
     branches:
       - main
