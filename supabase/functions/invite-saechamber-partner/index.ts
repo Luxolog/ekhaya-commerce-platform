@@ -177,8 +177,12 @@ Deno.serve(async (req: Request) => {
   }
   const existingUser = authUsers.users.find(item => item.email?.toLowerCase() === email);
   if (existingUser) {
-    const invitedForThisPartner = existingUser.user_metadata?.partner_invitation_id === invitation.id;
-    const needsPasswordSetup = !existingUser.encrypted_password || invitedForThisPartner;
+    // Supabase Admin User deliberately does not expose password hashes or
+    // encrypted_password. Never infer password state or overwrite an existing
+    // account's password during an invitation resend. The recipient signs in
+    // through this one-time magic link; password recovery remains available if
+    // they need to establish or reset a password.
+    const needsPasswordSetup = false;
     const existingAccountRedirect = redirectTo + (needsPasswordSetup ? "&password_setup=1" : "");
     const mailClient = createClient(url, anon);
     const { error: magicLinkError } = await mailClient.auth.signInWithOtp({
