@@ -731,10 +731,13 @@ Deno.serve(async (req: Request) => {
     } else if (entitlement === "seller_pilot_or_monthly" && !isLinkedPartner) {
       const pilotReserve = await fetch(new URL("/rest/v1/rpc/reserve_seller_pilot_search", supabaseUrl), {
         method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
-        body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace }),
+        body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace, p_request_id: requestId }),
       });
       const pilot = pilotReserve.ok ? await pilotReserve.json() : null;
       if (!pilotReserve.ok) return json({ error: "Could not verify pilot search allowance. Please try again." }, 503);
+      if (pilot?.allowed === true && pilot?.duplicate === true) {
+        return json({ error: "This pilot search request has already been processed. Please start a new search.", code: "DUPLICATE_REQUEST" }, 409);
+      }
       if (pilot?.allowed === true) pilotCharged = true;
       else if (pilot?.reason === "PILOT_DAILY_LIMIT") return json({ error: "You have used all your marketplace searches for today. Your allowance resets at midnight South African time.", code: "PILOT_DAILY_LIMIT", usage: pilot }, 429);
       else if (pilot?.reason === "PILOT_TOTAL_LIMIT") return json({ error: "You have used all 50 searches included in your five-day pilot.", code: "PILOT_TOTAL_LIMIT", usage: pilot }, 402);
@@ -751,7 +754,7 @@ Deno.serve(async (req: Request) => {
     });
     if (!quotaResponse.ok || await quotaResponse.json() !== true) {
       if (pilotCharged) {
-        await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), { method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" }, body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }) });
+        await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), { method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" }, body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }) });
         pilotCharged = false;
       }
       return json({ error: "Search limit reached. Please try again in an hour." }, 429);
@@ -1001,7 +1004,7 @@ Deno.serve(async (req: Request) => {
         if (pilotCharged) {
           await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
             method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
-            body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }),
+            body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }),
           });
           pilotCharged = false;
         }
@@ -1012,6 +1015,14 @@ Deno.serve(async (req: Request) => {
           });
           charged = false;
         }
+      }
+      if (pilotCharged && totalResults > 0) {
+        const pilotComplete = await fetch(new URL("/rest/v1/rpc/complete_seller_pilot_search", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }),
+        });
+        if (!pilotComplete.ok) console.error("Could not complete seller pilot reservation:", await pilotComplete.text());
+        else pilotCharged = false;
       }
       if (charged) {
         await fetch(new URL("/rest/v1/rpc/complete_monthly_search_credit", supabaseUrl), {
@@ -1035,7 +1046,7 @@ Deno.serve(async (req: Request) => {
       if (pilotCharged) {
         await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
           method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
-          body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }),
+          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }),
         });
         pilotCharged = false;
       }
