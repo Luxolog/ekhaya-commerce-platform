@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { isInvitationForUser, isPendingAndUnexpiredInvitation, isVerifiedInvitationUser, parseInvitationRequestBody } from "./invitation-guards.ts";
+import { isInvitationForUser, isPendingAndUnexpiredInvitation, isValidInvitationId, isValidReferralCode, isVerifiedInvitationUser, parseInvitationRequestBody } from "./invitation-guards.ts";
 
 const isAllowedOrigin = (origin: string) =>
   origin === "https://ekhayatech.co.za" ||
