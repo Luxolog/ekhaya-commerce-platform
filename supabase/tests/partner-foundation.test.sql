@@ -1,6 +1,6 @@
 begin;
 
-select plan(18);
+select plan(19);
 
 select ok(to_regclass('public.partner_programs') is not null,
   'partner programme foundation exists');
