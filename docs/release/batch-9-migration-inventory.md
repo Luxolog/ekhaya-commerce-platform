@@ -3,7 +3,8 @@
 **Repository:** `Luxolog/ekhaya-commerce-platform`  
 **Branch:** `feature/saechamber-public-showcase`  
 **PR:** [#33](https://github.com/Luxolog/ekhaya-commerce-platform/pull/33) — OPEN, UNMERGED  
-**Audited head:** `e1b61484c5f5da877c76453f555d45373e1526d8`  
+**Initial audit head:** `e1b61484c5f5da877c76453f555d45373e1526d8`  
+**Foundation migration head:** `924775d32a88f55090601ae5fc0ba70706a9a233`  
 **PR base:** `feature/partner-admin-email-otp` at `5cc7edd901b998b180016b4bf1af129fa1182f0e`  
 **Production Supabase project:** `itxxnhcjjiynrmivexcb` (read-only metadata/catalog inspection only)
 
@@ -17,7 +18,7 @@
 
 ## 2. Branch migration inventory (filename order)
 
-The following 20 files exist under `supabase/migrations/` at the audited PR head:
+The initial audit found 20 migration files. Batch 9 added `20261121020000_partner_payment_foundation.sql`, so the current branch has 21 migration files. The ordered list is:
 
 1. `0001_core_schema.sql`
 2. `0002_price_intelligence_cache.sql`
@@ -30,15 +31,15 @@ The following 20 files exist under `supabase/migrations/` at the audited PR head
 9. `20261119190203_align_pilot_daily_limit_constraint_to_ten.sql`
 10. `20261119190229_reset_pilot_usage_on_reactivation.sql`
 11. `20261119211500_enable_makro_marketplace_access.sql`
-12. `20261121023000_public_active_referral_partners.sql`
-13. `20261121040000_partner_admin_email_otp.sql`
-14. `20261122043000_partner_acceptance_notification_details.sql`
-15. `20261122090000_partner_support_search_access.sql`
-16. `20261122090359_standard_ekhaya_account_ids.sql`
-17. `20261122120000_partner_referral_signup_email.sql`
-18. `20261122143000_atomic_saechamber_partner_acceptance.sql`
-19. `20261122160000_partner_support_cache_hit_refunds.sql`
-20. `20261122170000_idempotent_seller_pilot_search_events.sql`
+12. `20261121020000_partner_payment_foundation.sql` (Batch 9; inserted before the public active referral RPC)\n13. `20261121023000_public_active_referral_partners.sql`
+14. `20261121040000_partner_admin_email_otp.sql`
+15. `20261122043000_partner_acceptance_notification_details.sql`
+16. `20261122090000_partner_support_search_access.sql`
+17. `20261122090359_standard_ekhaya_account_ids.sql`
+18. `20261122120000_partner_referral_signup_email.sql`
+19. `20261122143000_atomic_saechamber_partner_acceptance.sql`
+20. `20261122160000_partner_support_cache_hit_refunds.sql`
+21. `20261122170000_idempotent_seller_pilot_search_events.sql`
 
 The PR base branch has only these 11 migration files: `0001_core_schema.sql`, `0002_price_intelligence_cache.sql`, `0003_price_intelligence_accounts.sql`, `20261111203000_price_search_rate_limit.sql`, `20261112010000_monthly_marketplace_search_credits.sql`, `20261112020000_owner_cache_policy_and_period_safe_refunds.sql`, `20261119190058_six_seller_pilot_limits_10_per_day_5_days.sql`, `20261119190203_align_pilot_daily_limit_constraint_to_ten.sql`, `20261119190229_reset_pilot_usage_on_reactivation.sql`, `20261119211500_enable_makro_marketplace_access.sql`, and `20261121040000_partner_admin_email_otp.sql`.
 
@@ -209,3 +210,18 @@ The Supabase metadata/advisor response flags RLS disabled on three `private` tab
 **Inventory complete as a read-only evidence inventory; migration replay is not certified.** The core defect is not just a missing `partner_programs` CREATE TABLE: the PR migration tree omits the partner foundation and the billing foundation, while production has 51 applied migration records and a larger live schema. The PR base is a feature branch with a materially different and incomplete migration history.
 
 Next: reconcile authoritative object definitions and migration provenance in `partner-schema-authoritative-reconciliation.md`. Do not implement a partner foundation migration until all critical financial and notification dependencies, policies, grants, trigger definitions and clean-install ordering can be reproduced from verified sources.
+
+
+## 11. Batch 9 foundation migration added (2026-11-22)
+
+Commit: `924775d32a88f55090601ae5fc0ba70706a9a233`.
+
+New migration: `20261121020000_partner_payment_foundation.sql`, ordered immediately before `20261121023000_public_active_referral_partners.sql`.
+
+It creates/reconciles the verified partner programme, invitation, owner access, referral, commission ledger, monthly statement, rate schedule, user notification and payment transaction tables. It retains the non-null unique commission-to-payment foreign key, payment/provider idempotency constraints, partner self-referral and owner-commission guards, referral/payment triggers, notification idempotency, owner/partner RLS read boundaries and service-role write boundary. It also seeds the documented SA eChamber programme and rate schedule idempotently.
+
+The migration removes the conflicting legacy `ensure_partner_program_active_before_insert` trigger. That trigger forced every new partner programme to active, contradicting the current owner-registration workflow which explicitly creates programmes as pending and requires invitation acceptance before activation. The migration does not delete the orphaned trigger function. A pgTAP test asserts new programmes remain pending.
+
+**Scope limitation:** the historical subscription billing/webhook and paid-credit allocation migration source is still incomplete in this branch. The payment transaction table is recreated from the verified live schema for partner financial referential integrity; the full provider webhook and paid-credit allocation workflow is not declared restored by this migration. This remains a separate release blocker until source and behavioural tests are recovered.
+
+CI was triggered on the branch after the migration and contract-test commits. See workflow evidence before recording replay as passing.
