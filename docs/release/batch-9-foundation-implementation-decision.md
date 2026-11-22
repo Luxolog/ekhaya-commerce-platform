@@ -7,7 +7,7 @@
 
 ## Decision
 
-<badge>BLOCKED — NO MIGRATION CREATED</badge>
+**Status: BLOCKED — NO MIGRATION CREATED**
 
 The foundation migration has deliberately not been implemented. This is the required safe outcome when a critical schema dependency cannot be reproduced from authoritative source artifacts.
 
