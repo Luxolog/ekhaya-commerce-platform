@@ -236,7 +236,8 @@ export default function PriceCheckerPage() {
       {!validCost&&<p className="hint">Enter a buying price greater than R0 to unlock product search.</p>}
       {error&&<p className="error" role="status">{error}</p>}{source&&<p className="hint">{source} · Listing prices may change.</p>}
     </section>
-    {(products.length>0||relatedProducts.length>0||accessories.length>0)&&<section className="results"><div className="heading"><div><small>02 / COMPARE YOUR OPTIONS</small><h2>Product profitability</h2></div><span className="hint">Buying price: {money(buying)}</span></div>\n      {products.length===0&&relatedProducts.length>0&&<p className="hint">We couldn’t find an exact match. Here are the closest related products we found.</p>}
+    {(products.length>0||relatedProducts.length>0||accessories.length>0)&&<section className="results"><div className="heading"><div><small>02 / COMPARE YOUR OPTIONS</small><h2>Product profitability</h2></div><span className="hint">Buying price: {money(buying)}</span></div>
+      {products.length===0&&relatedProducts.length>0&&<p className="hint">We couldn’t find an exact match. Here are the closest related products we found.</p>}
 {products.length>0&&<><h3>Best product matches</h3><div className="cards">{products.map((p,i)=>renderProductCard(p,i,calculations))}</div></>}
 {relatedProducts.length>0&&<><h3>Related products</h3><div className="cards">{relatedProducts.map((p,i)=>renderProductCard(p,i,calculations))}</div></>}
 {accessories.length>0&&<><h3>Accessories — not complete products</h3><p className="hint">Accessories are separated from complete products and are never presented as exact matches.</p><div className="cards">{accessories.map((p,i)=>renderProductCard(p,i,calculations))}</div></>}
