@@ -79,7 +79,9 @@ Run only after separate approval and in the approved production window.
 - [ ] Privacy Notice acknowledgement is required at signup.
 - [ ] Marketplace-fee estimate disclaimer is required at signup.
 - [ ] Signup acknowledgement timestamps and versions are retained.
-- [ ] New profile is created even before marketplace selection.
+- [ ] Seller must select at least one supported marketplace during signup.
+- [ ] Supported marketplace preferences are persisted to the new seller profile.
+- [ ] New profile bootstrap remains safe when marketplace metadata is absent from non-standard signup paths.
 - [ ] Seller can access only their own workspace.
 - [ ] Pilot/search restrictions and free allowance are enforced.
 
