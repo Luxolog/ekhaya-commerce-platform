@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isInvitationForUser, isPendingAndUnexpiredInvitation, isVerifiedInvitationUser, parseInvitationRequestBody } from "./invitation-guards.ts";
 
 const isAllowedOrigin = (origin: string) =>
   origin === "https://ekhayatech.co.za" ||
@@ -28,9 +29,11 @@ Deno.serve(async (req: Request) => {
   if (!authHeader.startsWith("Bearer ")) return new Response(JSON.stringify({ error: "Sign-in required" }), { status: 401, headers: cors });
   const client = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
   const { data: { user }, error: authError } = await client.auth.getUser();
-  if (authError || !user || !user.email) return new Response(JSON.stringify({ error: "Invalid invitation session" }), { status: 401, headers: cors });
-  let body: { invitation_id?: string; referral_code?: string };
-  try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid request body" }), { status: 400, headers: cors }); }
+  if (authError || !isVerifiedInvitationUser(user)) return new Response(JSON.stringify({ error: "A verified email invitation session is required" }), { status: 401, headers: cors });
+  let body: ReturnType<typeof parseInvitationRequestBody>;
+  try { body = parseInvitationRequestBody(await req.json()); } catch { return new Response(JSON.stringify({ error: "Invalid request body" }), { status: 400, headers: cors }); }
+  if (!body) return new Response(JSON.stringify({ error: "Invalid request body" }), { status: 400, headers: cors });
+  const admin = createClient(url, service);
   if (body.action === "lookup_pending") {
     const { data: pending, error: pendingError } = await admin.from("partner_invitations")
       .select("id,partner_id,invited_email,status,expires_at,partner:partner_programs!partner_invitations_partner_id_fkey(partner_name,partner_slug,referral_code)")
@@ -42,7 +45,7 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
     if (pendingError) return new Response(JSON.stringify({ error: "Could not check pending partner invitations" }), { status: 500, headers: cors });
     const partner = Array.isArray(pending?.partner) ? pending.partner[0] : pending?.partner;
-    if (!pending || !partner) return new Response(JSON.stringify({ invitation: null }), { status: 200, headers: cors });
+    if (!pending || !partner || !isInvitationForUser(pending, user.email) || !isPendingAndUnexpiredInvitation(pending)) return new Response(JSON.stringify({ invitation: null }), { status: 200, headers: cors });
     return new Response(JSON.stringify({ invitation: {
       id: pending.id,
       partner_name: partner.partner_name,
@@ -52,15 +55,14 @@ Deno.serve(async (req: Request) => {
   }
   const invitationId = body.invitation_id || "";
   const code = (body.referral_code || "").trim().toUpperCase();
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(invitationId))
+  if (!isValidInvitationId(invitationId))
     return new Response(JSON.stringify({ error: "Invalid invitation reference" }), { status: 400, headers: cors });
-  if (!/^[A-Z0-9]{5,20}$/.test(code)) return new Response(JSON.stringify({ error: "Choose a link code using 5–20 letters or numbers" }), { status: 400, headers: cors });
-  const admin = createClient(url, service);
+  if (!isValidReferralCode(code)) return new Response(JSON.stringify({ error: "Choose a link code using 5–20 letters or numbers" }), { status: 400, headers: cors });
   const { data: invitation, error: inviteError } = await admin.from("partner_invitations")
     .select("id,partner_id,invited_email,status,expires_at").eq("id", invitationId).single();
-  if (inviteError || !invitation || invitation.status !== "pending" || new Date(invitation.expires_at) < new Date())
+  if (inviteError || !invitation || !isPendingAndUnexpiredInvitation(invitation))
     return new Response(JSON.stringify({ error: "This invitation is invalid, expired or already used" }), { status: 410, headers: cors });
-  if (user.email.toLowerCase() !== invitation.invited_email.toLowerCase())
+  if (!isInvitationForUser(invitation, user.email))
     return new Response(JSON.stringify({ error: "Please sign in using the email address that received this partner invitation" }), { status: 403, headers: cors });
   const { data: duplicate } = await admin.from("partner_programs").select("id").eq("referral_code", code).neq("id", invitation.partner_id).maybeSingle();
   if (duplicate) return new Response(JSON.stringify({ error: "That referral code is already in use. Choose another." }), { status: 409, headers: cors });
