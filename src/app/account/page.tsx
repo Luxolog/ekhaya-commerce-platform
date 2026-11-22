@@ -115,6 +115,20 @@ export default function AccountPage() {
     const params = new URLSearchParams(window.location.hash.replace(/^#/,""));
     const token = params.get("access_token");
     const inviteId = new URLSearchParams(window.location.search).get("partner_invite");
+    // If the invitee is already signed in, still show the acceptance form.
+    // The Edge Function verifies that the signed-in email matches the invitation.
+    if(inviteId && !token) {
+      try {
+        const existingSession = JSON.parse(localStorage.getItem("ekhaya_session") ?? "null");
+        if(existingSession?.access_token) {
+          setRecoveryToken(existingSession.access_token);
+          setPartnerInvitationId(inviteId);
+          setMode("accept-existing-partner");
+          setMessage("You are signed in. Confirm your partner referral code below to complete the invitation. Your existing password will not change.");
+          return;
+        }
+      } catch { /* continue to the normal sign-in flow */ }
+    }
     if((params.get("type")==="invite" || params.get("type")==="magiclink") && token && inviteId){
       setRecoveryToken(token);
       setPartnerInvitationId(inviteId);
