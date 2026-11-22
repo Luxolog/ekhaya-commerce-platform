@@ -1,3 +1,5 @@
+begin;
+
 -- Standard public-facing Ekhaya account identifiers.
 -- Internal auth.users UUIDs remain unchanged and must continue to be used for joins/auth.
 -- Format: ET followed by five digits (for example ET00001).
@@ -98,3 +100,5 @@ alter table public.profiles
 
 comment on column public.profiles.account_id is
   'Public-facing Ekhaya account reference (ET plus five digits); never use as an auth UUID.';
+
+commit;
