@@ -2,7 +2,7 @@
 
 ## Scope
 
-This report is based on GitHub branch source and PR metadata only. No Supabase project was queried or modified during this audit.
+This report combines GitHub branch inspection with a read-only query of the connected production project's migration history. No production schema, data, Auth configuration, secrets or functions were modified.
 
 ## Non-negotiable safeguards observed
 
@@ -26,7 +26,7 @@ The current branch contains migrations including:
 
 These are branch files only. Their presence does not mean they are applied to production. The latest atomic partner acceptance and partner-support cache-refund migrations have not been applied to any Supabase environment.
 
-## Unverified production dependencies
+## Read-only migration reconciliation snapshot\n\nThe connected production project's migration inventory was read without applying changes. Its latest recorded migration is `20261122101804` (`partner_support_search_access`). The following newer branch migrations are not recorded in that production history:\n\n| Branch migration | Production history | Status |\n|---|---|---|\n| `20261122143000_atomic_saechamber_partner_acceptance.sql` | Not present | NOT APPLIED / approval required before deployment |\n| `20261122160000_partner_support_cache_hit_refunds.sql` | Not present | NOT APPLIED / approval required before deployment |\n| `20261122170000_idempotent_seller_pilot_search_events.sql` | Not present | NOT APPLIED / approval required before deployment |\n\nThe existing partner-support migration is recorded in production under version `20261122101804`, while the branch file is named `20261122090000_partner_support_search_access.sql`. This version/name difference must be reconciled before any migration deployment. Do not infer schema parity from similar migration names.\n\n## Unverified production dependencies
 
 | Area | Status | Reason |
 |---|---|---|
@@ -41,4 +41,4 @@ These are branch files only. Their presence does not mean they are applied to pr
 
 ## Required safe next step
 
-Create/use a separate non-production Supabase project with isolated Auth users, schema and secrets. Compare migration history and function source there first. Review RLS policies with service-worker dependencies before proposing any change. Production migration or function deployment requires a separate explicit owner approval.
+Use the newly committed local Supabase harness first. Validate migration bootstrap and SQL behaviour locally, then compare migration history and function source read-only. A separate hosted non-production project is not currently required. Review RLS policies with service-worker dependencies before proposing any change. Production migration or function deployment requires a separate explicit owner approval.
