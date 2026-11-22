@@ -69,7 +69,7 @@ export function rankMarketplaceProducts<T extends Record<string,unknown>>(items:
   const ranked=items.map(p=>{
     const title=String(p.title??"");
     const text=textOf(p);
-    const accessory=isAccessory(text);
+    const accessory=isAccessory(title.toLowerCase());
     const titleTokens=tokens(title);
     const brandMatch=!!intent.brand && (String(p.brand??"").toLowerCase()===intent.brand.toLowerCase() || includesPhrase(text,intent.brand.toLowerCase()));
     const matchedModel=intent.modelTokens.filter(t=>titleTokens.includes(t));
