@@ -37,3 +37,16 @@ export function signupAcknowledgementError(
   }
   return null;
 }
+
+/** Require at least one supported seller marketplace during registration. */
+export function signupMarketplaceSelectionError(
+  mode: string,
+  marketplaces: string[],
+): string | null {
+  if (mode !== "signup") return null;
+  const supported = new Set(["takealot", "amazon", "makro"]);
+  if (!marketplaces.some((marketplace) => supported.has(marketplace))) {
+    return "Choose at least one marketplace before creating your seller account.";
+  }
+  return null;
+}
