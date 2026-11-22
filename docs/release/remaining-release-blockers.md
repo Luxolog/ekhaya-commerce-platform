@@ -65,3 +65,13 @@ Current audited head: `3c4ca5bf44eb1343f803abdae5e2883b3a212d98`.
 ## Partner foundation schema reconciliation update — 2026-11-22
 
 The clean replay blocker is now traced to a missing partner foundation migration, not merely a missing `partner_programs` relation. See [partner-schema-migration-reconciliation.md](./partner-schema-migration-reconciliation.md). The standalone partner schema references a `payment_transactions` table absent from the branch migration chain, while current code also requires `partner_invitations`, `partner_owner_access` and `user_notifications` definitions not supplied by that standalone document. A foundation migration is intentionally not fabricated until those authoritative schemas and their RLS/grant/trigger contracts are available.
+
+
+## Historical partner migration source check — 2026-11-22
+
+- Inspected repository branch `partner-program-foundation` at commit `ca2fd427030f2a1deefa2585b3f5392f5ebd78e1`.
+- Its `0002_partner_program.sql` belongs to an older, incompatible data model (`partners`, `partner_applications`, `partner_commissions`, `partner_payouts`); it does not supply the current SA eChamber foundation or `payment_transactions`.
+- It is explicitly excluded from the current migration chain. Copying it would create a second, conflicting partner model rather than fix the current dependency.
+- The reconciliation evidence is documented in `docs/release/partner-schema-migration-reconciliation.md`.
+- Latest PR #33 head after this documentation-only reconciliation: `59dcd4c3a8721469f5a763ad1099492e7a5c02e5`. CI for this new head has not yet been verified.
+- **No schema migration was added** because authoritative definitions for `payment_transactions`, `partner_invitations`, `partner_owner_access`, and `user_notifications` remain unavailable. Clean replay and deployment remain blocked.
