@@ -177,7 +177,8 @@ Deno.serve(async (req: Request) => {
   }
   const existingUser = authUsers.users.find(item => item.email?.toLowerCase() === email);
   if (existingUser) {
-    const needsPasswordSetup = !existingUser.encrypted_password;
+    const invitedForThisPartner = existingUser.user_metadata?.partner_invitation_id === invitation.id;
+    const needsPasswordSetup = !existingUser.encrypted_password || invitedForThisPartner;
     const existingAccountRedirect = redirectTo + (needsPasswordSetup ? "&password_setup=1" : "");
     const mailClient = createClient(url, anon);
     const { error: magicLinkError } = await mailClient.auth.signInWithOtp({
