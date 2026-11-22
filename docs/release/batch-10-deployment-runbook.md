@@ -14,7 +14,7 @@ Do not start deployment until every gate below is signed off.
 
 - [ ] PR #33 dependency/base-branch sequence is reconciled and reviewed.
 - [ ] Latest branch HEAD has successful quality, security, Ekhaya security and isolated Supabase database workflows.
-- [ ] The 100/500/1,000/5,000/10,000 seller benchmark is complete and its limitations are documented.
+- [x] The 100/500/1,000/5,000/10,000 seller synthetic allocation benchmark is complete and its limitations are documented.
 - [ ] Concurrent credit reservation/allocation tests pass.
 - [ ] Partner invitation, referral, owner activation and seller signup browser E2E pass in an isolated environment.
 - [ ] Payment provider checkout/webhook source is restored and reviewed.
