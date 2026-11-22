@@ -656,6 +656,12 @@ Deno.serve(async (req: Request) => {
   }
   if (body.force_refresh && !isOwner) return json({ error: "Only the Ekhaya owner can force a live cache refresh." }, 403);
 
+  // Validate marketplace-specific input before reserving any seller or partner allowance.
+  const postalCode = typeof body.postal_code === "string" ? body.postal_code.trim() : "";
+  if (marketplace === "makro" && postalCode && !/^\d{4}$/.test(postalCode)) {
+    return json({ error: "Enter a valid four-digit South African postal code.", code: "INVALID_POSTAL_CODE" }, 400);
+  }
+
   if (isLinkedPartner && !isActivePartner) {
     return json({ error: "Your partner programme is not active. Partner support searches are unavailable.", code: "PARTNER_PROGRAM_INACTIVE" }, 403);
   }
@@ -689,8 +695,6 @@ Deno.serve(async (req: Request) => {
     else if (pilot?.reason !== "PILOT_NOT_ACTIVE") return json({ error: "Your seller pilot access is not available for this marketplace.", code: pilot?.reason ?? "PILOT_ACCESS_ERROR", usage: pilot }, 403);
   }
 
-  const postalCode = typeof body.postal_code === "string" ? body.postal_code.trim() : "";
-  if (marketplace === "makro" && postalCode && !/^\d{4}$/.test(postalCode)) return json({ error: "Enter a valid four-digit South African postal code.", code: "INVALID_POSTAL_CODE" }, 400);
   const requestId = body.request_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.request_id)
     ? body.request_id : crypto.randomUUID();
   const lookupKey = query.toLowerCase().replace(/\s+/g, " ") + (marketplace === "makro" && postalCode ? `:postal:${postalCode}` : "");
