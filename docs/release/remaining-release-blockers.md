@@ -75,3 +75,31 @@ The clean replay blocker is now traced to a missing partner foundation migration
 - The reconciliation evidence is documented in `docs/release/partner-schema-migration-reconciliation.md`.
 - Latest PR #33 head after this documentation-only reconciliation: `59dcd4c3a8721469f5a763ad1099492e7a5c02e5`. CI for this new head has not yet been verified.
 - **No schema migration was added** because authoritative definitions for `payment_transactions`, `partner_invitations`, `partner_owner_access`, and `user_notifications` remain unavailable. Clean replay and deployment remain blocked.
+
+
+## Batch 8 current status — 2026-11-22
+
+Audited commit: `59dcd4c3a8721469f5a763ad1099492e7a5c02e5`. PR #33 remains open and unmerged.
+
+### Critical / release-blocking
+
+1. **Missing partner foundation migration.** Clean replay fails at `20261121023000_public_active_referral_partners.sql` because `public.partner_programs` is absent. The migration defines a function that queries this table before any migration creates it.
+2. **Authoritative schemas are incomplete.** The standalone partner schema depends on `payment_transactions`; current application paths also require `partner_invitations`, `partner_owner_access` and `user_notifications`. Their authoritative constraints, indexes, RLS, grants, triggers, notification idempotency and retention contracts are not fully available.
+3. **SQL contract suite is unexecuted.** The local database workflow fails during `supabase start`; its `supabase test db` step is skipped. The 23 pgTAP assertions are contract assertions, not behavioural transaction tests.
+4. **Behavioural and E2E regression incomplete.** No passing isolated database evidence for reserve/complete/refund, limits, concurrency or atomic acceptance; no full signup/workspace, partner lifecycle, billing/webhook or SMTP sandbox pass.
+5. **Performance/capacity not measured.** No repeatable benchmark evidence for concurrent users, throughput, contention, provider fan-out, cache hit ratio, latency, error rate or resource consumption. No measurements should be inferred from code review.
+6. **Environment inventory and deployment operations incomplete.** A verified local/preview/production environment-variable matrix and approved rollback/monitoring runbook have not yet been evidenced. Secret values must never be copied into docs or logs.
+7. **Production parity remains unverified.** Production migration/function parity, Auth dashboard settings, RLS inventory and deployed Edge Function source parity require a separate read-only review and explicit production authorization before any write.
+8. **PR dependency base unresolved.** PR #33 targets `feature/partner-admin-email-otp`; dependency reconciliation and any base/merge change require owner review.
+
+### Current-head CI evidence
+
+- Quality run [45051417372](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45051417372): ESLint, TypeScript and production build PASS.
+- Security run [45051417457](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45051417457): dependency audit, Gitleaks, CodeQL, configured Edge Function type-check and auth-guard Deno tests PASS.
+- Local database run [45051417432](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45051417432): FAIL at missing `public.partner_programs`; pgTAP step skipped.
+
+### Safe implementation decision
+
+Do not add a guessed partner foundation, placeholder financial table, copied legacy partner model, removed financial FK or weakened RLS policy. Obtain authoritative schema and security contracts first, then implement the ordered foundation and repeat clean replay. Keep Vercel and production Supabase untouched for this batch.
+
+**Release recommendation: NOT READY.**
