@@ -53,7 +53,7 @@ Deno.serve(async (req: Request) => {
     responseCount?: number; providerRequestId?: string | null; actorId?: string | null;
   }) => {
     try {
-      await fetch(new URL("/rest/v1/api_usage_ledger", supabaseUrl), {
+      const response = await fetch(new URL("/rest/v1/api_usage_ledger", supabaseUrl), {
         method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
         body: JSON.stringify({
           provider: "reefapi", action: "search", marketplace: entry.marketplace, lookup_key: entry.lookupKey,
@@ -62,6 +62,9 @@ Deno.serve(async (req: Request) => {
           actor_id: entry.actorId ?? null,
         }),
       });
+      if (!response.ok) {
+        console.error("ReefAPI usage ledger rejected an attempt:", response.status, await response.text());
+      }
     } catch (error) {
       console.error("Could not write ReefAPI usage ledger:", error);
     }
