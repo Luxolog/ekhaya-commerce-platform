@@ -2,6 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const isAllowedOrigin = (origin: string) =>
+  origin === "https://ekhayatech.co.za" ||
+  origin === "https://www.ekhayatech.co.za" ||
   origin === "https://pricechecker.ekhayatech.co.za" ||
   /^https:\/\/ekhaya-commerce-platform-[a-z0-9-]+-luxolog\.vercel\.app$/.test(origin);
 const corsFor = (req: Request) => {
@@ -9,7 +11,7 @@ const corsFor = (req: Request) => {
   return {
     "Access-Control-Allow-Origin": isAllowedOrigin(origin) ? origin : "https://pricechecker.ekhayatech.co.za",
     "Vary": "Origin",
-    "Access-Control-Allow-Headers": "authorization, apikey, content-type",
+    "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Content-Type": "application/json",
   };
