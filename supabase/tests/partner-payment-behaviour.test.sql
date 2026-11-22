@@ -12,12 +12,26 @@ alter table public.profiles alter column marketplace_access
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
-) values
-(
+) values (
   'b9000000-0000-4000-8000-000000000001','authenticated','authenticated',
   'batch9-partner@example.invalid','',now(),
   '{"provider":"email","providers":["email"]}'::jsonb,'{}'::jsonb,now(),now()
-),
+);
+
+-- The active partner must exist before the referred auth user is inserted:
+-- referral attribution is captured by the auth.users AFTER INSERT trigger.
+insert into public.partner_programs (
+  id, partner_name, partner_slug, referral_code, partner_user_id, status
+) values (
+  'b9000000-0000-4000-8000-000000000011',
+  'Batch 9 Behaviour Partner','batch9-behaviour','BATCH9BEHAVIOUR',
+  'b9000000-0000-4000-8000-000000000001','active'
+);
+
+insert into auth.users (
+  id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+) values
 (
   'b9000000-0000-4000-8000-000000000002','authenticated','authenticated',
   'batch9-referral@example.invalid','',now(),
@@ -33,14 +47,6 @@ insert into auth.users (
 
 alter table public.profiles alter column marketplace_access
   set default '{}'::text[];
-
-insert into public.partner_programs (
-  id, partner_name, partner_slug, referral_code, partner_user_id, status
-) values (
-  'b9000000-0000-4000-8000-000000000011',
-  'Batch 9 Behaviour Partner','batch9-behaviour','BATCH9BEHAVIOUR',
-  'b9000000-0000-4000-8000-000000000001','active'
-);
 
 select is(
   (select count(*)::integer from public.partner_referrals
