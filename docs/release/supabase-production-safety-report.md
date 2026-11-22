@@ -57,3 +57,25 @@ This is a branch migration-history defect, not evidence that production is missi
 **Safety boundary maintained:** this Batch 8 verification used GitHub Actions and an isolated local Supabase stack. No production migration, schema/data/Auth/RLS/secret/function change, Vercel deployment, provider request, email, invitation or payment was performed.
 
 **Required before any production migration:** reconcile the standalone partner schema with all branch migrations and the read-only production migration inventory; determine which objects are already present, identify version/name drift, and prepare a separately reviewed forward-only migration plan. Do not apply or repair production as part of this batch.
+
+
+## Batch 8 final-head safety record — 2026-11-22
+
+Audited GitHub commit: `59dcd4c3a8721469f5a763ad1099492e7a5c02e5`.
+
+- The isolated GitHub Actions local Supabase workflow [45051417432](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45051417432) failed while applying `20261121023000_public_active_referral_partners.sql`, because `public.partner_programs` is not created by the preceding migration chain.
+- The database test step was skipped. No pgTAP pass is claimed.
+- Quality run [45051417372](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45051417372) and security run [45051417457](https://github.com/Luxolog/ekhaya-commerce-platform/actions/runs/45051417457) passed their configured checks.
+- The branch-only failure is not evidence that production lacks `partner_programs`; it is evidence that a fresh replay from the committed migration chain is incomplete.
+- The missing foundation cannot safely be fabricated without authoritative definitions for `payment_transactions`, `partner_invitations`, `partner_owner_access` and `user_notifications`, including RLS/grants/triggers and financial lifecycle semantics.
+
+### Explicit Batch 8 safety boundary
+
+No production Supabase migration, schema/data/Auth/RLS/secret/function write, Vercel deployment, paid provider call, invitation, email, payment or PR merge was performed. No production resource was intentionally changed. This is a statement of actions in this batch, not a fresh attestation of production state or parity.
+
+### Required production safeguards for a later separately approved release
+
+1. Reconcile the production migration history against the full branch migration chain, including version/name drift.
+2. Inspect production RLS, grants, Auth redirect/leaked-password settings and deployed Edge Function source read-only.
+3. Prepare a reviewed forward-only migration plan and verified backup/restore procedure.
+4. Obtain explicit owner approval before any production migration, function deployment, Auth/RLS/secret change or Vercel release.
