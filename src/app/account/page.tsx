@@ -115,19 +115,27 @@ export default function AccountPage() {
     const params = new URLSearchParams(window.location.hash.replace(/^#/,""));
     const token = params.get("access_token");
     const inviteId = new URLSearchParams(window.location.search).get("partner_invite");
-    // If the invitee is already signed in, still show the acceptance form.
-    // The Edge Function verifies that the signed-in email matches the invitation.
+    const authErrorCode = params.get("error_code") || new URLSearchParams(window.location.search).get("error_code");
+    const authErrorDescription = params.get("error_description") || new URLSearchParams(window.location.search).get("error_description");
+    if(inviteId && (authErrorCode || authErrorDescription)) {
+      setPartnerInvitationId(inviteId);
+      setRecoveryToken("");
+      setSignedIn(false);
+      setMode("accept-partner");
+      setMessage(authErrorCode === "otp_expired"
+        ? "This invitation link has expired or has already been used. Please ask the Ekhaya owner to send a fresh invitation, then open the newest email link. Your existing account has not been changed."
+        : (authErrorDescription || "We could not verify this invitation link. Please ask the Ekhaya owner to resend it."));
+      return;
+    }
+    // Never reuse an unrelated browser session to accept an invitation.
+    // A partner invitation must be verified with the invited email's own Auth token.
     if(inviteId && !token) {
-      try {
-        const existingSession = JSON.parse(localStorage.getItem("ekhaya_session") ?? "null");
-        if(existingSession?.access_token) {
-          setRecoveryToken(existingSession.access_token);
-          setPartnerInvitationId(inviteId);
-          setMode("accept-existing-partner");
-          setMessage("You are signed in. Confirm your partner referral code below to complete the invitation. Your existing password will not change.");
-          return;
-        }
-      } catch { /* continue to the normal sign-in flow */ }
+      setPartnerInvitationId(inviteId);
+      setRecoveryToken("");
+      setSignedIn(false);
+      setMode("signin");
+      setMessage("To accept this invitation, open the secure link from the latest invitation email and sign in using the invited email address. Another Ekhaya account already open in this browser cannot accept it.");
+      return;
     }
     if((params.get("type")==="invite" || params.get("type")==="magiclink") && token && inviteId){
       setRecoveryToken(token);
@@ -158,6 +166,9 @@ export default function AccountPage() {
         const session=JSON.parse(raw);
         if(session?.access_token){
           const hasPartnerInvite = new URLSearchParams(window.location.search).has("partner_invite");
+          // Invitation acceptance is a separate authentication flow. Do not let
+          // a previously signed-in owner/seller session mask the invited identity.
+          if(hasPartnerInvite) return;
           setSignedIn(true);
           if(!hasPartnerInvite) setMode("signin");
           setCheckingAccess(true);
