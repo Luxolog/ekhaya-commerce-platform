@@ -6,6 +6,10 @@ on:
     branches:
       - main
       - feat/shared-price-cache-android
+      - feat/price-checker-download-experience
+  pull_request:
+    branches:
+      - release/price-checker-search-balances
 
 jobs:
   build-debug-apk:
