@@ -444,7 +444,6 @@ $function$;
 -- acceptance. Remove the conflicting legacy trigger if this migration is applied
 -- to a database that already contains it; do not remove any other activation logic.
 drop trigger if exists ensure_partner_program_active_before_insert on public.partner_programs;
-drop function if exists private.ensure_partner_program_active();
 
 -- Install triggers idempotently so the migration can reconcile an existing schema.
 do $$
@@ -532,6 +531,7 @@ grant all on public.payment_transactions, public.partner_programs, public.partne
   public.partner_commission_rate_schedule, public.partner_owner_access,
   public.partner_invitations, public.user_notifications to service_role;
 grant usage, select on sequence public.partner_commission_rate_schedule_id_seq to service_role;
+grant usage on schema private to service_role;
 
 drop policy if exists payment_transactions_read_own on public.payment_transactions;
 create policy payment_transactions_read_own on public.payment_transactions
