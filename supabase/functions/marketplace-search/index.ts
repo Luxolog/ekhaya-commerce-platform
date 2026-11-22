@@ -757,6 +757,13 @@ Deno.serve(async (req: Request) => {
         await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), { method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" }, body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }) });
         pilotCharged = false;
       }
+      if (partnerSupportCharged) {
+        await fetch(new URL("/rest/v1/rpc/refund_partner_support_search", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }),
+        });
+        partnerSupportCharged = false;
+      }
       return json({ error: "Search limit reached. Please try again in an hour." }, 429);
     }
 
@@ -1001,6 +1008,13 @@ Deno.serve(async (req: Request) => {
       if (!cacheWrite.ok) throw new Error("Marketplace data was found but could not be saved to shared cache.");
 
       if (totalResults === 0) {
+        if (partnerSupportCharged) {
+          await fetch(new URL("/rest/v1/rpc/refund_partner_support_search", supabaseUrl), {
+            method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }),
+          });
+          partnerSupportCharged = false;
+        }
         if (pilotCharged) {
           await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
             method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
@@ -1042,6 +1056,13 @@ Deno.serve(async (req: Request) => {
           actorId: charged ? userId : null,
         });
         providerUsageLogged = true;
+      }
+      if (partnerSupportCharged) {
+        await fetch(new URL("/rest/v1/rpc/refund_partner_support_search", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }),
+        });
+        partnerSupportCharged = false;
       }
       if (pilotCharged) {
         await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
