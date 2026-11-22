@@ -17,9 +17,9 @@
 | Referral attribution locked to original active partner | UI/source guard described in PR | PARTIAL | Real signup and referral row verification |
 | Search relevance/ranking | `marketplace-search-relevance.test.ts` | PASS (unit) | Marketplace fixture regression |
 | Query planning and follow-up selection | Helper unit tests plus source integration in `marketplace-search/index.ts` | PARTIAL | Mock provider orchestration tests for success, partial failure, deduplication and max-three-call budget |
-| One credit lifecycle across multiple query variations | One reservation path around bounded Takealot orchestration in source; no dedicated mocked integration test | PARTIAL (source only) | Prove one reservation across initial query and up to two follow-ups using mocked RPC/provider adapters |
-| Cache hit credit semantics | Source now avoids monthly reservation and releases pilot/partner support allowance on cache hits; partner refund RPC migration added | PARTIAL (source only) | Isolated database test proving all account types are uncharged for cache hits, including refund failure behaviour |
-| Provider timeout and partial failure | Takealot follow-up errors preserve successful results; each provider attempt records its own usage entry in source | PARTIAL (source only) | Mocked tests for timeout, non-2xx response, reported failed-call charges and request IDs |
+| Seller pilot reservation lifecycle | Request-scoped pilot event table and reserve/complete/refund RPCs; Deno tests cover entitlement routing but not SQL transaction behaviour | PARTIAL (source only) | Isolated SQL tests for duplicate requests, exactly-once refund, daily/total limits and concurrency |
+| Cache hit credit semantics | Shared cache is checked before any pilot, partner or monthly reservation; pure entitlement-routing tests cover owner, partner and seller cache hits | PASS (unit/source) | Isolated database test proving no usage rows/counters are created for cache hits |
+| Partner support reservation lifecycle | Request-scoped status and completion/refund RPCs; refund retains unique request row | PARTIAL (source only) | Isolated SQL tests for daily cap, duplicate IDs, completion and exactly-once refund |
 | Billing/webhook idempotency | Insufficient source/test evidence | BLOCKED | Obtain billing source and sandbox |
 | Owner acceptance notification row | Historical transaction-only test documented in PR | PARTIAL | Repeat in isolated DB |
 | SMTP owner/partner email delivery | No real delivery evidence | BLOCKED | SMTP sandbox |
