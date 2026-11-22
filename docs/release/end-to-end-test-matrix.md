@@ -10,16 +10,16 @@
 | Invitation requires verified email | Invitation guard Deno tests | PASS (unit) | Supabase Auth integration |
 | Invitation matches authenticated email | Invitation guard Deno tests | PASS (unit) | Cross-account API E2E |
 | Invitation expiry and pending status | Invitation guard Deno tests | PASS (unit) | Database race test |
-| Invitation replay/single use | Source has pending-status checks | PARTIAL | Concurrent acceptance integration test |
+| Invitation replay/single use | Atomic acceptance RPC locks invitation and programme rows and checks pending status | PARTIAL (source only) | Concurrent acceptance and rollback integration test |
 | Partner creation/duplicate slug and code | Source-level checks and database unique-error handling | PARTIAL | Owner API E2E |
 | Activation before acceptance | Source blocks missing linked account/accepted invite | PARTIAL | Isolated database E2E |
 | Activation after acceptance | Source path exists | PARTIAL | Full owner dashboard journey |
 | Referral attribution locked to original active partner | UI/source guard described in PR | PARTIAL | Real signup and referral row verification |
 | Search relevance/ranking | `marketplace-search-relevance.test.ts` | PASS (unit) | Marketplace fixture regression |
-| Query planning and follow-up selection | Helper unit tests | PASS (unit) | Provider orchestration integration; currently not integrated |
-| One credit lifecycle across multiple query variations | No multi-query orchestration; no dedicated mocked integration test | NOT VERIFIED | Add provider/RPC adapter tests before enabling variations |
-| Cache hit credit semantics | Source paths present | PARTIAL | Cache/RPC integration tests |
-| Provider timeout and partial failure | Not proven by current test suite | NOT VERIFIED | Mock provider failure tests |
+| Query planning and follow-up selection | Helper unit tests plus source integration in `marketplace-search/index.ts` | PARTIAL | Mock provider orchestration tests for success, partial failure, deduplication and max-three-call budget |
+| One credit lifecycle across multiple query variations | One reservation path around bounded Takealot orchestration in source; no dedicated mocked integration test | PARTIAL (source only) | Prove one reservation across initial query and up to two follow-ups using mocked RPC/provider adapters |
+| Cache hit credit semantics | Source now avoids monthly reservation and releases pilot/partner support allowance on cache hits; partner refund RPC migration added | PARTIAL (source only) | Isolated database test proving all account types are uncharged for cache hits, including refund failure behaviour |
+| Provider timeout and partial failure | Takealot follow-up errors preserve successful results; each provider attempt records its own usage entry in source | PARTIAL (source only) | Mocked tests for timeout, non-2xx response, reported failed-call charges and request IDs |
 | Billing/webhook idempotency | Insufficient source/test evidence | BLOCKED | Obtain billing source and sandbox |
 | Owner acceptance notification row | Historical transaction-only test documented in PR | PARTIAL | Repeat in isolated DB |
 | SMTP owner/partner email delivery | No real delivery evidence | BLOCKED | SMTP sandbox |
