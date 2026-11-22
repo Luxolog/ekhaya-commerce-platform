@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
       const emailSectionLabel = isPartnerReferralNotification ? "EKHAYA PARTNER PROGRAMME" : "EKHAYA PRICE CHECKER";
       const emailFooterMessage = isPartnerReferralNotification
         ? "You are receiving this message because a seller registered through your Ekhaya partner referral link."
-        : "${emailFooterMessage}";
+        : "You are receiving this message because of activity on your Ekhaya Price Checker account.";
       const emailRecipient = isPartnerOwnerNotification ? "support@ekhayatech.co.za" : user.email;
       const message = String(item.message ?? "");
       const action = item.action_url ? String(item.action_url) : "";
@@ -152,7 +152,7 @@ ${greetingHtml}
 ${isPilotApproval ? pilotDetailsHtml : `<div style="font-size:15px;line-height:1.75;color:#40536a">${safeMessage}</div>`}
 </td></tr>
 ${actionHtml}
-<tr><td style="padding:0 34px 30px"><div style="border-top:1px solid #e8edf3;padding-top:19px;font-size:12px;line-height:1.6;color:#7b8999">You are receiving this message because of activity on your Ekhaya Price Checker account.</div></td></tr>
+<tr><td style="padding:0 34px 30px"><div style="border-top:1px solid #e8edf3;padding-top:19px;font-size:12px;line-height:1.6;color:#7b8999">${emailFooterMessage}</div></td></tr>
 <tr><td style="background:#edf3f8;padding:20px 34px;text-align:center">
 <div style="font-size:13px;font-weight:700;color:#173452">EKHAYA TECHNOLOGIES</div>
 <div style="font-size:10px;letter-spacing:1.3px;color:#647b91;margin-top:5px">DIGITAL SOLUTIONS · BUILT AROUND YOU</div>
