@@ -34,9 +34,12 @@ export default function PricingPage() {
           <ul style={{...muted,paddingLeft:19,margin:0}}>{plan.features.map(feature=><li key={feature} style={{marginBottom:7}}>{feature}</li>)}</ul>
         </article>)}
       </div>
-      <a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Price%20Checker%20Custom%20Plan" style={{display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center",padding:"24px clamp(20px,4vw,48px)",minHeight:112,marginTop:18,border:"1px solid #079BD3",borderRadius:12,background:"#F4F8FC",color:"#079BD3",textDecoration:"none",fontFamily:"Manrope,sans-serif",fontSize:18,lineHeight:1.5,fontWeight:600}}>
-        Need a Price Checker custom plan? Let&apos;s talk.
-      </a>
+      <section style={{marginTop:18,padding:"28px clamp(22px,3vw,36px)",minHeight:180,border:"1px solid #079BD3",borderRadius:12,background:"#F4F8FC",display:"flex",flexDirection:"column",alignItems:"flex-start",justifyContent:"center",gap:10}}>
+        <h3 style={{fontFamily:"Manrope,sans-serif",fontSize:20,lineHeight:1.3,margin:0,color:"#071B31"}}>Need a custom Price Checker plan?</h3>
+        <p style={{...muted,fontSize:14,maxWidth:760,margin:0}}>For businesses that need a tailored monthly search allowance or a specific arrangement. We can include product and photograph search access and agree on a solution that fits your business.</p>
+        <p style={{...muted,fontSize:13,margin:0}}>Custom monthly search allowance · Product and photograph search access · Business-specific arrangements by agreement</p>
+        <a href="mailto:support@ekhayatech.co.za?subject=Ekhaya%20Price%20Checker%20Custom%20Plan" style={{display:"inline-block",marginTop:4,color:"#079BD3",fontSize:13,fontWeight:800,textDecoration:"none"}}>EMAIL EKHAYA ABOUT A CUSTOM PLAN →</a>
+      </section>
       <p style={{...muted,fontSize:12,marginTop:14}}>New accounts receive 5 welcome searches once per account. Monthly plan allowances reset each billing month. When your searches are used, you must upgrade to continue; search top-ups are not available. Search allowances apply per seller account and are not shared between sellers.</p>
       <p role="note" style={{...muted,fontSize:13,marginTop:18,padding:16,background:"#FFF7E6",border:"1px solid #F2D9A6",borderRadius:10}}>
         Paid-plan online checkout is not enabled yet. Contact Ekhaya Technologies to request paid-plan activation. Do not send payment details by email or use unofficial payment links.
