@@ -292,10 +292,8 @@ export default function EkhayaOwnerDashboard() {
       main.ekhaya-owner { padding:0 !important; min-height:100vh; background:var(--ekhaya-bg) !important; color:var(--ekhaya-navy); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif !important; }
       main.ekhaya-owner > header { max-width:none !important; margin:0 0 0 !important; padding:18px clamp(18px,4vw,58px) !important; min-height:88px; box-sizing:border-box; background:linear-gradient(112deg,#0D2035 0%,#173B58 58%,#10243A 100%); border:0 !important; border-bottom:3px solid var(--ekhaya-gold) !important; color:white; box-shadow:0 5px 20px #10243A20; }
       .owner-brand { display:flex; align-items:center; gap:24px; min-width:280px; }
-      .owner-wordmark { display:flex; align-items:center; gap:11px; color:#fff !important; text-decoration:none; letter-spacing:1.8px; }
-      .owner-wordmark strong { display:block; font-size:19px; line-height:1.1; font-weight:900; }
-      .owner-wordmark small { display:block; margin-top:3px; font-size:9px; letter-spacing:3px; color:#D6E0EA; font-weight:700; }
-      .owner-mark { display:grid; place-items:center; width:42px; height:42px; border-radius:12px 5px 12px 5px; background:linear-gradient(145deg,#F2C65C,#C58B1F); color:#10243A; font-size:28px; font-weight:950; box-shadow:0 5px 14px #0003; }
+      .owner-logo-link { display:flex; align-items:center; justify-content:center; width:220px; height:70px; padding:5px 9px; box-sizing:border-box; border-radius:10px; background:#fff; text-decoration:none; box-shadow:0 4px 14px #0002; }
+      .owner-logo-link img { display:block; width:100%; height:100%; object-fit:contain; }
       .owner-brand-divider { width:2px; height:44px; background:#D6A63A; opacity:.9; }
       .owner-heading h1 { margin:0 0 4px !important; color:#fff; font-size:25px !important; letter-spacing:-.5px; }
       .owner-heading div { color:#C8D6E3; font-size:12px; }
