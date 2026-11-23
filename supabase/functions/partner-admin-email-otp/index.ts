@@ -70,7 +70,8 @@ Deno.serve(async (req: Request) => {
 
   if (body.action === "status") {
     const { data: verified } = await admin.from("email_otp_verified_sessions").select("session_id")
-      .eq("user_id", user.id).eq("session_id", sessionId).gt("expires_at", new Date().toISOString()).maybeSingle();
+      .eq("user_id", user.id).eq("session_id", sessionId).is("target_user_id", null).is("plan_code", null)
+      .gt("expires_at", new Date().toISOString()).maybeSingle();
     return json({ enabled, verified: Boolean(verified), email: user.email ?? null, account_type: isOwner ? "admin" : "partner" });
   }
 
@@ -82,6 +83,10 @@ Deno.serve(async (req: Request) => {
     if (recent && Date.now() - new Date(recent.created_at).getTime() < 60_000) {
       return json({ error: "A code was sent recently. Please wait one minute before requesting another." }, 429);
     }
+    const isPlanChange = body.purpose === "owner_plan_change";
+    if (isPlanChange && (!isOwner || !body.target_user_id || !["free","starter","growth","pro","business"].includes(String(body.plan_code)))) {
+      return json({ error: "A valid owner plan-change request is required." }, 400);
+    }
     const host = Deno.env.get("SMTP_HOST");
     const port = Number(Deno.env.get("SMTP_PORT") || 465);
     const username = Deno.env.get("SMTP_USERNAME");
@@ -92,8 +97,6 @@ Deno.serve(async (req: Request) => {
     const otpRecipient = "luxolog@ekhayatech.co.za";
     if (!otpRecipient) return json({ error: "The OTP recipient is not configured." }, 503);
     if (isOwner) await admin.from("email_otp_verified_sessions").delete().eq("user_id", user.id).eq("session_id", sessionId);
-    const isPlanChange = body.purpose === "owner_plan_change";
-    if (isPlanChange && (!isOwner || !body.target_user_id || !["free","starter","growth","pro","business"].includes(String(body.plan_code)))) return json({ error: "A valid owner plan-change request is required." }, 400);
     const code = newCode();
     const pepper = service;
     const codeHash = await digest([user.id, sessionId, code, pepper].join(":"));
@@ -115,9 +118,9 @@ Deno.serve(async (req: Request) => {
       await transporter.sendMail({
         from: { name: "Ekhaya Technologies", address: username },
         to: otpRecipient,
-        subject: "Your Ekhaya security verification code",
-        text: `Hello ${String(user.user_metadata?.display_name ?? "there")},\n\nYour Ekhaya sign-in verification code is ${code}. It expires in five minutes. Do not share this code with anyone.\n\nEkhaya Technologies`,
-        html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:30px auto;padding:28px;border:1px solid #dce8f1;border-radius:10px;color:#10243e"><div style="font-weight:800;letter-spacing:1px">EKHAYA TECHNOLOGIES</div><h2 style="margin:26px 0 12px">Verify your sign-in</h2><p>Hello ${name},</p><p>Use this one-time code to complete your sign-in:</p><div style="font-size:32px;font-weight:800;letter-spacing:8px;padding:18px;background:#f3f7fb;border-radius:8px;text-align:center">${code}</div><p>This code expires in five minutes. You have a limited number of attempts. Do not share it with anyone.</p><p style="color:#71869a;font-size:12px">If you did not attempt to sign in, change your password and contact Ekhaya support.</p></div>`,
+        subject: isPlanChange ? "Confirm an Ekhaya seller subscription change" : "Your Ekhaya security verification code",
+        text: `Hello ${String(user.user_metadata?.display_name ?? "there")},\n\nYour Ekhaya ${isPlanChange ? "seller subscription change" : "sign-in"} verification code is ${code}. It expires in five minutes. Do not share this code with anyone.\n\nEkhaya Technologies`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:30px auto;padding:28px;border:1px solid #dce8f1;border-radius:10px;color:#10243e"><div style="font-weight:800;letter-spacing:1px">EKHAYA TECHNOLOGIES</div><h2 style="margin:26px 0 12px">${isPlanChange ? "Confirm subscription change" : "Verify your sign-in"}</h2><p>Hello ${name},</p><p>Use this one-time code to ${isPlanChange ? "confirm the requested seller subscription change" : "complete your sign-in"}:</p><div style="font-size:32px;font-weight:800;letter-spacing:8px;padding:18px;background:#f3f7fb;border-radius:8px;text-align:center">${code}</div><p>This code expires in five minutes. You have a limited number of attempts. Do not share it with anyone.</p><p style="color:#71869a;font-size:12px">If you did not attempt to sign in, change your password and contact Ekhaya support.</p></div>`,
       });
     } catch (error) {
       await admin.from("email_otp_challenges").delete().eq("id", challenge.id);
@@ -151,7 +154,7 @@ Deno.serve(async (req: Request) => {
     await admin.from("email_otp_challenges").update({ consumed_at: new Date().toISOString() }).eq("id", challenge.id);
     const { error: verifyError } = await admin.from("email_otp_verified_sessions").upsert({
       user_id: user.id, session_id: sessionId, verified_at: new Date().toISOString(),
-      expires_at: new Date(expiresAt * 1000).toISOString(),
+      expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
       target_user_id: body.purpose === "owner_plan_change" ? body.target_user_id : null,
       plan_code: body.purpose === "owner_plan_change" ? body.plan_code : null,
     });
@@ -169,7 +172,8 @@ Deno.serve(async (req: Request) => {
     if (!reauth.ok || reauthBody.user?.id !== user.id) return json({ error: "Your current password could not be confirmed." }, 401);
     if (enabled && body.enabled === false) {
       const { data: verified } = await admin.from("email_otp_verified_sessions").select("session_id")
-        .eq("user_id", user.id).eq("session_id", sessionId).gt("expires_at", new Date().toISOString()).maybeSingle();
+        .eq("user_id", user.id).eq("session_id", sessionId).is("target_user_id", null).is("plan_code", null)
+      .gt("expires_at", new Date().toISOString()).maybeSingle();
       if (!verified) return json({ error: "Verify your current email OTP before disabling this protection." }, 403);
     }
     const { error: updateError } = await admin.from("account_security_settings").upsert({
