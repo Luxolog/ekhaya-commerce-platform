@@ -19,3 +19,11 @@ export function resolveSearchEntitlement(
   if (context.isActivePartner) return "partner_support";
   return "seller_pilot_or_monthly";
 }
+
+
+export function canSearchAccount(context: {
+  isOwner: boolean;
+  accountStatus: string | null | undefined;
+}): boolean {
+  return context.isOwner || context.accountStatus === "active";
+}
