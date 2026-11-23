@@ -46,10 +46,10 @@ begin
   if p_plan_code <> 'free' then
     insert into public.subscriptions(
       user_id, payment_provider, provider_subscription_id, plan_code, status,
-      current_period_start, current_period_end
+      current_period_start, current_period_end, billing_mode, intro_price
     ) values (
       p_user_id, 'manual_owner', gen_random_uuid()::text, p_plan_code, 'active',
-      v_period_start, v_period_end
+      v_period_start, v_period_end, 'manual', 0
     );
   end if;
 
