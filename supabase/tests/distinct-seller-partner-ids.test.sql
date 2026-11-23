@@ -66,7 +66,13 @@ select ok(
     select 1
     from public.profiles p
     join auth.users u on u.id = p.id
-    where coalesce(u.raw_app_meta_data ->> 'role', '') in ('owner','partner')
+    where (
+      coalesce(u.raw_app_meta_data ->> 'role', '') in ('owner','partner')
+      or exists (
+        select 1 from public.partner_programs pp
+        where pp.partner_user_id = p.id
+      )
+    )
       and p.seller_code is not null
   ),
   'owner and partner-role profiles are not assigned seller identifiers'
