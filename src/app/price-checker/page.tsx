@@ -296,7 +296,7 @@ export default function PriceCheckerPage() {
       .results .heading{padding-bottom:16px;border-bottom:1px solid #E8EEF3}
       .disclaimer{background:#F6F8FA;border:1px solid #E8EEF3;border-radius:9px;padding:13px 15px;font-size:10px;line-height:1.65;color:#71869A;margin-top:20px}
       footer{max-width:1040px;margin:35px auto 0;padding:20px 0 28px;border-top:1px solid #DCE8F1;display:flex;justify-content:space-between;color:#8195A8;font-size:9px;letter-spacing:1px}
-      @media(max-width:760px){.page{padding:0 5%}.hero{margin:42px auto 28px}.panel,.results{padding:20px}.details{grid-template-columns:repeat(2,1fr)}.modes{grid-template-columns:1fr}.heading{gap:10px}.connected{font-size:8px}footer{flex-direction:column;gap:10px;text-align:center}}
+      @media(max-width:640px){.product{grid-template-columns:1fr;gap:12px;padding:14px}.product-media{height:190px}.finance-panel{grid-template-columns:1fr}.price-row{align-items:flex-start}.results .heading{flex-direction:column}.cards{grid-template-columns:1fr}}\n      @media(max-width:760px){.page{padding:0 5%}.hero{margin:42px auto 28px}.panel,.results{padding:20px}.details{grid-template-columns:repeat(2,1fr)}.modes{grid-template-columns:1fr}.heading{gap:10px}.connected{font-size:8px}footer{flex-direction:column;gap:10px;text-align:center}}
     `}</style>
   </main>;
 }
