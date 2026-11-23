@@ -119,6 +119,21 @@ export default function AccountPage() {
       setMessage(e instanceof Error ? e.message : "Could not verify the email code.");
     } finally { setOtpBusy(false); }
   }
+  async function refreshStoredSession(session: any) {
+    if(!session?.refresh_token) throw new Error("Your sign-in session has expired. Please sign in again.");
+    const response=await fetch(supabaseUrl+"/auth/v1/token?grant_type=refresh_token",{
+      method:"POST",headers:{"Content-Type":"application/json",apikey:anonKey},
+      body:JSON.stringify({refresh_token:session.refresh_token}),cache:"no-store"
+    });
+    const refreshed=await response.json().catch(()=>({}));
+    if(!response.ok||!refreshed.access_token) {
+      localStorage.removeItem("ekhaya_session");
+      throw new Error("Your sign-in session has expired. Please sign in again.");
+    }
+    const nextSession={...session,...refreshed,expires_at:Math.floor(Date.now()/1000)+Number(refreshed.expires_in??3600)};
+    localStorage.setItem("ekhaya_session",JSON.stringify(nextSession));
+    return nextSession;
+  }
   async function loadAccountRoles(accessToken: string) {
     const headers={apikey:anonKey,Authorization:"Bearer "+accessToken};
     const userResponse=await fetch(supabaseUrl+"/auth/v1/user",{headers,cache:"no-store"});
@@ -238,20 +253,36 @@ export default function AccountPage() {
           setSignedIn(true);
           if(!hasPartnerInvite) setMode("signin");
           setCheckingAccess(true);
-          loadAccountRoles(session.access_token).then(async roles=>{
-            if(!active) return;
-            setAvailableRoles(roles);
-            await lookupPendingPartnerInvitation(session.access_token);
-            if(await requireEmailOtp(session.access_token, roles)) return;
-            if(hasPartnerInvite) return;
-            const requested = new URLSearchParams(window.location.search).get("account");
-            if(requested === "partner" && roles.includes("partner")) window.location.replace(destinations.partner);
-            else if(requested === "owner" && roles.includes("owner")) window.location.replace(destinations.owner);
-            else if(requested === "seller" && roles.includes("seller")) window.location.replace(destinations.seller);
-            else if(requested === "partner" || requested === "owner") setMessage("This account does not have access to the requested workspace. Choose an authorised account or contact Ekhaya support.");
-          })
-            .catch(e=>{if(active)setMessage(e instanceof Error?e.message:"Could not verify account access.");})
-            .finally(()=>{if(active)setCheckingAccess(false);});
+          (async()=>{
+            let currentSession=session;
+            try {
+              const expiry=Number(session.expires_at??0);
+              if(!session.access_token||!expiry||expiry<=Math.floor(Date.now()/1000)+60) currentSession=await refreshStoredSession(session);
+              let roles:string[];
+              try { roles=await loadAccountRoles(currentSession.access_token); }
+              catch {
+                currentSession=await refreshStoredSession(currentSession);
+                roles=await loadAccountRoles(currentSession.access_token);
+              }
+              if(!active) return;
+              setSignedIn(true);
+              setAvailableRoles(roles);
+              await lookupPendingPartnerInvitation(currentSession.access_token);
+              if(await requireEmailOtp(currentSession.access_token, roles)) return;
+              if(hasPartnerInvite) return;
+              const requested=new URLSearchParams(window.location.search).get("account");
+              if(requested==="partner"&&roles.includes("partner")) window.location.replace(destinations.partner);
+              else if(requested==="owner"&&roles.includes("owner")) window.location.replace(destinations.owner);
+              else if(requested==="seller"&&roles.includes("seller")) window.location.replace(destinations.seller);
+              else if(requested==="partner"||requested==="owner") setMessage("This account does not have access to the requested workspace. Choose an authorised account or contact Ekhaya support.");
+            } catch(error) {
+              if(!active) return;
+              setSignedIn(false);
+              setAvailableRoles([]);
+              setPendingPartnerInvitation(null);
+              setMessage(error instanceof Error?error.message:"Your sign-in session could not be verified. Please sign in again.");
+            } finally { if(active) setCheckingAccess(false); }
+          })();
         }
       }
     } catch { localStorage.removeItem("ekhaya_session"); }
