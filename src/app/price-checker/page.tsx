@@ -214,6 +214,18 @@ export default function PriceCheckerPage() {
       return {id:p.id,fee,profit,margin:price?profit/price*100:0,fulfilment:p.marketplace==="takealot"?talFulfilment:amzFulfilment,success:p.marketplace==="takealot"?success:amazonReferral,size:tal.size};
     });
   },[products,relatedProducts,accessories,buying,category,volume,kg,takealotMode,amazonMode,sellerDelivery,makroFulfilment,makroCommission]);
+  // Remove repeated listings within the same marketplace while retaining cross-marketplace comparisons.
+  const seenListingKeys=new Set<string>();
+  const uniqueListings=(items:MarketplaceProduct[])=>items.filter(p=>{
+    const title=(p.title??"").normalize("NFKD").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+    const identity=`${p.marketplace}:${title||p.id}`;
+    if(seenListingKeys.has(identity))return false;
+    seenListingKeys.add(identity);
+    return true;
+  });
+  const uniqueProducts=uniqueListings(products);
+  const uniqueRelatedProducts=uniqueListings(relatedProducts);
+  const uniqueAccessories=uniqueListings(accessories);
   const renderProductCard=(p:MarketplaceProduct,i:number,allCalculations:typeof calculations)=>{
     const c=allCalculations.find(x=>x?.id===p.id);
     const marketplace=p.marketplace==="amazon"?"Amazon South Africa":p.marketplace==="makro"?"Makro Marketplace":"Takealot";
@@ -263,11 +275,11 @@ export default function PriceCheckerPage() {
       {!validCost&&<p className="hint">Enter a buying price greater than R0 to unlock product search.</p>}
       {error&&<p className="error" role="status">{error}</p>}{source&&<p className="hint">{source} · Listing prices may change.</p>}
     </section>
-    {(products.length>0||relatedProducts.length>0||accessories.length>0)&&<section className="results"><div className="results-intro"><div><small>SEARCH RESULTS</small><h2>{productQuery}</h2><div className="results-context"><span>Buying price: <b>{money(buying)}</b></span><span>Marketplaces: <b>{marketplaces.map(m=>m==="amazon"?"Amazon SA":m==="makro"?"Makro":"Takealot").join(", ")}</b></span></div></div><span className="result-count">{products.length+relatedProducts.length+accessories.length} results</span></div>
+    {(uniqueProducts.length>0||uniqueRelatedProducts.length>0||uniqueAccessories.length>0)&&<section className="results"><div className="results-intro"><div><small>SEARCH RESULTS</small><h2>{productQuery}</h2><div className="results-context"><span>Buying price: <b>{money(buying)}</b></span><span>Marketplaces: <b>{marketplaces.map(m=>m==="amazon"?"Amazon SA":m==="makro"?"Makro":"Takealot").join(", ")}</b></span></div></div><span className="result-count">{uniqueProducts.length+uniqueRelatedProducts.length+uniqueAccessories.length} results</span></div>
       {products.length===0&&relatedProducts.length>0&&<p className="hint">We couldn’t find an exact match. Here are the closest related products we found.</p>}
-{products.length>0&&<><h3>Best product matches</h3><div className="cards">{products.map((p,i)=>renderProductCard(p,i,calculations))}</div></>}
-{relatedProducts.length>0&&<><h3>Related products</h3><div className="cards">{relatedProducts.map((p,i)=>renderProductCard(p,i,calculations))}</div></>}
-{accessories.length>0&&<><h3>Accessories — not complete products</h3><p className="hint">Accessories are separated from complete products and are never presented as exact matches.</p><div className="cards">{accessories.map((p,i)=>renderProductCard(p,i,calculations))}</div></>}
+{uniqueProducts.length>0&&<><h3>Best product matches</h3><div className="cards">{uniqueProducts.map((p,i)=>renderProductCard(p,i,calculations))}</div></>}
+{uniqueRelatedProducts.length>0&&<><h3>Related products</h3><div className="cards">{uniqueRelatedProducts.map((p,i)=>renderProductCard(p,i,calculations))}</div></>}
+{uniqueAccessories.length>0&&<><h3>Accessories — not complete products</h3><p className="hint">Accessories are separated from complete products and are never presented as exact matches.</p><div className="cards">{uniqueAccessories.map((p,i)=>renderProductCard(p,i,calculations))}</div></>}
 <p className="disclaimer">Indicative estimates only. Makro commission defaults to 12% (editable) and includes a 15% VAT allowance on the fee; transport uses the published small-to-large size/weight bands and selected FBS/FBM model. Actual category commission, package dimensions, weight, VAT status, returns and seller terms can change the result. The R230 monthly platform fee, FBM first-mile and storage charges are not allocated per product. Use Makro Seller Centre for the final fee schedule. Each marketplace search consumes one Ekhaya credit; searching all three consumes three credits.</p></section>}
     <footer>DIGITAL SOLUTIONS · BUILT FOR SOUTH AFRICAN SELLERS <span>EKHAYA TECHNOLOGIES © 2026</span></footer>
     <style jsx>{`
@@ -326,6 +338,40 @@ export default function PriceCheckerPage() {
       footer{max-width:1040px;margin:35px auto 0;padding:20px 0 28px;border-top:1px solid #DCE8F1;display:flex;justify-content:space-between;color:#8195A8;font-size:9px;letter-spacing:1px}
       @media(max-width:1180px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}}\n      @media(max-width:760px){.page{padding:0 4%}.panel,.results{padding:18px}.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.product{grid-template-columns:minmax(0,1fr);gap:10px;padding:13px}.product-media{width:100%;height:96px}.results-intro{flex-direction:column}.result-count{align-self:flex-start}.hero{margin:42px auto 28px}.details{grid-template-columns:repeat(2,1fr)}.modes{grid-template-columns:1fr}.heading{gap:10px}.connected{font-size:8px}footer{flex-direction:column;gap:10px;text-align:center}}
       @media(max-width:520px){.cards{grid-template-columns:1fr}}\n      @media(max-width:430px){.page{padding:0 10px}.results,.panel{padding:14px}.product{grid-template-columns:minmax(0,1fr);gap:9px;padding:12px;border-radius:13px}.product-media{width:100%;height:100px}.info{gap:7px}.info h4{font-size:13px;line-height:1.35}.market{font-size:10px}.product-meta,.product-reviews{font-size:11px}.price{font-size:21px}.finance-line{gap:7px;padding:11px}.finance-line .finance-label{font-size:11px}.finance-line>small{font-size:10px}.finance-line>strong{font-size:18px}.finance-line i{flex-basis:22px;width:22px;height:22px}.profit-summary{padding:11px 9px;margin:0 7px 7px}.profit-summary>strong{font-size:17px}.profit-summary span{font-size:9px}.margin-row{font-size:10px}.listing-link{font-size:11px}.results-context span{font-size:10px;padding:7px 9px}}
+    `}</style>
+
+    <style jsx global>{`
+      .page .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
+      .page .product{display:flex;flex-direction:column;align-items:stretch;gap:12px;min-width:0;width:100%;box-sizing:border-box;padding:18px;border:1px solid #DCE6EF;border-radius:16px;background:#fff;box-shadow:0 4px 18px #10243D08}
+      .page .product-media{width:100%;height:120px;display:grid;place-items:center;overflow:hidden;border-radius:10px;background:#fff}
+      .page .product-media img{width:100%;height:100%;max-width:180px;object-fit:contain;padding:4px;box-sizing:border-box}
+      .page .info{min-width:0;width:100%;display:flex;flex-direction:column;align-items:stretch;gap:10px}
+      .page .market{align-self:flex-start;color:#078DB8;font-size:11px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase}
+      .page .info h4{margin:0;color:#10243D;font-size:16px;line-height:1.38;font-weight:700;overflow-wrap:anywhere}
+      .page .product-meta{margin:0;color:#7B8A9A;font-size:12px;line-height:1.4}
+      .page .product-reviews{display:flex;align-items:center;gap:6px;color:#344B63;font-size:12px;line-height:1.4}
+      .page .price-row{padding:1px 0 12px;border-bottom:1px solid #E0E7EE}
+      .page .price{display:block;color:#10243D;font-size:25px;line-height:1.2;font-weight:800}
+      .page .finance-panel{display:flex;flex-direction:column;gap:0;width:100%;box-sizing:border-box;margin-top:2px;border:1px solid #DCE6EF;border-radius:12px;overflow:hidden;background:#fff}
+      .page .finance-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:11px 12px;background:#10243A;color:#fff}
+      .page .finance-heading>span{font-size:9px;letter-spacing:1.2px;font-weight:900}
+      .page .finance-heading small{color:#D6A63A;font-size:9px;letter-spacing:.2px}
+      .page .finance-lines{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;padding:10px 12px 12px}
+      .page .finance-line{display:grid;grid-template-columns:minmax(0,1fr);justify-items:start;gap:7px;padding:13px 14px;border:1px solid #E4EBF2;border-radius:10px;background:#F8FAFC}
+      .page .finance-line .finance-label{display:flex;align-items:center;gap:9px;min-width:0;font-size:12px;line-height:1.3;font-weight:800;color:#233B53}
+      .page .finance-line i{display:grid;place-items:center;flex:0 0 24px;width:24px;height:24px;border-radius:7px;font-size:10px;font-style:normal;font-weight:900}
+      .page .finance-line>strong{font-size:20px;line-height:1.2;white-space:nowrap;font-weight:900;color:#233B53}
+      .page .selling-line{background:#E5F3FC;border-color:#D1E9F8}.page .selling-line i{background:#D4EAF9;color:#1674B8}.page .selling-line>strong{color:#1674B8}
+      .page .buying-line{background:#F0EAFE;border-color:#E2D8FA}.page .buying-line i{background:#E3D8FA;color:#7654B8}.page .buying-line>strong{color:#7654B8}
+      .page .fee-line{background:#FFF3DE;border-color:#F6E4C3}.page .fee-line i{background:#F8E7C7;color:#A86B13}.page .fee-line>strong{color:#A86B13}
+      .page .fulfilment-line{background:#E6F6F5;border-color:#CDEBE8}.page .fulfilment-line i{background:#D3EEEB;color:#16817D}.page .fulfilment-line>strong{color:#16817D}
+      .page .total-fees-line{margin:0;padding:13px 14px;background:#F5F7FA;border-color:#E4EAF0;border-radius:10px}
+      .page .profit-summary{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:16px 14px;margin:0 12px 10px;border-radius:10px}
+      .page .profit-summary>div{display:grid;gap:4px}.page .profit-summary span{font-size:10px;font-weight:900;letter-spacing:.9px}.page .profit-summary small{font-size:9px;letter-spacing:0;color:inherit;opacity:.78}.page .profit-summary>strong{font-size:20px;white-space:nowrap;font-weight:900}
+      .page .profit-positive{background:#E7F6ED;color:#147647;border:1px solid #C8E9D5}.page .profit-negative{background:#FDECEC;color:#B42318;border:1px solid #F5CCCC}
+      .page .margin-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:4px 12px 11px;color:#65778B;font-size:11px}.page .margin-row b{color:#10243A;font-size:12px}
+      .page .listing-link{display:inline-flex;align-items:center;gap:7px;align-self:flex-start;margin-top:5px;color:#0795BD;font-size:13px;font-weight:700;text-decoration:none}
+      @media(max-width:760px){.page .cards{grid-template-columns:1fr}.page .product{padding:14px}.page .product-media{height:110px}}
     `}</style>
   </main>;
 }
