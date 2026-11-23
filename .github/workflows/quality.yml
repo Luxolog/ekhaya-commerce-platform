@@ -11,6 +11,7 @@ on:
     branches:
       - main
       - feature/partner-admin-email-otp
+      - feature/saechamber-public-showcase
   workflow_dispatch:
 
 permissions:
