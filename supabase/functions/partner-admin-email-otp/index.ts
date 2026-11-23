@@ -76,7 +76,7 @@ Deno.serve(async (req: Request) => {
 
   if (body.action === "start") {
     if (!enabled && !isOwner) return json({ error: "Email OTP is not enabled for this account." }, 409);
-    if (!user.email || !user.email_confirmed_at) return json({ error: "A confirmed registered email address is required." }, 409);
+    if ((!user.email || !user.email_confirmed_at) && !isOwner) return json({ error: "A confirmed registered email address is required." }, 409);
     const { data: recent } = await admin.from("email_otp_challenges").select("created_at")
       .eq("user_id", user.id).eq("session_id", sessionId).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (recent && Date.now() - new Date(recent.created_at).getTime() < 60_000) {
