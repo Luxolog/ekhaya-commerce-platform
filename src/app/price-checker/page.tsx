@@ -289,11 +289,20 @@ export default function PriceCheckerPage() {
       .fee-grid div:last-child{border-bottom:0}
       .fee-grid b{color:#304B63;white-space:nowrap;font-size:10px}
       .good{color:#137548!important}.bad{color:#B42318!important}
+      .reviews{display:inline-flex;align-items:center;gap:4px;color:#9A6700;background:#FFF7E5;border:1px solid #F5E6B9;border-radius:20px;padding:5px 9px;font-size:11px;font-weight:700;letter-spacing:0}
+      .review-count{color:#71869A;font-size:10px;font-weight:500}
+      .fee-summary{border:1px solid #E3EBF2;border-radius:10px;background:#F8FAFC;padding:12px 14px}
+      .fee-summary-title{font-size:10px;font-weight:800;color:#50677D;text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px}
+      .fee-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+      .fee-grid div{display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:8px 0;border:0}
+      .fee-grid div span{font-size:11px;color:#71869A}
+      .fee-grid b{font-size:15px;color:#102A43}
+      .disclaimer strong{color:#40566B}
       .results h3{margin:24px 0 12px;color:#18334B;font-size:16px;font-weight:700}
       .results .heading{padding-bottom:16px;border-bottom:1px solid #E8EEF3}
       .disclaimer{background:#F6F8FA;border:1px solid #E8EEF3;border-radius:9px;padding:13px 15px;font-size:10px;line-height:1.65;color:#71869A;margin-top:20px}
       footer{max-width:1040px;margin:35px auto 0;padding:20px 0 28px;border-top:1px solid #DCE8F1;display:flex;justify-content:space-between;color:#8195A8;font-size:9px;letter-spacing:1px}
-      @media(max-width:640px){.product{grid-template-columns:1fr;gap:12px;padding:14px}.product-media{height:190px}.finance-panel{grid-template-columns:1fr}.price-row{align-items:flex-start}.results .heading{flex-direction:column}.cards{grid-template-columns:1fr}}\n      @media(max-width:760px){.page{padding:0 5%}.hero{margin:42px auto 28px}.panel,.results{padding:20px}.details{grid-template-columns:repeat(2,1fr)}.modes{grid-template-columns:1fr}.heading{gap:10px}.connected{font-size:8px}footer{flex-direction:column;gap:10px;text-align:center}}
+      @media(max-width:640px){.page{padding:0 12px}.product{grid-template-columns:96px minmax(0,1fr);gap:12px;padding:12px}.product-media{height:96px}.info{gap:8px}.info h4{font-size:13px}.price-row{align-items:flex-start;flex-direction:column}.price{font-size:20px}.listing-link{padding:7px 9px}.fee-grid{grid-template-columns:1fr 1fr;gap:8px}.fee-grid b{font-size:13px}.results .heading{flex-direction:column}.cards{grid-template-columns:1fr}.panel,.results{padding:16px}.disclaimer{font-size:10px}}\n      @media(max-width:760px){.page{padding:0 5%}.hero{margin:42px auto 28px}.panel,.results{padding:20px}.details{grid-template-columns:repeat(2,1fr)}.modes{grid-template-columns:1fr}.heading{gap:10px}.connected{font-size:8px}footer{flex-direction:column;gap:10px;text-align:center}}
     `}</style>
   </main>;
 }
