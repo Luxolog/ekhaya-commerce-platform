@@ -141,9 +141,18 @@ export default function PriceCheckerPage() {
           body:JSON.stringify({marketplace,query:productQuery,request_id:crypto.randomUUID(),...(marketplace==="makro"&&postalCode.trim()?{postal_code:postalCode.trim()}: {})}),signal:controller.signal
         }).finally(()=>window.clearTimeout(timer));
         const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Search failed");
-        const incoming=(payload.products??[]).map((p:MarketplaceProduct)=>({...p,marketplace}));
-        const related=(payload.related_products??[]).map((p:MarketplaceProduct)=>({...p,marketplace}));
-        const accessory=(payload.accessories??[]).map((p:MarketplaceProduct)=>({...p,marketplace}));
+        const dedupe=(items:MarketplaceProduct[])=>{
+          const seen=new Set<string>();
+          return items.filter(item=>{
+            const title=(item.title??"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+            const key=[item.marketplace,title,Number(item.price)||0].join("|");
+            if(seen.has(key))return false;
+            seen.add(key);return true;
+          });
+        };
+        const incoming=dedupe((payload.products??[]).map((p:MarketplaceProduct)=>({...p,marketplace})));
+        const related=dedupe((payload.related_products??[]).map((p:MarketplaceProduct)=>({...p,marketplace})));
+        const accessory=dedupe((payload.accessories??[]).map((p:MarketplaceProduct)=>({...p,marketplace})));
         setProducts(old=>[...old.filter(p=>p.marketplace!==marketplace),...incoming]);
         setRelatedProducts(old=>[...old.filter(p=>p.marketplace!==marketplace),...related]);
         setAccessories(old=>[...old.filter(p=>p.marketplace!==marketplace),...accessory]);
