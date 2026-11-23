@@ -12,13 +12,17 @@ declare
   v_period_start timestamptz;
   v_period_end timestamptz;
 begin
-  if p_plan_code not in ('free','starter','pro','business') then
+  if p_plan_code not in ('free','starter','growth','pro','business') then
     raise exception 'INVALID_PLAN';
   end if;
 
-  select monthly_search_credits into v_allowance
-  from public.plan_search_allowances
-  where plan_code = p_plan_code;
+  if p_plan_code = 'free' then
+    v_allowance := 5;
+  else
+    select monthly_search_credits into v_allowance
+    from public.plan_search_allowances
+    where plan_code = p_plan_code;
+  end if;
 
   if v_allowance is null then
     raise exception 'PLAN_ALLOWANCE_NOT_CONFIGURED';
