@@ -1,3 +1,12 @@
+-- Bind owner plan-change OTPs to the exact seller and selected plan.
+alter table public.email_otp_challenges
+  add column if not exists purpose text,
+  add column if not exists target_user_id uuid references auth.users(id) on delete cascade,
+  add column if not exists plan_code text;
+alter table public.email_otp_verified_sessions
+  add column if not exists target_user_id uuid references auth.users(id) on delete cascade,
+  add column if not exists plan_code text;
+
 -- Owner-managed subscription overrides are applied atomically after OTP verification.
 create or replace function public.owner_set_seller_plan(
   p_user_id uuid,
