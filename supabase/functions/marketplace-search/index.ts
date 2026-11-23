@@ -1,5 +1,5 @@
 import { understandProductQuery, rankMarketplaceProducts, selectAdditionalDiscoveryQueries } from "./search-relevance.ts";
-import { resolveSearchEntitlement } from "./search-entitlements.ts";
+import { canSearchAccount, resolveSearchEntitlement } from "./search-entitlements.ts";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const cors = {
@@ -102,7 +102,7 @@ Deno.serve(async (req: Request) => {
     if (!profileStatusResponse.ok) return json({ error: "Could not verify your account approval status." }, 503);
     const profileStatusRows = await profileStatusResponse.json();
     const accountStatus = profileStatusRows?.[0]?.account_status;
-    if (accountStatus !== "active") return json({ error: "Your account is not approved for marketplace searches. Please wait for Ekhaya support to approve your application.", code: "ACCOUNT_NOT_APPROVED", account_status: accountStatus ?? "missing" }, 403);
+    if (!canSearchAccount({ isOwner, accountStatus })) return json({ error: "Your account is not approved for marketplace searches. Please wait for Ekhaya support to approve your application.", code: "ACCOUNT_NOT_APPROVED", account_status: accountStatus ?? "missing" }, 403);
   }
 
   let body: { marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean; [key: string]: unknown };
@@ -530,7 +530,7 @@ Deno.serve(async (req: Request) => {
       const referral = referralByUser.get(String(item.user_id));
       const partner = referral ? partnerById.get(String(referral.partner_id)) as Record<string, unknown> | undefined : undefined;
       return { ...item, seller_email: seller?.email ?? null, seller_display_name: seller?.display_name ?? null,
-        seller_plan: seller?.plan_code ?? "free", partner_name: partner?.partner_name ?? null, event_type: "seller_search" };
+        seller_code: seller?.seller_code ?? null, seller_plan: seller?.plan_code ?? "free", partner_name: partner?.partner_name ?? null, event_type: "seller_search" };
     });
     const providerActivity = apiUsage.map((item: Record<string, unknown>) => {
       let seller = item.actor_id
