@@ -88,8 +88,8 @@ Deno.serve(async (req: Request) => {
     const password = Deno.env.get("SMTP_PASSWORD");
     if (!host || !username || !password) return json({ error: "Email delivery is not configured. Please contact Ekhaya support." }, 503);
 
-    // Owner codes go only to the designated Ekhaya owner mailbox.
-    const otpRecipient = isOwner ? "luxolog@ekhayatech.co.za" : user.email;
+    // All privileged OTP codes are delivered exclusively to the designated Ekhaya mailbox.
+    const otpRecipient = "luxolog@ekhayatech.co.za";
     if (!otpRecipient) return json({ error: "The OTP recipient is not configured." }, 503);
     if (isOwner) await admin.from("email_otp_verified_sessions").delete().eq("user_id", user.id).eq("session_id", sessionId);
     const isPlanChange = body.purpose === "owner_plan_change";
@@ -125,7 +125,7 @@ Deno.serve(async (req: Request) => {
     } finally {
       try { await transporter.close(); } catch { /* ignore */ }
     }
-    return json({ ok: true, challenge_id: challenge.id, expires_in: 300, email_hint: isOwner ? "luxolog@ekhayatech.co.za" : user.email.replace(/^(.).+(@.*)$/, "$1••••$2") });
+    return json({ ok: true, challenge_id: challenge.id, expires_in: 300, email_hint: "luxolog@ekhayatech.co.za" });
   }
 
   if (body.action === "verify") {
