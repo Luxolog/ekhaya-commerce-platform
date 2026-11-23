@@ -178,7 +178,7 @@ export default function EkhayaOwnerDashboard() {
     setPlanOtpBusy(true); setManagementFeedback("");
     try {
       const response=await ownerFetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/partner-admin-email-otp", {
-        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"start"})
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"start",purpose:"owner_plan_change",target_user_id:planSeller.id,plan_code:selectedPlan})
       });
       const result=await response.json().catch(()=>({}));
       if(!response.ok) throw new Error(result.error || "Could not send the owner confirmation code.");
@@ -193,7 +193,7 @@ export default function EkhayaOwnerDashboard() {
     setPlanOtpBusy(true); setManagementFeedback("");
     try {
       const otpResponse=await ownerFetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/partner-admin-email-otp", {
-        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"verify",code:planOtp})
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"verify",code:planOtp,purpose:"owner_plan_change",target_user_id:planSeller.id,plan_code:selectedPlan})
       });
       const otpResult=await otpResponse.json().catch(()=>({}));
       if(!otpResponse.ok) throw new Error(otpResult.error || "The confirmation code could not be verified.");
