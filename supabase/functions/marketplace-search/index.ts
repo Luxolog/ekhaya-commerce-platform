@@ -184,6 +184,78 @@ Deno.serve(async (req: Request) => {
     const [events, identities, blocked_domains] = await Promise.all([eventsResponse.json(), identitiesResponse.json(), domainsResponse.json()]);
     return json({ ok: true, events, identities, blocked_domains });
   }
+  if (body.action === "owner_set_user_plan") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const targetId = typeof body.target_user_id === "string" ? body.target_user_id : "";
+    const nextPlan = String(body.plan_code ?? "").toLowerCase();
+    if (!targetId || !["free", "starter", "pro", "business"].includes(nextPlan)) {
+      return json({ error: "Choose a valid seller and subscription plan." }, 400);
+    }
+    if (targetId === userId) return json({ error: "You cannot change your own owner plan from seller management." }, 403);
+    const verifiedUrl = new URL("/rest/v1/email_otp_verified_sessions", supabaseUrl);
+    verifiedUrl.searchParams.set("user_id", "eq." + userId);
+    verifiedUrl.searchParams.set("session_id", "eq." + sessionId);
+    verifiedUrl.searchParams.set("expires_at", "gt." + new Date().toISOString());
+    verifiedUrl.searchParams.set("select", "session_id");
+    verifiedUrl.searchParams.set("limit", "1");
+    const verifiedResponse = await fetch(verifiedUrl, { headers: adminHeaders });
+    if (!verifiedResponse.ok) return json({ error: "Could not verify the owner confirmation code." }, 503);
+    const verifiedRows = await verifiedResponse.json();
+    if (!verifiedRows?.length) return json({ error: "A fresh OTP sent to luxolog@ekhayatech.co.za is required before every plan change.", code: "EMAIL_OTP_REQUIRED" }, 403);
+
+    const targetResponse = await fetch(new URL("/auth/v1/admin/users/" + encodeURIComponent(targetId), supabaseUrl), { headers: adminHeaders });
+    if (!targetResponse.ok) return json({ error: "Registered seller account not found." }, 404);
+    const targetUser = await targetResponse.json();
+    const targetApp = targetUser.app_metadata ?? {};
+    if (targetApp.role === "owner" || targetApp.is_owner === true) return json({ error: "Owner accounts cannot be changed from seller management." }, 403);
+
+    const allowanceUrl = new URL("/rest/v1/plan_search_allowances", supabaseUrl);
+    allowanceUrl.searchParams.set("plan_code", "eq." + nextPlan);
+    allowanceUrl.searchParams.set("select", "monthly_search_credits");
+    allowanceUrl.searchParams.set("limit", "1");
+    const allowanceResponse = await fetch(allowanceUrl, { headers: adminHeaders });
+    if (!allowanceResponse.ok) return json({ error: "Could not verify the search allowance for this plan." }, 503);
+    const allowanceRows = await allowanceResponse.json();
+    if (!allowanceRows?.length) return json({ error: "This plan has no configured monthly search allowance. Configure it before assigning the plan." }, 409);
+
+    const profileResponse = await fetch(new URL("/rest/v1/profiles?id=eq." + encodeURIComponent(targetId), supabaseUrl), {
+      method: "PATCH",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ plan_code: nextPlan, updated_at: new Date().toISOString() })
+    });
+    if (!profileResponse.ok) return json({ error: "Could not update the seller plan.", detail: await profileResponse.text() }, 500);
+
+    const cancelUrl = new URL("/rest/v1/subscriptions", supabaseUrl);
+    cancelUrl.searchParams.set("user_id", "eq." + targetId);
+    cancelUrl.searchParams.set("status", "in.(pending,active,past_due)");
+    const cancelResponse = await fetch(cancelUrl, {
+      method: "PATCH",
+      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ status: "cancelled", updated_at: new Date().toISOString() })
+    });
+    if (!cancelResponse.ok) return json({ error: "The plan was updated, but previous subscription records could not be closed. Contact support before retrying." }, 500);
+
+    if (nextPlan !== "free") {
+      const now = new Date();
+      const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+      const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
+      const createResponse = await fetch(new URL("/rest/v1/subscriptions", supabaseUrl), {
+        method: "POST",
+        headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({
+          user_id: targetId, payment_provider: "manual_owner",
+          provider_subscription_id: crypto.randomUUID(), plan_code: nextPlan, status: "active",
+          current_period_start: periodStart, current_period_end: periodEnd
+        })
+      });
+      if (!createResponse.ok) return json({ error: "The profile plan was changed, but its active subscription record could not be created. Contact support before retrying.", detail: await createResponse.text() }, 500);
+    }
+
+    // Consume this verification so each subsequent plan change requires a new OTP.
+    await fetch(verifiedUrl, { method: "DELETE", headers: { ...adminHeaders, Prefer: "return=minimal" } });
+    return json({ ok: true, target_user_id: targetId, plan_code: nextPlan, monthly_search_allowance: allowanceRows[0].monthly_search_credits, activated_immediately: true });
+  }
+
   if (body.action === "owner_set_user_status") {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
     const targetId = typeof body.target_user_id === "string" ? body.target_user_id : "";
