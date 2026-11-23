@@ -95,15 +95,6 @@ Deno.serve(async (req: Request) => {
   const isLinkedPartner = Array.isArray(partnerPrograms) && partnerPrograms.length > 0;
   const isActivePartner = isLinkedPartner && partnerPrograms.some((p: Record<string, unknown>) => p.status === "active");
 
-  // Pending, suspended and inactive seller accounts must not search, including cache hits.
-  // The server is authoritative; hiding the search UI is not an access control.
-  if (!isOwner) {
-    const profileStatusResponse = await fetch(new URL("/rest/v1/profiles?id=eq." + encodeURIComponent(userId) + "&select=account_status&limit=1", supabaseUrl), { headers: adminHeaders });
-    if (!profileStatusResponse.ok) return json({ error: "Could not verify your account approval status." }, 503);
-    const profileStatusRows = await profileStatusResponse.json();
-    const accountStatus = profileStatusRows?.[0]?.account_status;
-    if (!canSearchAccount({ isOwner, accountStatus })) return json({ error: "Your account is not approved for marketplace searches. Please wait for Ekhaya support to approve your application.", code: "ACCOUNT_NOT_APPROVED", account_status: accountStatus ?? "missing" }, 403);
-  }
 
   let body: { marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean; [key: string]: unknown };
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
@@ -707,6 +698,16 @@ Deno.serve(async (req: Request) => {
     });
     if (!saved.ok) return json({ error: "Could not save cache policy.", detail: await saved.text() }, 500);
     return json({ ok: true, settings: (await saved.json())[0] });
+  }
+
+  // Pending, suspended and inactive seller accounts must not search, including cache hits.
+  // The server is authoritative; hiding the search UI is not an access control.
+  if (!isOwner) {
+    const profileStatusResponse = await fetch(new URL("/rest/v1/profiles?id=eq." + encodeURIComponent(userId) + "&select=account_status&limit=1", supabaseUrl), { headers: adminHeaders });
+    if (!profileStatusResponse.ok) return json({ error: "Could not verify your account approval status." }, 503);
+    const profileStatusRows = await profileStatusResponse.json();
+    const accountStatus = profileStatusRows?.[0]?.account_status;
+    if (!canSearchAccount({ isOwner, accountStatus })) return json({ error: "Your account is not approved for marketplace searches. Please wait for Ekhaya support to approve your application.", code: "ACCOUNT_NOT_APPROVED", account_status: accountStatus ?? "missing" }, 403);
   }
 
   const marketplace = typeof body.marketplace === "string" ? body.marketplace : "";
