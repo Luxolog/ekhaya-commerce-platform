@@ -131,12 +131,16 @@ Deno.serve(async (req: Request) => {
   if (body.action === "verify") {
     const code = String(body.code ?? "").replace(/\D/g, "");
     if (!/^\d{6}$/.test(code)) return json({ error: "Enter the six-digit code from your email." }, 400);
-    const { data: challenge } = await admin.from("email_otp_challenges").select("id,code_hash,expires_at,attempts")
+    let challengeQuery = admin.from("email_otp_challenges").select("id,code_hash,expires_at,attempts")
       .eq("user_id", user.id).eq("session_id", sessionId).is("consumed_at", null)
-      .eq("purpose", body.purpose === "owner_plan_change" ? "owner_plan_change" : null)
-      .eq("target_user_id", body.purpose === "owner_plan_change" ? body.target_user_id : null)
-      .eq("plan_code", body.purpose === "owner_plan_change" ? body.plan_code : null)
-      .gt("expires_at", new Date().toISOString()).lt("attempts", 5)
+      .gt("expires_at", new Date().toISOString()).lt("attempts", 5);
+    if (body.purpose === "owner_plan_change") {
+      challengeQuery = challengeQuery.eq("purpose", "owner_plan_change")
+        .eq("target_user_id", body.target_user_id ?? "").eq("plan_code", body.plan_code ?? "");
+    } else {
+      challengeQuery = challengeQuery.is("purpose", null).is("target_user_id", null).is("plan_code", null);
+    }
+    const { data: challenge } = await challengeQuery
       .order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (!challenge) return json({ error: "This code has expired or is no longer valid. Request a new code." }, 410);
     const supplied = await digest([user.id, sessionId, code, service].join(":"));
