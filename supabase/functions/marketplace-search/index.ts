@@ -192,19 +192,6 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Choose a valid seller and subscription plan." }, 400);
     }
     if (targetId === userId) return json({ error: "You cannot change your own owner plan from seller management." }, 403);
-    const verifiedUrl = new URL("/rest/v1/email_otp_verified_sessions", supabaseUrl);
-    verifiedUrl.searchParams.set("user_id", "eq." + userId);
-    verifiedUrl.searchParams.set("session_id", "eq." + sessionId);
-    verifiedUrl.searchParams.set("expires_at", "gt." + new Date().toISOString());
-    verifiedUrl.searchParams.set("target_user_id", "eq." + targetId);
-    verifiedUrl.searchParams.set("plan_code", "eq." + nextPlan);
-    verifiedUrl.searchParams.set("select", "session_id,target_user_id,plan_code");
-    verifiedUrl.searchParams.set("limit", "1");
-    const verifiedResponse = await fetch(verifiedUrl, { headers: adminHeaders });
-    if (!verifiedResponse.ok) return json({ error: "Could not verify the owner confirmation code." }, 503);
-    const verifiedRows = await verifiedResponse.json();
-    if (!verifiedRows?.length) return json({ error: "A fresh OTP sent to luxolog@ekhayatech.co.za is required before every plan change.", code: "EMAIL_OTP_REQUIRED" }, 403);
-
     const targetResponse = await fetch(new URL("/auth/v1/admin/users/" + encodeURIComponent(targetId), supabaseUrl), { headers: adminHeaders });
     if (!targetResponse.ok) return json({ error: "Registered seller account not found." }, 404);
     const targetUser = await targetResponse.json();
@@ -214,19 +201,18 @@ Deno.serve(async (req: Request) => {
     const applyResponse = await fetch(new URL("/rest/v1/rpc/owner_set_seller_plan", supabaseUrl), {
       method: "POST",
       headers: { ...adminHeaders, "Content-Type": "application/json" },
-      body: JSON.stringify({ p_user_id: targetId, p_plan_code: nextPlan })
+      body: JSON.stringify({ p_user_id: targetId, p_plan_code: nextPlan, p_owner_id: userId, p_session_id: sessionId })
     });
     const applied = applyResponse.ok ? await applyResponse.json() : null;
     if (!applyResponse.ok || applied?.ok !== true) {
       const detail = applyResponse.ok ? applied : await applyResponse.text();
       const message = String(detail?.message ?? detail ?? "");
+      if (message.includes("OWNER_PLAN_CHANGE_OTP_REQUIRED")) return json({ error: "A fresh six-digit OTP sent to luxolog@ekhayatech.co.za is required before every plan change.", code: "EMAIL_OTP_REQUIRED" }, 403);
       if (message.includes("PLAN_ALLOWANCE_NOT_CONFIGURED")) return json({ error: "This plan has no configured monthly search allowance. Configure it before assigning the plan." }, 409);
       if (message.includes("SELLER_NOT_FOUND")) return json({ error: "Registered seller account not found." }, 404);
       return json({ error: "The seller subscription could not be changed atomically.", detail }, 500);
     }
 
-    // Consume this verification so each subsequent plan change requires a new OTP.
-    await fetch(verifiedUrl, { method: "DELETE", headers: { ...adminHeaders, Prefer: "return=minimal" } });
     return json({ ...applied, target_user_id: targetId });
   }
 
