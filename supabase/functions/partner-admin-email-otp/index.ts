@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (body.action === "start") {
-    if (!enabled) return json({ error: "Email OTP is not enabled for this account." }, 409);
+    if (!enabled && !isOwner) return json({ error: "Email OTP is not enabled for this account." }, 409);
     if (!user.email || !user.email_confirmed_at) return json({ error: "A confirmed registered email address is required." }, 409);
     const { data: recent } = await admin.from("email_otp_challenges").select("created_at")
       .eq("user_id", user.id).eq("session_id", sessionId).order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -88,6 +88,10 @@ Deno.serve(async (req: Request) => {
     const password = Deno.env.get("SMTP_PASSWORD");
     if (!host || !username || !password) return json({ error: "Email delivery is not configured. Please contact Ekhaya support." }, 503);
 
+    // Owner codes go only to the designated Ekhaya owner mailbox.
+    const otpRecipient = isOwner ? "luxolog@ekhayatech.co.za" : user.email;
+    if (!otpRecipient) return json({ error: "The OTP recipient is not configured." }, 503);
+    if (isOwner) await admin.from("email_otp_verified_sessions").delete().eq("user_id", user.id).eq("session_id", sessionId);
     const code = newCode();
     const pepper = service;
     const codeHash = await digest([user.id, sessionId, code, pepper].join(":"));
@@ -105,7 +109,7 @@ Deno.serve(async (req: Request) => {
       const name = escapeHtml(String(user.user_metadata?.display_name ?? user.user_metadata?.full_name ?? "there"));
       await transporter.sendMail({
         from: { name: "Ekhaya Technologies", address: username },
-        to: user.email,
+        to: otpRecipient,
         subject: "Your Ekhaya security verification code",
         text: `Hello ${String(user.user_metadata?.display_name ?? "there")},\n\nYour Ekhaya sign-in verification code is ${code}. It expires in five minutes. Do not share this code with anyone.\n\nEkhaya Technologies`,
         html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:30px auto;padding:28px;border:1px solid #dce8f1;border-radius:10px;color:#10243e"><div style="font-weight:800;letter-spacing:1px">EKHAYA TECHNOLOGIES</div><h2 style="margin:26px 0 12px">Verify your sign-in</h2><p>Hello ${name},</p><p>Use this one-time code to complete your sign-in:</p><div style="font-size:32px;font-weight:800;letter-spacing:8px;padding:18px;background:#f3f7fb;border-radius:8px;text-align:center">${code}</div><p>This code expires in five minutes. You have a limited number of attempts. Do not share it with anyone.</p><p style="color:#71869a;font-size:12px">If you did not attempt to sign in, change your password and contact Ekhaya support.</p></div>`,
@@ -116,7 +120,7 @@ Deno.serve(async (req: Request) => {
     } finally {
       try { await transporter.close(); } catch { /* ignore */ }
     }
-    return json({ ok: true, challenge_id: challenge.id, expires_in: 300, email_hint: user.email.replace(/^(.).+(@.*)$/, "$1••••$2") });
+    return json({ ok: true, challenge_id: challenge.id, expires_in: 300, email_hint: isOwner ? "luxolog@ekhayatech.co.za" : user.email.replace(/^(.).+(@.*)$/, "$1••••$2") });
   }
 
   if (body.action === "verify") {
