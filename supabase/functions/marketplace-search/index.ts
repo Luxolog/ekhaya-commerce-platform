@@ -418,7 +418,7 @@ Deno.serve(async (req: Request) => {
       "/rest/v1/partner_commission_ledger?select=id,partner_id,referral_id,referred_user_id,payment_month,plan_code,qualifying_amount,active_referred_sellers,commission_band,commission_rate,commission_amount,status,paid_at,created_at&order=created_at.desc&limit=10000",
       "/rest/v1/partner_monthly_statements?select=id,partner_id,statement_month,active_referred_sellers,qualifying_revenue,commission_total,adjustment_total,payment_due_date,status,paid_at&order=statement_month.desc&limit=5000",
       "/rest/v1/seller_pilot_activity?select=user_id,marketplace,query,result_count,result_status,source,created_at&order=created_at.desc&limit=10000",
-      "/rest/v1/profiles?select=id,account_id,display_name,plan_code,account_status,created_at",
+      "/rest/v1/profiles?select=id,seller_code,account_id,display_name,plan_code,account_status,created_at",
       "/rest/v1/plan_search_allowances?select=plan_code,monthly_search_credits",
       "/rest/v1/user_monthly_search_usage?select=user_id,period_start,searches_used&order=period_start.desc&limit=20000",
       "/rest/v1/user_free_search_usage?select=user_id,searches_used&limit=20000",
@@ -484,7 +484,7 @@ Deno.serve(async (req: Request) => {
       const searchStats = sellerSearchCounts.get(String(u.id)) ?? { searches: 0, failures: 0, last_search: null };
       const sub = latestSubscription.get(String(u.id));
       return {
-        id: u.id, account_id: profile?.account_id ?? null, email: u.email ?? null,
+        id: u.id, seller_code: profile?.seller_code ?? null, account_id: profile?.account_id ?? null, email: u.email ?? null,
         display_name: profile?.display_name ?? asRecord(u.user_metadata).display_name ?? asRecord(u.user_metadata).full_name ?? null,
         created_at: u.created_at ?? null, last_sign_in_at: u.last_sign_in_at ?? null,
         email_confirmed_at: u.email_confirmed_at ?? null,
