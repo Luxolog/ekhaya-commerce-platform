@@ -45,7 +45,11 @@ begin
   where id = new.id;
 
   if coalesce(v_app_metadata ->> 'role', 'seller') in ('owner', 'partner')
-     or coalesce(v_app_metadata ->> 'is_owner', 'false') = 'true' then
+     or coalesce(v_app_metadata ->> 'is_owner', 'false') = 'true'
+     or exists (
+       select 1 from public.partner_programs
+       where partner_user_id = new.id
+     ) then
     return new;
   end if;
 
