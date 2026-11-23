@@ -129,6 +129,14 @@ export default function EkhayaOwnerDashboard() {
 
   const [sellerReviewBusyId, setSellerReviewBusyId] = useState("");
   const [sellerReviewFeedback, setSellerReviewFeedback] = useState("");
+  const [managementBusyId, setManagementBusyId] = useState("");
+  const [managementFeedback, setManagementFeedback] = useState("");
+  const [planSeller, setPlanSeller] = useState<Seller | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState("starter");
+  const [planOtp, setPlanOtp] = useState("");
+  const [planOtpSent, setPlanOtpSent] = useState(false);
+  const [planOtpBusy, setPlanOtpBusy] = useState(false);
+
 
   const reviewSeller = async (seller: Seller, status: "active" | "inactive") => {
     setSellerReviewBusyId(seller.id); setSellerReviewFeedback("");
@@ -145,6 +153,61 @@ export default function EkhayaOwnerDashboard() {
     } catch (e) {
       setSellerReviewFeedback(e instanceof Error ? e.message : "Seller review failed.");
     } finally { setSellerReviewBusyId(""); }
+  };
+
+
+  const changeSellerStatus = async (seller: Seller, status: "active" | "suspended" | "inactive") => {
+    const actionLabel = status === "suspended" ? "suspend" : status === "inactive" ? "deactivate" : "activate";
+    if (!window.confirm("Are you sure you want to " + actionLabel + " " + (seller.email || "this seller") + "?")) return;
+    setManagementBusyId(seller.id); setManagementFeedback("");
+    try {
+      const response = await ownerFetch(API, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({
+        action:"set_user_status", user_id:seller.id, status,
+        reason:"Seller account " + actionLabel + "d by Ekhaya owner"
+      })});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(result.error || "Seller account status could not be changed.");
+      setManagementFeedback((seller.email || "Seller") + " has been " + actionLabel + "d.");
+      await load();
+    } catch(error) { setManagementFeedback(error instanceof Error?error.message:"Seller account action failed."); }
+    finally { setManagementBusyId(""); }
+  };
+
+  const beginPlanChange = async () => {
+    if (!planSeller) return;
+    setPlanOtpBusy(true); setManagementFeedback("");
+    try {
+      const response=await ownerFetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/partner-admin-email-otp", {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"start",purpose:"owner_plan_change",target_user_id:planSeller.id,plan_code:selectedPlan})
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(result.error || "Could not send the owner confirmation code.");
+      setPlanOtpSent(true); setPlanOtp("");
+      setManagementFeedback("A six-digit confirmation code was sent to " + (result.email_hint || "luxolog@ekhayatech.co.za") + ". It expires in five minutes.");
+    } catch(error) { setManagementFeedback(error instanceof Error?error.message:"Could not send confirmation code."); }
+    finally { setPlanOtpBusy(false); }
+  };
+
+  const confirmPlanChange = async () => {
+    if (!planSeller || planOtp.length !== 6) return;
+    setPlanOtpBusy(true); setManagementFeedback("");
+    try {
+      const otpResponse=await ownerFetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/partner-admin-email-otp", {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"verify",code:planOtp,purpose:"owner_plan_change",target_user_id:planSeller.id,plan_code:selectedPlan})
+      });
+      const otpResult=await otpResponse.json().catch(()=>({}));
+      if(!otpResponse.ok) throw new Error(otpResult.error || "The confirmation code could not be verified.");
+      const response=await ownerFetch(API, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({action:"owner_set_user_plan",target_user_id:planSeller.id,plan_code:selectedPlan})
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(result.error || "The seller plan could not be changed.");
+      setManagementFeedback((planSeller.email || "Seller") + " moved to " + selectedPlan + " immediately. Monthly allowance: " + result.monthly_search_allowance + " searches.");
+      setPlanSeller(null); setPlanOtp(""); setPlanOtpSent(false);
+      await load();
+    } catch(error) { setManagementFeedback(error instanceof Error?error.message:"Plan change failed."); }
+    finally { setPlanOtpBusy(false); }
   };
 
   const activatePartner = async (partnerId: string) => {
@@ -272,7 +335,41 @@ export default function EkhayaOwnerDashboard() {
             {!data.sellers.some(s=>s.role!=="owner" && s.account_status==="pending") && <p style={small}>There are no pending seller applications.</p>}
             {sellerReviewFeedback && <p role="status" style={{...small,marginTop:10}}>{sellerReviewFeedback}</p>}
           </section>
-          <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All registered sellers and accounts</h2><p style={small}>Private owner view of every registered account, subscription, referral attribution and seller usage.</p><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Seller","Email","Plan","Subscription","Account","Partner","Searches","Failures","Last search","Payments","Joined","Last sign-in"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.sellers.filter(s=>s.role!=="owner").map(s=><tr key={s.id}><td style={td}><b>{s.display_name || "Seller"}</b><div style={small}>{s.id}</div></td><td style={td}>{s.email || "—"}</td><td style={td}>{s.plan_code}</td><td style={td}>{s.subscription_status}</td><td style={td}>{s.account_status}</td><td style={td}>{s.partner_name || "Direct"}</td><td style={td}>{s.searches}</td><td style={td}>{s.search_failures}</td><td style={td}>{when(s.last_search)}</td><td style={td}>{s.payments_count} · {money(s.payments_total)}</td><td style={td}>{when(s.created_at)}</td><td style={td}>{when(s.last_sign_in_at)}</td></tr>)}</tbody></table>{!data.sellers.some(s=>s.role!=="owner") && <p style={small}>No seller accounts found.</p>}</div></div>}
+          <div style={{ ...panel, overflowX: "auto" }}>
+            <h2 style={{ marginTop: 0, fontSize: 18 }}>All registered sellers and accounts</h2>
+            <p style={small}>Private owner view of every registered account, subscription, referral attribution and seller usage. Use Actions to manage access and plans.</p>
+            {managementFeedback && <p role="status" style={{...small,background:"#F1F7FB",padding:12,borderRadius:8}}>{managementFeedback}</p>}
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 1160 }}>
+              <thead><tr>{["Seller","Email","Plan","Subscription","Account","Partner","Searches","Failures","Last search","Payments","Joined","Last sign-in","Actions"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead>
+              <tbody>{data.sellers.filter(s=>s.role!=="owner").map(s=><tr key={s.id}>
+                <td style={td}><b>{s.display_name || "Seller"}</b><div style={small}>{s.id}</div></td><td style={td}>{s.email || "—"}</td><td style={td}>{s.plan_code}</td><td style={td}>{s.subscription_status}</td><td style={td}>{s.account_status}</td><td style={td}>{s.partner_name || "Direct"}</td><td style={td}>{s.searches}</td><td style={td}>{s.search_failures}</td><td style={td}>{when(s.last_search)}</td><td style={td}>{s.payments_count} · {money(s.payments_total)}</td><td style={td}>{when(s.created_at)}</td><td style={td}>{when(s.last_sign_in_at)}</td>
+                <td style={{...td,minWidth:210}}><div style={{display:"grid",gap:7}}>
+                  <button type="button" disabled={managementBusyId===s.id} onClick={()=>{setPlanSeller(s);setSelectedPlan(s.plan_code);setPlanOtp("");setPlanOtpSent(false);}} style={{border:0,borderRadius:7,padding:"8px 10px",background:"#087EAC",color:"#fff",fontWeight:700,cursor:"pointer"}}>Change subscription</button>
+                  {s.account_status==="suspended" || s.account_status==="inactive" ? <button type="button" disabled={managementBusyId===s.id} onClick={()=>void changeSellerStatus(s,"active")} style={{border:0,borderRadius:7,padding:"8px 10px",background:"#16835D",color:"#fff",fontWeight:700,cursor:"pointer"}}>Activate account</button> :
+                  <button type="button" disabled={managementBusyId===s.id} onClick={()=>void changeSellerStatus(s,"suspended")} style={{border:0,borderRadius:7,padding:"8px 10px",background:"#A65B16",color:"#fff",fontWeight:700,cursor:"pointer"}}>Suspend seller</button>}
+                  {s.account_status!=="inactive" && <button type="button" disabled={managementBusyId===s.id} onClick={()=>void changeSellerStatus(s,"inactive")} style={{border:0,borderRadius:7,padding:"8px 10px",background:"#9B3D3D",color:"#fff",fontWeight:700,cursor:"pointer"}}>Deactivate account</button>}
+                </div></td>
+              </tr>)}</tbody>
+            </table>
+            {!data.sellers.some(s=>s.role!=="owner") && <p style={small}>No seller accounts found.</p>}
+            {planSeller && <div role="dialog" aria-modal="true" aria-label="Change seller subscription" style={{position:"fixed",inset:0,zIndex:1000,background:"#10243A99",display:"grid",placeItems:"center",padding:16}}>
+              <section style={{background:"#fff",borderRadius:14,padding:24,width:"min(100%,480px)",boxShadow:"0 20px 60px #10243A44"}}>
+                <h2 style={{margin:"0 0 8px",fontSize:21}}>Change subscription</h2>
+                <p style={small}>Seller: <b>{planSeller.email || planSeller.display_name || planSeller.id}</b></p>
+                <p style={{...small,lineHeight:1.6}}>The selected plan and its configured monthly search allowance activate immediately after OTP confirmation. This is an owner override; it does not create or record a customer payment.</p>
+                <label style={{display:"block",fontSize:12,fontWeight:700,marginTop:14}}>New subscription plan</label>
+                <select value={selectedPlan} onChange={e=>setSelectedPlan(e.target.value)} disabled={planOtpSent} style={{width:"100%",padding:12,border:"1px solid #DCE6EF",borderRadius:8,marginTop:7}}>
+                  {["free","starter","growth","pro","business"].map(p=><option key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)}</option>)}
+                </select>
+                {!planOtpSent ? <button type="button" disabled={planOtpBusy} onClick={()=>void beginPlanChange()} style={{width:"100%",padding:12,marginTop:16,border:0,borderRadius:8,background:"#087EAC",color:"#fff",fontWeight:800,cursor:"pointer"}}>{planOtpBusy?"Sending…":"Send OTP to owner email"}</button> : <>
+                  <label style={{display:"block",fontSize:12,fontWeight:700,marginTop:16}}>Six-digit confirmation code</label>
+                  <input value={planOtp} onChange={e=>setPlanOtp(e.target.value.replace(/\D/g,"").slice(0,6))} inputMode="numeric" autoComplete="one-time-code" placeholder="Enter code sent to luxolog@ekhayatech.co.za" style={{width:"100%",padding:12,marginTop:7,border:"1px solid #DCE6EF",borderRadius:8,boxSizing:"border-box"}} />
+                  <button type="button" disabled={planOtpBusy||planOtp.length!==6} onClick={()=>void confirmPlanChange()} style={{width:"100%",padding:12,marginTop:12,border:0,borderRadius:8,background:"#16835D",color:"#fff",fontWeight:800,cursor:"pointer"}}>{planOtpBusy?"Verifying…":"Verify OTP and activate plan"}</button>
+                </>}
+                <button type="button" onClick={()=>{setPlanSeller(null);setPlanOtp("");setPlanOtpSent(false);}} style={{width:"100%",padding:11,marginTop:10,border:"1px solid #DCE6EF",borderRadius:8,background:"#fff",color:"#334B63",fontWeight:700,cursor:"pointer"}}>Cancel</button>
+              </section>
+            </div>}
+          </div></div>}
 
         {tab === "searches" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All seller marketplace searches</h2><p style={small}>Search history across all sellers, including marketplace, search term, result count, status and timestamp.</p><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Date","Seller","Email","Plan","Marketplace","Search query","Results","Status","Source","Partner"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.all_activity.filter(a=>a.event_type==="seller_search").map((a,i)=><tr key={String(a.user_id)+a.created_at+i}><td style={td}>{when(a.created_at)}</td><td style={td}>{a.seller_display_name || a.user_id || "Unknown"}</td><td style={td}>{a.seller_email || (a.event_type === "provider_usage" && !a.user_id ? "System event · no seller account" : "—")}</td><td style={td}>{a.seller_plan}</td><td style={td}>{a.marketplace || "—"}</td><td style={td}>{a.query}</td><td style={td}>{a.result_count}</td><td style={td}>{a.result_status}</td><td style={td}>{a.source || "—"}</td><td style={td}>{a.partner_name || "Direct"}</td></tr>)}</tbody></table>{!data.all_activity.some(a=>a.event_type==="seller_search") && <p style={small}>No seller search events recorded yet.</p>}</div>}
 

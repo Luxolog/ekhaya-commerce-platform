@@ -184,6 +184,38 @@ Deno.serve(async (req: Request) => {
     const [events, identities, blocked_domains] = await Promise.all([eventsResponse.json(), identitiesResponse.json(), domainsResponse.json()]);
     return json({ ok: true, events, identities, blocked_domains });
   }
+  if (body.action === "owner_set_user_plan") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const targetId = typeof body.target_user_id === "string" ? body.target_user_id : "";
+    const nextPlan = String(body.plan_code ?? "").toLowerCase();
+    if (!targetId || !["free", "starter", "growth", "pro", "business"].includes(nextPlan)) {
+      return json({ error: "Choose a valid seller and subscription plan." }, 400);
+    }
+    if (targetId === userId) return json({ error: "You cannot change your own owner plan from seller management." }, 403);
+    const targetResponse = await fetch(new URL("/auth/v1/admin/users/" + encodeURIComponent(targetId), supabaseUrl), { headers: adminHeaders });
+    if (!targetResponse.ok) return json({ error: "Registered seller account not found." }, 404);
+    const targetUser = await targetResponse.json();
+    const targetApp = targetUser.app_metadata ?? {};
+    if (targetApp.role === "owner" || targetApp.is_owner === true) return json({ error: "Owner accounts cannot be changed from seller management." }, 403);
+
+    const applyResponse = await fetch(new URL("/rest/v1/rpc/owner_set_seller_plan", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_user_id: targetId, p_plan_code: nextPlan, p_owner_id: userId, p_session_id: sessionId })
+    });
+    const applied = applyResponse.ok ? await applyResponse.json() : null;
+    if (!applyResponse.ok || applied?.ok !== true) {
+      const detail = applyResponse.ok ? applied : await applyResponse.text();
+      const message = String(detail?.message ?? detail ?? "");
+      if (message.includes("OWNER_PLAN_CHANGE_OTP_REQUIRED")) return json({ error: "A fresh six-digit OTP sent to luxolog@ekhayatech.co.za is required before every plan change.", code: "EMAIL_OTP_REQUIRED" }, 403);
+      if (message.includes("PLAN_ALLOWANCE_NOT_CONFIGURED")) return json({ error: "This plan has no configured monthly search allowance. Configure it before assigning the plan." }, 409);
+      if (message.includes("SELLER_NOT_FOUND")) return json({ error: "Registered seller account not found." }, 404);
+      return json({ error: "The seller subscription could not be changed atomically.", detail }, 500);
+    }
+
+    return json({ ...applied, target_user_id: targetId });
+  }
+
   if (body.action === "owner_set_user_status") {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
     const targetId = typeof body.target_user_id === "string" ? body.target_user_id : "";
@@ -215,7 +247,7 @@ Deno.serve(async (req: Request) => {
 
     let pilotResult: Record<string, unknown> | null = null;
     let approvalEmail: "sent" | "queued" | "already_queued" | "dispatch_failed" | "not_applicable" = "not_applicable";
-    if (nextStatus === "active") {
+    if (nextStatus === "active" && previousStatus === "pending") {
       const activated = await fetch(new URL("/rest/v1/rpc/activate_seller_pilot", supabaseUrl), {
         method: "POST",
         headers: { ...adminHeaders, "Content-Type": "application/json" },

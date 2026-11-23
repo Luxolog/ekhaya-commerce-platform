@@ -62,7 +62,7 @@ Deno.serve(async (req: Request) => {
   const isPartner = Boolean(partner);
   if (!isOwner && !isPartner) return json({ error: "Partner or Admin account access is required." }, 403);
 
-  let body: { action?: string; code?: string; password?: string; enabled?: boolean };
+  let body: { action?: string; code?: string; password?: string; enabled?: boolean; purpose?: string; target_user_id?: string; plan_code?: string };
   try { body = await req.json(); } catch { return json({ error: "Valid JSON is required." }, 400); }
   const { data: settings } = await admin.from("account_security_settings")
     .select("email_otp_enabled").eq("user_id", user.id).maybeSingle();
@@ -70,17 +70,22 @@ Deno.serve(async (req: Request) => {
 
   if (body.action === "status") {
     const { data: verified } = await admin.from("email_otp_verified_sessions").select("session_id")
-      .eq("user_id", user.id).eq("session_id", sessionId).gt("expires_at", new Date().toISOString()).maybeSingle();
+      .eq("user_id", user.id).eq("session_id", sessionId).is("target_user_id", null).is("plan_code", null)
+      .gt("expires_at", new Date().toISOString()).maybeSingle();
     return json({ enabled, verified: Boolean(verified), email: user.email ?? null, account_type: isOwner ? "admin" : "partner" });
   }
 
   if (body.action === "start") {
-    if (!enabled) return json({ error: "Email OTP is not enabled for this account." }, 409);
-    if (!user.email || !user.email_confirmed_at) return json({ error: "A confirmed registered email address is required." }, 409);
+    if (!enabled && !isOwner) return json({ error: "Email OTP is not enabled for this account." }, 409);
+    if ((!user.email || !user.email_confirmed_at) && !isOwner) return json({ error: "A confirmed registered email address is required." }, 409);
     const { data: recent } = await admin.from("email_otp_challenges").select("created_at")
       .eq("user_id", user.id).eq("session_id", sessionId).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (recent && Date.now() - new Date(recent.created_at).getTime() < 60_000) {
       return json({ error: "A code was sent recently. Please wait one minute before requesting another." }, 429);
+    }
+    const isPlanChange = body.purpose === "owner_plan_change";
+    if (isPlanChange && (!isOwner || !body.target_user_id || !["free","starter","growth","pro","business"].includes(String(body.plan_code)))) {
+      return json({ error: "A valid owner plan-change request is required." }, 400);
     }
     const host = Deno.env.get("SMTP_HOST");
     const port = Number(Deno.env.get("SMTP_PORT") || 465);
@@ -88,12 +93,19 @@ Deno.serve(async (req: Request) => {
     const password = Deno.env.get("SMTP_PASSWORD");
     if (!host || !username || !password) return json({ error: "Email delivery is not configured. Please contact Ekhaya support." }, 503);
 
+    // All privileged OTP codes are delivered exclusively to the designated Ekhaya mailbox.
+    const otpRecipient = "luxolog@ekhayatech.co.za";
+    if (!otpRecipient) return json({ error: "The OTP recipient is not configured." }, 503);
+    if (isOwner) await admin.from("email_otp_verified_sessions").delete().eq("user_id", user.id).eq("session_id", sessionId);
     const code = newCode();
     const pepper = service;
     const codeHash = await digest([user.id, sessionId, code, pepper].join(":"));
     const { data: challenge, error: insertError } = await admin.from("email_otp_challenges").insert({
       user_id: user.id, session_id: sessionId, code_hash: codeHash,
       expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+      purpose: isPlanChange ? "owner_plan_change" : null,
+      target_user_id: isPlanChange ? body.target_user_id : null,
+      plan_code: isPlanChange ? body.plan_code : null,
     }).select("id").single();
     if (insertError || !challenge) return json({ error: "Could not create a verification challenge." }, 500);
 
@@ -105,10 +117,10 @@ Deno.serve(async (req: Request) => {
       const name = escapeHtml(String(user.user_metadata?.display_name ?? user.user_metadata?.full_name ?? "there"));
       await transporter.sendMail({
         from: { name: "Ekhaya Technologies", address: username },
-        to: user.email,
-        subject: "Your Ekhaya security verification code",
-        text: `Hello ${String(user.user_metadata?.display_name ?? "there")},\n\nYour Ekhaya sign-in verification code is ${code}. It expires in five minutes. Do not share this code with anyone.\n\nEkhaya Technologies`,
-        html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:30px auto;padding:28px;border:1px solid #dce8f1;border-radius:10px;color:#10243e"><div style="font-weight:800;letter-spacing:1px">EKHAYA TECHNOLOGIES</div><h2 style="margin:26px 0 12px">Verify your sign-in</h2><p>Hello ${name},</p><p>Use this one-time code to complete your sign-in:</p><div style="font-size:32px;font-weight:800;letter-spacing:8px;padding:18px;background:#f3f7fb;border-radius:8px;text-align:center">${code}</div><p>This code expires in five minutes. You have a limited number of attempts. Do not share it with anyone.</p><p style="color:#71869a;font-size:12px">If you did not attempt to sign in, change your password and contact Ekhaya support.</p></div>`,
+        to: otpRecipient,
+        subject: isPlanChange ? "Confirm an Ekhaya seller subscription change" : "Your Ekhaya security verification code",
+        text: `Hello ${String(user.user_metadata?.display_name ?? "there")},\n\nYour Ekhaya ${isPlanChange ? "seller subscription change" : "sign-in"} verification code is ${code}. It expires in five minutes. Do not share this code with anyone.\n\nEkhaya Technologies`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:30px auto;padding:28px;border:1px solid #dce8f1;border-radius:10px;color:#10243e"><div style="font-weight:800;letter-spacing:1px">EKHAYA TECHNOLOGIES</div><h2 style="margin:26px 0 12px">${isPlanChange ? "Confirm subscription change" : "Verify your sign-in"}</h2><p>Hello ${name},</p><p>Use this one-time code to ${isPlanChange ? "confirm the requested seller subscription change" : "complete your sign-in"}:</p><div style="font-size:32px;font-weight:800;letter-spacing:8px;padding:18px;background:#f3f7fb;border-radius:8px;text-align:center">${code}</div><p>This code expires in five minutes. You have a limited number of attempts. Do not share it with anyone.</p><p style="color:#71869a;font-size:12px">If you did not attempt to sign in, change your password and contact Ekhaya support.</p></div>`,
       });
     } catch (error) {
       await admin.from("email_otp_challenges").delete().eq("id", challenge.id);
@@ -116,15 +128,22 @@ Deno.serve(async (req: Request) => {
     } finally {
       try { await transporter.close(); } catch { /* ignore */ }
     }
-    return json({ ok: true, challenge_id: challenge.id, expires_in: 300, email_hint: user.email.replace(/^(.).+(@.*)$/, "$1••••$2") });
+    return json({ ok: true, challenge_id: challenge.id, expires_in: 300, email_hint: "luxolog@ekhayatech.co.za" });
   }
 
   if (body.action === "verify") {
     const code = String(body.code ?? "").replace(/\D/g, "");
     if (!/^\d{6}$/.test(code)) return json({ error: "Enter the six-digit code from your email." }, 400);
-    const { data: challenge } = await admin.from("email_otp_challenges").select("id,code_hash,expires_at,attempts")
+    let challengeQuery = admin.from("email_otp_challenges").select("id,code_hash,expires_at,attempts")
       .eq("user_id", user.id).eq("session_id", sessionId).is("consumed_at", null)
-      .gt("expires_at", new Date().toISOString()).lt("attempts", 5)
+      .gt("expires_at", new Date().toISOString()).lt("attempts", 5);
+    if (body.purpose === "owner_plan_change") {
+      challengeQuery = challengeQuery.eq("purpose", "owner_plan_change")
+        .eq("target_user_id", body.target_user_id ?? "").eq("plan_code", body.plan_code ?? "");
+    } else {
+      challengeQuery = challengeQuery.is("purpose", null).is("target_user_id", null).is("plan_code", null);
+    }
+    const { data: challenge } = await challengeQuery
       .order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (!challenge) return json({ error: "This code has expired or is no longer valid. Request a new code." }, 410);
     const supplied = await digest([user.id, sessionId, code, service].join(":"));
@@ -135,7 +154,9 @@ Deno.serve(async (req: Request) => {
     await admin.from("email_otp_challenges").update({ consumed_at: new Date().toISOString() }).eq("id", challenge.id);
     const { error: verifyError } = await admin.from("email_otp_verified_sessions").upsert({
       user_id: user.id, session_id: sessionId, verified_at: new Date().toISOString(),
-      expires_at: new Date(expiresAt * 1000).toISOString(),
+      expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+      target_user_id: body.purpose === "owner_plan_change" ? body.target_user_id : null,
+      plan_code: body.purpose === "owner_plan_change" ? body.plan_code : null,
     });
     if (verifyError) return json({ error: "Verification could not be saved. Please try again." }, 500);
     return json({ ok: true, verified: true });
@@ -151,7 +172,8 @@ Deno.serve(async (req: Request) => {
     if (!reauth.ok || reauthBody.user?.id !== user.id) return json({ error: "Your current password could not be confirmed." }, 401);
     if (enabled && body.enabled === false) {
       const { data: verified } = await admin.from("email_otp_verified_sessions").select("session_id")
-        .eq("user_id", user.id).eq("session_id", sessionId).gt("expires_at", new Date().toISOString()).maybeSingle();
+        .eq("user_id", user.id).eq("session_id", sessionId).is("target_user_id", null).is("plan_code", null)
+      .gt("expires_at", new Date().toISOString()).maybeSingle();
       if (!verified) return json({ error: "Verify your current email OTP before disabling this protection." }, 403);
     }
     const { error: updateError } = await admin.from("account_security_settings").upsert({
