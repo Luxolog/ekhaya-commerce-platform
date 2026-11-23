@@ -196,7 +196,9 @@ Deno.serve(async (req: Request) => {
     verifiedUrl.searchParams.set("user_id", "eq." + userId);
     verifiedUrl.searchParams.set("session_id", "eq." + sessionId);
     verifiedUrl.searchParams.set("expires_at", "gt." + new Date().toISOString());
-    verifiedUrl.searchParams.set("select", "session_id");
+    verifiedUrl.searchParams.set("target_user_id", "eq." + targetId);
+    verifiedUrl.searchParams.set("plan_code", "eq." + nextPlan);
+    verifiedUrl.searchParams.set("select", "session_id,target_user_id,plan_code");
     verifiedUrl.searchParams.set("limit", "1");
     const verifiedResponse = await fetch(verifiedUrl, { headers: adminHeaders });
     if (!verifiedResponse.ok) return json({ error: "Could not verify the owner confirmation code." }, 503);
