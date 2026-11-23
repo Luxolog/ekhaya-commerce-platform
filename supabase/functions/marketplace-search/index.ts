@@ -1,5 +1,5 @@
 import { understandProductQuery, rankMarketplaceProducts, selectAdditionalDiscoveryQueries } from "./search-relevance.ts";
-import { resolveSearchEntitlement } from "./search-entitlements.ts";
+import { canSearchAccount, resolveSearchEntitlement } from "./search-entitlements.ts";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const cors = {
@@ -95,6 +95,7 @@ Deno.serve(async (req: Request) => {
   const isLinkedPartner = Array.isArray(partnerPrograms) && partnerPrograms.length > 0;
   const isActivePartner = isLinkedPartner && partnerPrograms.some((p: Record<string, unknown>) => p.status === "active");
 
+
   let body: { marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean; [key: string]: unknown };
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
   // Backward-compatible action names used by the current owner dashboard.
@@ -104,16 +105,17 @@ Deno.serve(async (req: Request) => {
     body.target_user_id = body.target_user_id ?? body.user_id;
   }
 
+  let ownerSessionId = "";
   if (typeof body.action === "string" && body.action.startsWith("owner_")) {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
-    let sessionId = "";
+    ownerSessionId = "";
     try {
       const jwtPart = accessToken.split(".")[1] ?? "";
       const normalized = jwtPart.replace(/-/g, "+").replace(/_/g, "/");
       const claims = JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")));
-      sessionId = typeof claims.session_id === "string" ? claims.session_id : "";
+      ownerSessionId = typeof claims.session_id === "string" ? claims.session_id : "";
     } catch { /* invalid claims fail closed below */ }
-    if (!sessionId) return json({ error: "A valid owner session is required." }, 401);
+    if (!ownerSessionId) return json({ error: "A valid owner session is required." }, 401);
     const securityUrl = new URL("/rest/v1/account_security_settings", supabaseUrl);
     securityUrl.searchParams.set("user_id", "eq." + userId);
     securityUrl.searchParams.set("select", "email_otp_enabled");
@@ -121,10 +123,10 @@ Deno.serve(async (req: Request) => {
     const securityResponse = await fetch(securityUrl, { headers: adminHeaders });
     if (!securityResponse.ok) return json({ error: "Could not verify owner security settings." }, 503);
     const securityRows = await securityResponse.json();
-    if (securityRows?.[0]?.email_otp_enabled === true) {
+    if (securityRows?.[0]?.email_otp_enabled === true && body.action !== "owner_set_user_plan") {
       const verifiedUrl = new URL("/rest/v1/email_otp_verified_sessions", supabaseUrl);
       verifiedUrl.searchParams.set("user_id", "eq." + userId);
-      verifiedUrl.searchParams.set("session_id", "eq." + sessionId);
+      verifiedUrl.searchParams.set("session_id", "eq." + ownerSessionId);
       verifiedUrl.searchParams.set("expires_at", "gt." + new Date().toISOString());
       verifiedUrl.searchParams.set("select", "session_id");
       verifiedUrl.searchParams.set("limit", "1");
@@ -201,7 +203,7 @@ Deno.serve(async (req: Request) => {
     const applyResponse = await fetch(new URL("/rest/v1/rpc/owner_set_seller_plan", supabaseUrl), {
       method: "POST",
       headers: { ...adminHeaders, "Content-Type": "application/json" },
-      body: JSON.stringify({ p_user_id: targetId, p_plan_code: nextPlan, p_owner_id: userId, p_session_id: sessionId })
+      body: JSON.stringify({ p_user_id: targetId, p_plan_code: nextPlan, p_owner_id: userId, p_session_id: ownerSessionId })
     });
     const applied = applyResponse.ok ? await applyResponse.json() : null;
     if (!applyResponse.ok || applied?.ok !== true) {
@@ -413,7 +415,7 @@ Deno.serve(async (req: Request) => {
     // This is the central owner view: all registered users, all seller searches,
     // provider usage, subscriptions, payments and partner programme records.
     const paths = [
-      "/rest/v1/partner_programs?select=id,partner_name,partner_slug,referral_code,partner_user_id,status,program_live_at,created_at&order=created_at.desc",
+      "/rest/v1/partner_programs?select=id,partner_code,partner_name,partner_slug,referral_code,partner_user_id,status,program_live_at,created_at&order=created_at.desc",
       "/rest/v1/partner_referrals?select=id,partner_id,referred_user_id,referral_code,registered_at,first_paid_at&order=registered_at.desc&limit=10000",
       "/rest/v1/partner_commission_ledger?select=id,partner_id,referral_id,referred_user_id,payment_month,plan_code,qualifying_amount,active_referred_sellers,commission_band,commission_rate,commission_amount,status,paid_at,created_at&order=created_at.desc&limit=10000",
       "/rest/v1/partner_monthly_statements?select=id,partner_id,statement_month,active_referred_sellers,qualifying_revenue,commission_total,adjustment_total,payment_due_date,status,paid_at&order=statement_month.desc&limit=5000",
@@ -519,12 +521,33 @@ Deno.serve(async (req: Request) => {
       const referral = referralByUser.get(String(item.user_id));
       const partner = referral ? partnerById.get(String(referral.partner_id)) as Record<string, unknown> | undefined : undefined;
       return { ...item, seller_email: seller?.email ?? null, seller_display_name: seller?.display_name ?? null,
-        seller_plan: seller?.plan_code ?? "free", partner_name: partner?.partner_name ?? null, event_type: "seller_search" };
+        seller_code: seller?.seller_code ?? null, seller_plan: seller?.plan_code ?? "free", partner_name: partner?.partner_name ?? null, event_type: "seller_search" };
     });
     const providerActivity = apiUsage.map((item: Record<string, unknown>) => {
-      const seller = item.actor_id ? sellers.find((s: Record<string, unknown>) => s.id === item.actor_id) as Record<string, unknown> | undefined : undefined;
-      return { ...item, user_id: item.actor_id ?? null, seller_email: seller?.email ?? null,
+      let seller = item.actor_id
+        ? sellers.find((s: Record<string, unknown>) => s.id === item.actor_id) as Record<string, unknown> | undefined
+        : undefined;
+      // Older ledger rows did not persist actor_id for pilot/partner-funded searches.
+      // Recover only an unambiguous nearby match; never guess when multiple sellers qualify.
+      if (!seller && !item.actor_id) {
+        const lookupKey = String(item.lookup_key ?? "").toLowerCase();
+        const eventTime = new Date(String(item.created_at ?? "")).getTime();
+        const candidates = allActivity.filter((activity: Record<string, unknown>) => {
+          const activityTime = new Date(String(activity.created_at ?? "")).getTime();
+          const activityQuery = String(activity.query ?? "").trim().toLowerCase();
+          return activity.marketplace === item.marketplace && activityQuery.length >= 2 &&
+            lookupKey.includes(activityQuery) && Number.isFinite(eventTime) &&
+            Math.abs(eventTime - activityTime) <= 5 * 60 * 1000;
+        });
+        const candidateIds = [...new Set(candidates.map((activity: Record<string, unknown>) => String(activity.user_id)))];
+        if (candidateIds.length === 1) {
+          seller = sellers.find((s: Record<string, unknown>) => s.id === candidateIds[0]) as Record<string, unknown> | undefined;
+        }
+      }
+      return { ...item, user_id: seller?.id ?? item.actor_id ?? null,
+        seller_code: seller?.seller_code ?? null, seller_email: seller?.email ?? null,
         seller_display_name: seller?.display_name ?? null, seller_plan: seller?.plan_code ?? "unknown",
+        source: item.actor_id ? "ledger" : seller ? "matched_legacy_activity" : "unattributed_legacy",
         query: item.lookup_key ?? "", result_count: item.response_count ?? 0, result_status: item.request_status ?? "unknown",
         event_type: "provider_usage" };
     });
@@ -675,6 +698,16 @@ Deno.serve(async (req: Request) => {
     });
     if (!saved.ok) return json({ error: "Could not save cache policy.", detail: await saved.text() }, 500);
     return json({ ok: true, settings: (await saved.json())[0] });
+  }
+
+  // Pending, suspended and inactive seller accounts must not search, including cache hits.
+  // The server is authoritative; hiding the search UI is not an access control.
+  if (!isOwner) {
+    const profileStatusResponse = await fetch(new URL("/rest/v1/profiles?id=eq." + encodeURIComponent(userId) + "&select=account_status&limit=1", supabaseUrl), { headers: adminHeaders });
+    if (!profileStatusResponse.ok) return json({ error: "Could not verify your account approval status." }, 503);
+    const profileStatusRows = await profileStatusResponse.json();
+    const accountStatus = profileStatusRows?.[0]?.account_status;
+    if (!canSearchAccount({ isOwner, accountStatus })) return json({ error: "Your account is not approved for marketplace searches. Please wait for Ekhaya support to approve your application.", code: "ACCOUNT_NOT_APPROVED", account_status: accountStatus ?? "missing" }, 403);
   }
 
   const marketplace = typeof body.marketplace === "string" ? body.marketplace : "";
@@ -837,7 +870,7 @@ Deno.serve(async (req: Request) => {
           status: upstream.ok && payload?.ok !== false ? "success" : "failed",
           responseCount: upstream.ok && payload?.ok !== false ? (payload?.data?.products?.length ?? 0) : 0,
           providerRequestId: typeof payload?.meta?.request_id === "string" ? payload.meta.request_id : null,
-          actorId: charged ? userId : null,
+          actorId: userId,
         });
         providerUsageLogged = true;
         if (!upstream.ok || payload?.ok === false) throw new Error(payload?.error?.message ?? payload?.error?.detail ?? upstream.statusText ?? "ReefAPI Makro search failed");
@@ -866,7 +899,7 @@ Deno.serve(async (req: Request) => {
               status: succeeded ? "success" : "failed",
               responseCount: succeeded ? (result?.data?.results?.length ?? result?.data?.products?.length ?? 0) : 0,
               providerRequestId: typeof result?.meta?.request_id === "string" ? result.meta.request_id : null,
-              actorId: charged ? userId : null,
+              actorId: userId,
             });
             attemptRecorded = true;
             providerUsageLogged = true;
@@ -883,7 +916,7 @@ Deno.serve(async (req: Request) => {
               await recordProviderUsage({
                 marketplace, lookupKey: `search:${lookupKey}:attempt:${amazonAttempt}`,
                 credits: 0, status: "failed", responseCount: 0,
-                providerRequestId: null, actorId: charged ? userId : null,
+                providerRequestId: null, actorId: userId,
               });
               providerUsageLogged = true;
             }
@@ -945,7 +978,7 @@ Deno.serve(async (req: Request) => {
               marketplace, lookupKey: `search:${lookupKey}:${searchQuery}`,
               credits: attemptCredits, status: succeeded ? "success" : "failed",
               responseCount: succeeded ? (result.data?.results?.length ?? result.data?.products?.length ?? 0) : 0,
-              providerRequestId: attemptRequestId, actorId: charged ? userId : null,
+              providerRequestId: attemptRequestId, actorId: userId,
             });
             attemptRecorded = true;
             providerUsageLogged = true;
@@ -958,7 +991,7 @@ Deno.serve(async (req: Request) => {
               await recordProviderUsage({
                 marketplace, lookupKey: `search:${lookupKey}:${searchQuery}`,
                 credits: attemptCredits, status: "failed", responseCount: 0,
-                providerRequestId: attemptRequestId, actorId: charged ? userId : null,
+                providerRequestId: attemptRequestId, actorId: userId,
               });
               providerUsageLogged = true;
             }
@@ -1054,7 +1087,7 @@ Deno.serve(async (req: Request) => {
         await recordProviderUsage({
           marketplace, lookupKey: `search:${lookupKey}`, credits: Number(payload.meta?.charged_credits ?? 0),
           status: "success", responseCount: totalResults, providerRequestId: typeof payload.meta?.request_id === "string" ? payload.meta.request_id : null,
-          actorId: charged ? userId : null,
+          actorId: userId,
         });
         providerUsageLogged = true;
       }
@@ -1127,7 +1160,7 @@ Deno.serve(async (req: Request) => {
           marketplace, lookupKey: `search:${lookupKey}`,
           credits: Number(providerPayload?.meta?.charged_credits ?? 0), status: "failed",
           responseCount: 0, providerRequestId: typeof providerPayload?.meta?.request_id === "string" ? providerPayload.meta.request_id : null,
-          actorId: charged ? userId : null,
+          actorId: userId,
         });
         providerUsageLogged = true;
       }
