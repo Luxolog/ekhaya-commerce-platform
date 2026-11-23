@@ -226,14 +226,20 @@ export default function PriceCheckerPage() {
         {productMeta&&<p className="product-meta">{productMeta}</p>}
         {(p.rating!=null||p.review_count!=null)&&<div className="product-reviews" aria-label="Product reviews"><span aria-hidden="true">★</span>{p.rating!=null&&<b>{Number(p.rating).toFixed(1)}</b>}{p.review_count!=null&&<span>({Number(p.review_count).toLocaleString("en-ZA")} reviews)</span>}</div>}
         <div className="price-row"><b className="price">{p.price==null?"Price unavailable":money(Number(p.price))}</b></div>
-        {c&&p.price!=null&&<div className="finance-panel">
-          <div className="fee-grid">
-            <div><span>Marketplace selling fee</span><b>{money(c.success)}</b></div>
-            <div><span>Fulfilment estimate</span><b>{money(c.fulfilment)}</b></div>
-            <div><span>Estimated fees incl. VAT</span><b>{money(c.fee)}</b></div>
+        {c&&p.price!=null&&<div className="finance-panel" aria-label="Selling price, buying price, marketplace fees and estimated profit">
+          <div className="finance-heading"><span>YOUR PROFIT BREAKDOWN</span><small>Indicative estimate</small></div>
+          <div className="finance-lines">
+            <div className="finance-line selling-line"><span><i>01</i><span><b>Marketplace selling price</b><small>Customer-facing listing price</small></span></span><strong>{money(Number(p.price))}</strong></div>
+            <div className="finance-line buying-line"><span><i>02</i><span><b>Your buying price</b><small>Supplier / purchase cost</small></span></span><strong>{money(buying)}</strong></div>
+            <div className="finance-line fee-line"><span><i>03</i><span><b>Marketplace seller commission</b><small>Estimated selling fee</small></span></span><strong>− {money(c.success)}</strong></div>
+            <div className="finance-line fulfilment-line"><span><i>04</i><span><b>Fulfilment / delivery fee</b><small>Estimated order handling</small></span></span><strong>− {money(c.fulfilment)}</strong></div>
+            <div className="finance-line total-fees-line"><span><i>05</i><span><b>Total marketplace seller fees</b><small>Commission + fulfilment, incl. estimated VAT</small></span></span><strong>− {money(c.fee)}</strong></div>
           </div>
-          <div className="profit-row"><b>Estimated profit</b><strong className={c.profit>=0?"good":"bad"}>{money(c.profit)}</strong></div>
-          <div className="margin-row"><span>Profit margin</span><b>{c.margin.toFixed(1)}%</b></div>
+          <div className={"profit-summary "+(c.profit>=0?"profit-positive":"profit-negative")}>
+            <div><span>ESTIMATED PROFIT</span><small>After buying price and marketplace fees</small></div>
+            <strong>{money(c.profit)}</strong>
+          </div>
+          <div className="margin-row"><span>Profit margin on selling price</span><b>{c.margin.toFixed(1)}%</b></div>
         </div>}
         {p.url&&<a className="listing-link" href={p.url} target="_blank" rel="noreferrer">View marketplace listing <span>↗</span></a>}
       </div>
@@ -283,15 +289,35 @@ export default function PriceCheckerPage() {
       .product-reviews>span:first-child{color:#F2AE00;font-size:17px}.product-reviews b{font-weight:700}.product-reviews span:last-child{color:#718195}
       .price-row{padding:1px 0 12px;border-bottom:1px solid #E0E7EE}
       .price{display:block;color:#10243D;font-size:25px;line-height:1.2;font-weight:800}
-      .finance-panel{display:flex;flex-direction:column;gap:0}
-      .fee-grid{display:grid;gap:0;padding-bottom:10px;border-bottom:1px solid #E0E7EE}
-      .fee-grid div{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:6px 0;color:#758496;font-size:12px;line-height:1.35}
-      .fee-grid b{color:#142A43;white-space:nowrap;font-size:12px;font-weight:700}
-      .profit-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0 5px;color:#647488;font-size:14px}
-      .profit-row b{font-weight:700}.profit-row strong{font-size:18px;white-space:nowrap}
-      .margin-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:2px 0 6px;color:#65778B;font-size:12px}
-      .margin-row b{color:#142A43;font-size:13px}
-      .good{color:#13834B!important}.bad{color:#B42318!important}
+      .finance-panel{display:flex;flex-direction:column;gap:0;margin-top:2px;border:1px solid #DCE6EF;border-radius:12px;overflow:hidden;background:#fff}
+      .finance-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:11px 12px;background:#10243A;color:#fff}
+      .finance-heading>span{font-size:9px;letter-spacing:1.2px;font-weight:900}
+      .finance-heading small{color:#D6A63A;font-size:9px;letter-spacing:.2px}
+      .finance-lines{padding:4px 11px 7px}
+      .finance-line{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 1px;border-bottom:1px solid #EDF1F5}
+      .finance-line:last-child{border-bottom:0}
+      .finance-line>span{display:flex;align-items:center;gap:8px;min-width:0}
+      .finance-line i{display:grid;place-items:center;flex:0 0 22px;width:22px;height:22px;border-radius:7px;font-size:9px;font-style:normal;font-weight:900}
+      .finance-line>span>span{display:grid;gap:3px;min-width:0}
+      .finance-line b{font-size:11px;line-height:1.25;color:#233B53}
+      .finance-line small{font-size:9px;letter-spacing:0;color:#8090A1;line-height:1.25}
+      .finance-line>strong{font-size:12px;white-space:nowrap;font-weight:800;color:#233B53}
+      .selling-line i{background:#E5F3FC;color:#1674B8}.selling-line>strong{color:#1674B8}
+      .buying-line i{background:#F0EAFE;color:#7654B8}.buying-line>strong{color:#7654B8}
+      .fee-line i{background:#FFF3DE;color:#A86B13}.fee-line>strong{color:#A86B13}
+      .fulfilment-line i{background:#E6F6F5;color:#16817D}.fulfilment-line>strong{color:#16817D}
+      .total-fees-line{margin:2px -2px 0;padding:10px 7px;background:#F5F7FA;border-radius:7px}
+      .total-fees-line i{background:#E7ECF2;color:#455A70}
+      .total-fees-line b{color:#344B63}.total-fees-line>strong{color:#344B63}
+      .profit-summary{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:13px 12px;margin:0 10px 8px;border-radius:9px}
+      .profit-summary>div{display:grid;gap:4px}
+      .profit-summary span{font-size:10px;font-weight:900;letter-spacing:.9px}
+      .profit-summary small{font-size:9px;letter-spacing:0;color:inherit;opacity:.78}
+      .profit-summary>strong{font-size:20px;white-space:nowrap;font-weight:900}
+      .profit-positive{background:#E7F6ED;color:#147647;border:1px solid #C8E9D5}
+      .profit-negative{background:#FDECEC;color:#B42318;border:1px solid #F5CCCC}
+      .margin-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:4px 12px 11px;color:#65778B;font-size:11px}
+      .margin-row b{color:#10243A;font-size:12px}
       .listing-link{display:inline-flex;align-items:center;gap:7px;align-self:flex-start;margin-top:5px;color:#0795BD;font-size:13px;font-weight:700;text-decoration:none}
       .listing-link:hover{text-decoration:underline}
       .results h3{margin:26px 0 14px;color:#18334B;font-size:16px;font-weight:700}
@@ -299,7 +325,7 @@ export default function PriceCheckerPage() {
       .disclaimer{background:#F6F8FA;border:1px solid #E8EEF3;border-radius:9px;padding:13px 15px;font-size:10px;line-height:1.65;color:#71869A;margin-top:20px}
       footer{max-width:1040px;margin:35px auto 0;padding:20px 0 28px;border-top:1px solid #DCE8F1;display:flex;justify-content:space-between;color:#8195A8;font-size:9px;letter-spacing:1px}
       @media(max-width:760px){.page{padding:0 4%}.panel,.results{padding:18px}.cards{grid-template-columns:1fr}.product{grid-template-columns:112px minmax(0,1fr);gap:14px;padding:16px}.product-media{width:112px;height:132px}.results-intro{flex-direction:column}.result-count{align-self:flex-start}.hero{margin:42px auto 28px}.details{grid-template-columns:repeat(2,1fr)}.modes{grid-template-columns:1fr}.heading{gap:10px}.connected{font-size:8px}footer{flex-direction:column;gap:10px;text-align:center}}
-      @media(max-width:430px){.page{padding:0 10px}.results,.panel{padding:14px}.product{grid-template-columns:88px minmax(0,1fr);gap:11px;padding:12px;border-radius:13px}.product-media{width:88px;height:104px}.info{gap:7px}.info h4{font-size:13px;line-height:1.35}.market{font-size:10px}.product-meta,.product-reviews{font-size:11px}.price{font-size:21px}.fee-grid div{font-size:10px;gap:8px;padding:6px 0}.fee-grid b{font-size:10px}.profit-row{font-size:12px}.profit-row strong{font-size:16px}.margin-row{font-size:11px}.listing-link{font-size:11px}.results-context span{font-size:10px;padding:7px 9px}}
+      @media(max-width:430px){.page{padding:0 10px}.results,.panel{padding:14px}.product{grid-template-columns:88px minmax(0,1fr);gap:11px;padding:12px;border-radius:13px}.product-media{width:88px;height:104px}.info{gap:7px}.info h4{font-size:13px;line-height:1.35}.market{font-size:10px}.product-meta,.product-reviews{font-size:11px}.price{font-size:21px}.finance-line{gap:6px;padding:8px 0}.finance-line b{font-size:10px}.finance-line small{font-size:8px}.finance-line>strong{font-size:10px}.finance-line i{flex-basis:20px;width:20px;height:20px}.profit-summary{padding:11px 9px;margin:0 7px 7px}.profit-summary>strong{font-size:17px}.profit-summary span{font-size:9px}.margin-row{font-size:10px}.listing-link{font-size:11px}.results-context span{font-size:10px;padding:7px 9px}}
     `}</style>
   </main>;
 }
