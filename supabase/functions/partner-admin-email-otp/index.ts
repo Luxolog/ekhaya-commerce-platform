@@ -62,7 +62,7 @@ Deno.serve(async (req: Request) => {
   const isPartner = Boolean(partner);
   if (!isOwner && !isPartner) return json({ error: "Partner or Admin account access is required." }, 403);
 
-  let body: { action?: string; code?: string; password?: string; enabled?: boolean };
+  let body: { action?: string; code?: string; password?: string; enabled?: boolean; purpose?: string; target_user_id?: string; plan_code?: string };
   try { body = await req.json(); } catch { return json({ error: "Valid JSON is required." }, 400); }
   const { data: settings } = await admin.from("account_security_settings")
     .select("email_otp_enabled").eq("user_id", user.id).maybeSingle();
@@ -92,12 +92,17 @@ Deno.serve(async (req: Request) => {
     const otpRecipient = isOwner ? "luxolog@ekhayatech.co.za" : user.email;
     if (!otpRecipient) return json({ error: "The OTP recipient is not configured." }, 503);
     if (isOwner) await admin.from("email_otp_verified_sessions").delete().eq("user_id", user.id).eq("session_id", sessionId);
+    const isPlanChange = body.purpose === "owner_plan_change";
+    if (isPlanChange && (!isOwner || !body.target_user_id || !["free","starter","growth","pro","business"].includes(String(body.plan_code)))) return json({ error: "A valid owner plan-change request is required." }, 400);
     const code = newCode();
     const pepper = service;
     const codeHash = await digest([user.id, sessionId, code, pepper].join(":"));
     const { data: challenge, error: insertError } = await admin.from("email_otp_challenges").insert({
       user_id: user.id, session_id: sessionId, code_hash: codeHash,
       expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+      purpose: isPlanChange ? "owner_plan_change" : null,
+      target_user_id: isPlanChange ? body.target_user_id : null,
+      plan_code: isPlanChange ? body.plan_code : null,
     }).select("id").single();
     if (insertError || !challenge) return json({ error: "Could not create a verification challenge." }, 500);
 
@@ -128,6 +133,9 @@ Deno.serve(async (req: Request) => {
     if (!/^\d{6}$/.test(code)) return json({ error: "Enter the six-digit code from your email." }, 400);
     const { data: challenge } = await admin.from("email_otp_challenges").select("id,code_hash,expires_at,attempts")
       .eq("user_id", user.id).eq("session_id", sessionId).is("consumed_at", null)
+      .eq("purpose", body.purpose === "owner_plan_change" ? "owner_plan_change" : null)
+      .eq("target_user_id", body.purpose === "owner_plan_change" ? body.target_user_id : null)
+      .eq("plan_code", body.purpose === "owner_plan_change" ? body.plan_code : null)
       .gt("expires_at", new Date().toISOString()).lt("attempts", 5)
       .order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (!challenge) return json({ error: "This code has expired or is no longer valid. Request a new code." }, 410);
@@ -140,6 +148,8 @@ Deno.serve(async (req: Request) => {
     const { error: verifyError } = await admin.from("email_otp_verified_sessions").upsert({
       user_id: user.id, session_id: sessionId, verified_at: new Date().toISOString(),
       expires_at: new Date(expiresAt * 1000).toISOString(),
+      target_user_id: body.purpose === "owner_plan_change" ? body.target_user_id : null,
+      plan_code: body.purpose === "owner_plan_change" ? body.plan_code : null,
     });
     if (verifyError) return json({ error: "Verification could not be saved. Please try again." }, 500);
     return json({ ok: true, verified: true });
