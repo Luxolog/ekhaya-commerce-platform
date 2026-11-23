@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { findReferralPartner, signupAcknowledgementError, signupMarketplaceSelectionError } from "@/lib/auth-guards";
 
 const supabaseUrl = "https://itxxnhcjjiynrmivexcb.supabase.co";
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -13,17 +14,25 @@ export default function AccountPage() {
   const [password,setPassword] = useState("");
   const [name,setName] = useState("");
   const [privacyAccepted,setPrivacyAccepted] = useState(false);
+  const [marketplaceFeesAccepted,setMarketplaceFeesAccepted] = useState(false);
+  const [selectedMarketplaces,setSelectedMarketplaces] = useState<Array<"takealot"|"amazon"|"makro">>([]);
   const [marketingOptIn,setMarketingOptIn] = useState(false);
   const [message,setMessage] = useState("");
   const [busy,setBusy] = useState(false);
   const [recoveryToken,setRecoveryToken] = useState("");
-  const [referralCode,setReferralCode] = useState("");
+  const [partnerRefreshToken,setPartnerRefreshToken] = useState("");
+  const [partnerPasswordSetupRequired,setPartnerPasswordSetupRequired] = useState(false);
+  const [referralPartners,setReferralPartners] = useState<Array<{id:string;partner_name:string;partner_slug:string;referral_code:string}>>([]);
+  const [incomingReferralCode,setIncomingReferralCode] = useState("");
   const [partnerInvitationId,setPartnerInvitationId] = useState("");
   const [partnerLinkCode,setPartnerLinkCode] = useState("PARTNER");
   const [accountType,setAccountType] = useState<"seller"|"partner"|"owner">("seller");
   const [signedIn,setSignedIn] = useState(false);
   const [availableRoles,setAvailableRoles] = useState<string[]>([]);
   const [checkingAccess,setCheckingAccess] = useState(false);
+  const [pendingPartnerInvitation,setPendingPartnerInvitation] = useState<{id:string;partner_name:string;partner_slug:string;referral_code:string}|null>(null);
+  const [pendingPartnerCode,setPendingPartnerCode] = useState("");
+  const [acceptingPartnerInvitation,setAcceptingPartnerInvitation] = useState(false);
   const [otpPending,setOtpPending] = useState(false);
   const [otpCode,setOtpCode] = useState("");
   const [otpEmailHint,setOtpEmailHint] = useState("");
@@ -39,6 +48,50 @@ export default function AccountPage() {
     const result = await response.json().catch(()=>({}));
     if(!response.ok) throw new Error(result.error ?? "Email verification could not be completed.");
     return result;
+  }
+  async function lookupPendingPartnerInvitation(accessToken: string) {
+    const response = await fetch(supabaseUrl+"/functions/v1/accept-saechamber-partner-invitation", {
+      method:"POST",
+      headers:{"Content-Type":"application/json",apikey:anonKey,Authorization:"Bearer "+accessToken},
+      body:JSON.stringify({action:"lookup_pending"}),
+      cache:"no-store"
+    });
+    if(!response.ok) return;
+    const result = await response.json().catch(()=>({}));
+    const invitation = result.invitation;
+    if(invitation?.id && invitation?.partner_name) {
+      setPendingPartnerInvitation({
+        id:String(invitation.id),
+        partner_name:String(invitation.partner_name),
+        partner_slug:String(invitation.partner_slug ?? ""),
+        referral_code:String(invitation.referral_code ?? "")
+      });
+      setPendingPartnerCode(String(invitation.referral_code ?? "PARTNER"));
+    }
+  }
+  async function acceptPendingPartnerInvitation() {
+    setAcceptingPartnerInvitation(true);
+    setMessage("");
+    try {
+      const raw=localStorage.getItem("ekhaya_session");
+      const session=raw?JSON.parse(raw):null;
+      if(!session?.access_token) throw new Error("Your sign-in session has expired. Please sign in again.");
+      const response=await fetch(supabaseUrl+"/functions/v1/accept-saechamber-partner-invitation",{
+        method:"POST",
+        headers:{"Content-Type":"application/json",apikey:anonKey,Authorization:"Bearer "+session.access_token},
+        body:JSON.stringify({invitation_id:pendingPartnerInvitation?.id,referral_code:pendingPartnerCode}),
+        cache:"no-store"
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(result.error??"Unable to accept the partner invitation.");
+      setPendingPartnerInvitation(null);
+      setMessage("Partner invitation accepted. Your partner workspace is now linked. Opening your partner account…");
+      window.location.href="/partner/";
+    } catch(error) {
+      setMessage(error instanceof Error?error.message:"Unable to accept the partner invitation.");
+    } finally {
+      setAcceptingPartnerInvitation(false);
+    }
   }
   async function requireEmailOtp(accessToken: string, roles: string[]) {
     if(!roles.includes("partner") && !roles.includes("owner")) return false;
@@ -87,17 +140,76 @@ export default function AccountPage() {
     if(requestedAccount === "seller" || requestedAccount === "partner" || requestedAccount === "owner") {
       setAccountType(requestedAccount);
     }
-    if(referral) setReferralCode(referral.toUpperCase().replace(/[^A-Z0-9_-]/g,""));
+    try {
+      const cookieReferral = document.cookie.split("; ").find(part => part.startsWith("ekhaya_referral_code="));
+      const cookieCode = cookieReferral ? decodeURIComponent(cookieReferral.slice("ekhaya_referral_code=".length)) : "";
+      const capturedReferral = (referral || localStorage.getItem("ekhaya_referral_code") || cookieCode || "").toUpperCase().replace(/[^A-Z0-9_-]/g,"");
+      if(capturedReferral) {
+        setIncomingReferralCode(capturedReferral);
+        localStorage.setItem("ekhaya_referral_code", capturedReferral);
+        document.cookie = "ekhaya_referral_code="+encodeURIComponent(capturedReferral)+"; Max-Age=7776000; Path=/; SameSite=Lax; Secure";
+      }
+    } catch {
+      if(referral) setIncomingReferralCode(referral.toUpperCase().replace(/[^A-Z0-9_-]/g,""));
+    }
+    fetch(supabaseUrl+"/rest/v1/rpc/get_active_referral_partners",{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:"{}",cache:"no-store"})
+      .then(async response=>{if(!response.ok) throw new Error("Could not load partner list");return response.json();})
+      .then((rows:Array<{id:string;partner_name:string;partner_slug:string;referral_code:string}>)=>{
+        const partners=Array.isArray(rows)?rows:[];
+        setReferralPartners(partners);
+        const cookieReferral=document.cookie.split("; ").find(part=>part.startsWith("ekhaya_referral_code=")); const cookieCode=cookieReferral?decodeURIComponent(cookieReferral.slice("ekhaya_referral_code=".length)):""; const storedCode=(referral || localStorage.getItem("ekhaya_referral_code") || cookieCode || "").toUpperCase();
+        const match=partners.find(partner=>partner.referral_code.toUpperCase()===storedCode);
+      })
+      .catch(()=>setReferralPartners([]));
     const params = new URLSearchParams(window.location.hash.replace(/^#/,""));
     const token = params.get("access_token");
+    const refreshToken = params.get("refresh_token") || "";
+    const passwordSetupRequired = new URLSearchParams(window.location.search).get("password_setup") === "1";
     const inviteId = new URLSearchParams(window.location.search).get("partner_invite");
+    const authErrorCode = params.get("error_code") || new URLSearchParams(window.location.search).get("error_code");
+    const authErrorDescription = params.get("error_description") || new URLSearchParams(window.location.search).get("error_description");
+    if(!inviteId && (authErrorCode || authErrorDescription)) {
+      const description = (authErrorDescription || "").replace(/\\+/g, " ");
+      if(authErrorCode === "otp_expired" || authErrorCode === "access_denied") {
+        setMode("reset");
+        setRecoveryToken("");
+        setPassword("");
+        setMessage("This password reset link has expired or is invalid. Enter your email below and request a fresh reset link. Open the newest email promptly.");
+      } else {
+        setMessage(description || "We could not verify this account link. Please request a new one.");
+      }
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+      return;
+    }
+    if(inviteId && (authErrorCode || authErrorDescription)) {
+      setPartnerInvitationId(inviteId);
+      setRecoveryToken("");
+      setSignedIn(false);
+      setMode("accept-partner");
+      setMessage(authErrorCode === "otp_expired"
+        ? "This invitation link has expired or has already been used. Please ask the Ekhaya owner to send a fresh invitation, then open the newest email link. Your existing account has not been changed."
+        : (authErrorDescription || "We could not verify this invitation link. Please ask the Ekhaya owner to resend it."));
+      return;
+    }
+    // Never reuse an unrelated browser session to accept an invitation.
+    // A partner invitation must be verified with the invited email's own Auth token.
+    if(inviteId && !token) {
+      setPartnerInvitationId(inviteId);
+      setRecoveryToken("");
+      setSignedIn(false);
+      setMode("signin");
+      setMessage("To accept this invitation, open the secure link from the latest invitation email and sign in using the invited email address. Another Ekhaya account already open in this browser cannot accept it.");
+      return;
+    }
     if((params.get("type")==="invite" || params.get("type")==="magiclink") && token && inviteId){
       setRecoveryToken(token);
+      setPartnerRefreshToken(refreshToken);
       setPartnerInvitationId(inviteId);
       const existingAccount = params.get("type")==="magiclink";
+      setPartnerPasswordSetupRequired(passwordSetupRequired);
       setMode(existingAccount ? "accept-existing-partner" : "accept-partner");
       setMessage(existingAccount
-        ? "Your existing Ekhaya account is verified. Choose a referral code to activate partner access. Your current password will not change."
+        ? (passwordSetupRequired ? "Your invited Ekhaya account is verified. Set your first password and choose a referral code to finish setup." : "Your existing Ekhaya account is verified. Choose a referral code to activate partner access. Your current password will not change.")
         : "Welcome. Create your password and choose a unique code for your partner referral link.");
       window.history.replaceState({},document.title,window.location.pathname+window.location.search);
       return;
@@ -119,11 +231,19 @@ export default function AccountPage() {
       if(raw){
         const session=JSON.parse(raw);
         if(session?.access_token){
-          setSignedIn(true); setMode("signin"); setCheckingAccess(true);
+          const hasPartnerInvite = new URLSearchParams(window.location.search).has("partner_invite");
+          // Invitation acceptance is a separate authentication flow. Do not let
+          // a previously signed-in owner/seller session mask the invited identity.
+          if(hasPartnerInvite) return;
+          setSignedIn(true);
+          if(!hasPartnerInvite) setMode("signin");
+          setCheckingAccess(true);
           loadAccountRoles(session.access_token).then(async roles=>{
             if(!active) return;
             setAvailableRoles(roles);
+            await lookupPendingPartnerInvitation(session.access_token);
             if(await requireEmailOtp(session.access_token, roles)) return;
+            if(hasPartnerInvite) return;
             const requested = new URLSearchParams(window.location.search).get("account");
             if(requested === "partner" && roles.includes("partner")) window.location.replace(destinations.partner);
             else if(requested === "owner" && roles.includes("owner")) window.location.replace(destinations.owner);
@@ -141,7 +261,12 @@ export default function AccountPage() {
     setBusy(true); setMessage("");
     try {
       if(!anonKey) throw new Error("Account services are not configured. Please contact Ekhaya support.");
-      if(mode==="signup" && !privacyAccepted) throw new Error("Please read and acknowledge the Privacy Notice before creating an account.");
+      const acknowledgementError = signupAcknowledgementError(mode, privacyAccepted, marketplaceFeesAccepted);
+      if(acknowledgementError) throw new Error(acknowledgementError);
+      const marketplaceSelectionError = signupMarketplaceSelectionError(mode, selectedMarketplaces);
+      if(marketplaceSelectionError) throw new Error(marketplaceSelectionError);
+      const matchedReferralPartner = incomingReferralCode ? findReferralPartner(incomingReferralCode, referralPartners) : undefined;
+      if(mode==="signup" && incomingReferralCode && !matchedReferralPartner) throw new Error("Your referral code was detected but that exact partner programme is not active or could not be matched. Please contact Ekhaya support before completing registration.");
       if(mode==="reset"){
         const response=await fetch(supabaseUrl+"/auth/v1/recover?redirect_to="+encodeURIComponent(window.location.origin+"/account/"),{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:JSON.stringify({email})});
         const data=await response.json().catch(()=>({}));
@@ -151,7 +276,7 @@ export default function AccountPage() {
       }
       if(mode==="accept-partner" || mode==="accept-existing-partner"){
         if(!recoveryToken || !partnerInvitationId) throw new Error("Your invitation link is missing or expired. Ask Ekhaya to send another invitation.");
-        if(mode==="accept-partner"){
+        if(mode==="accept-partner" || partnerPasswordSetupRequired){
           if(password.length<8) throw new Error("Choose a password with at least 8 characters.");
           const passwordResponse=await fetch(supabaseUrl+"/auth/v1/user",{method:"PUT",headers:{"Content-Type":"application/json","apikey":anonKey,"Authorization":"Bearer "+recoveryToken},body:JSON.stringify({password})});
           const passwordData=await passwordResponse.json().catch(()=>({}));
@@ -160,7 +285,7 @@ export default function AccountPage() {
         const acceptResponse=await fetch(supabaseUrl+"/functions/v1/accept-saechamber-partner-invitation",{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey,"Authorization":"Bearer "+recoveryToken},body:JSON.stringify({invitation_id:partnerInvitationId,referral_code:partnerLinkCode})});
         const accepted=await acceptResponse.json().catch(()=>({}));
         if(!acceptResponse.ok) throw new Error(accepted.error??"Unable to accept partner invitation.");
-        const session={access_token:recoveryToken,token_type:"bearer",expires_in:3600,expires_at:Math.floor(Date.now()/1000)+3600,user:{id:accepted.user_id}};
+        const session={access_token:recoveryToken,refresh_token:partnerRefreshToken,token_type:"bearer",expires_in:3600,expires_at:Math.floor(Date.now()/1000)+3600,user:{id:accepted.user_id}};
         localStorage.setItem("ekhaya_session",JSON.stringify(session));
         setMessage("Partner access activated. Your existing Ekhaya account and password remain unchanged. Opening your partner dashboard…");
         window.location.href="/partner/";
@@ -178,9 +303,13 @@ export default function AccountPage() {
         return;
       }
       const endpoint = mode === "signup" ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
-      const response = await fetch(supabaseUrl+endpoint,{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:JSON.stringify(mode==="signup"?{email,password,data:{display_name:name,privacy_notice_acknowledged_at:new Date().toISOString(),privacy_notice_version:"2026-11-16",marketing_opt_in:marketingOptIn,...(referralCode?{referral_code:referralCode}:{})}}:{email,password})});
+      const response = await fetch(supabaseUrl+endpoint,{method:"POST",headers:{"Content-Type":"application/json","apikey":anonKey},body:JSON.stringify(mode==="signup"?{email,password,data:{display_name:name,privacy_notice_acknowledged_at:new Date().toISOString(),privacy_notice_version:"2026-11-16",marketplace_fee_disclaimer_acknowledged_at:new Date().toISOString(),marketplace_fee_disclaimer_version:"2026-11-21",marketing_opt_in:marketingOptIn,marketplace_access:selectedMarketplaces,...(matchedReferralPartner?{referral_code:matchedReferralPartner.referral_code,referral_source:incomingReferralCode,referral_method:"unique_link"}:{})}}:{email,password})});
       const data = await response.json();
       if(!response.ok) throw new Error(data.msg??data.message??data.error_description??"Unable to process your account request.");
+      if(mode==="signup") {
+        localStorage.removeItem("ekhaya_referral_code");
+        document.cookie = "ekhaya_referral_code=; Max-Age=0; Path=/; SameSite=Lax; Secure";
+      }
       if(data.access_token) {
         const session={...data,expires_at:Math.floor(Date.now()/1000)+Number(data.expires_in??3600)};
         localStorage.setItem("ekhaya_session",JSON.stringify(session));
@@ -203,6 +332,10 @@ export default function AccountPage() {
     finally { setBusy(false); }
   }
   function signOut(){localStorage.removeItem("ekhaya_session");setSignedIn(false);setAvailableRoles([]);setMessage("You have been signed out.");}
+  const submitLabel = busy ? "Please wait…" : mode === "signup" ? "Create seller account" : mode === "reset" ? "Send reset link" : mode === "new-password" ? "Update password" : mode === "accept-partner" ? "Accept invitation & create account" : mode === "accept-existing-partner" ? "Accept partner invitation" : "Sign in";
+  const submitDisabled = busy || ((mode === "signin" || mode === "signup" || mode === "reset") && !email) || ((mode === "new-password" || mode === "accept-partner" || partnerPasswordSetupRequired) && password.length < 8) || ((mode === "accept-partner" || mode === "accept-existing-partner") && partnerLinkCode.length < 5) || (mode === "signup" && accountType !== "seller") || (mode === "signup" && (!privacyAccepted || !marketplaceFeesAccepted || selectedMarketplaces.length===0));
+  const passwordPlaceholder = mode === "new-password" ? "New password (at least 8 characters)" : "Create password (at least 8 characters)";
+  const showPasswordInput = mode === "new-password" || (mode === "accept-partner" && Boolean(recoveryToken)) || (mode === "accept-existing-partner" && Boolean(recoveryToken) && partnerPasswordSetupRequired) || (!signedIn && mode !== "accept-partner" && mode !== "accept-existing-partner" && mode !== "reset");
   return <main style={{minHeight:"100vh",background:"#F4F8FC",padding:"28px 5%",color:"#071B31",fontFamily:"Arial,sans-serif"}}>
     <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",maxWidth:760,margin:"0 auto",borderBottom:"1px solid #DCE8F1",paddingBottom:18}}>
       <Link href="/"><Image src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies" width={170} height={100} style={{width:150,height:"auto"}}/></Link>
@@ -234,12 +367,27 @@ export default function AccountPage() {
           {!availableRoles.length&&<p style={{fontSize:12,color:"#60758A",margin:0}}>Your account permissions could not be confirmed. Please sign in again.</p>}
         </div>}
       </div>}
+      {signedIn&&!otpPending&&pendingPartnerInvitation&&<div style={{background:"#FFF9E9",border:"1px solid #EBD59B",borderRadius:10,padding:16,marginBottom:14}}>
+        <strong style={{fontSize:14,color:"#071B31"}}>Partner invitation waiting for you</strong>
+        <p style={{fontSize:12,color:"#40566B",lineHeight:1.6,marginBottom:10}}>You are signed in with the invited email address. Accept the invitation to link this account to <strong>{pendingPartnerInvitation.partner_name}</strong>.</p>
+        <label htmlFor="pending-partner-code" style={{display:"block",fontSize:12,fontWeight:700,color:"#40566B",marginBottom:6}}>Partner referral code</label>
+        <input id="pending-partner-code" value={pendingPartnerCode} onChange={e=>setPendingPartnerCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,20))} placeholder="5–20 letters or numbers" style={field}/>
+        <button onClick={acceptPendingPartnerInvitation} disabled={acceptingPartnerInvitation||pendingPartnerCode.length<5} style={{width:"100%",padding:13,background:"#079BD3",border:0,borderRadius:8,color:"#fff",fontWeight:700,marginTop:12,cursor:"pointer"}}>{acceptingPartnerInvitation?"Accepting invitation…":"Accept partner invitation"}</button>
+      </div>}
       {!signedIn&&mode==="signup"&&accountType==="seller"&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={field}/>}
-      {!signedIn&&mode==="signup"&&accountType==="seller"&&<div style={{fontSize:12,lineHeight:1.6,color:"#40566B",marginTop:14}}><label style={{display:"flex",gap:9,alignItems:"flex-start"}}><input type="checkbox" checked={privacyAccepted} onChange={e=>setPrivacyAccepted(e.target.checked)} style={{marginTop:3}}/><span>I have read and acknowledge the <Link href="/privacy/" target="_blank">Ekhaya Privacy Notice</Link>. I understand how my account information will be processed. *</span></label><label style={{display:"flex",gap:9,alignItems:"flex-start",marginTop:10}}><input type="checkbox" checked={marketingOptIn} onChange={e=>setMarketingOptIn(e.target.checked)} style={{marginTop:3}}/><span>Optional: Send me product news and offers. I can opt out at any time.</span></label></div>}
-      {(mode==="accept-partner"||mode==="accept-existing-partner")&&<><p style={{fontSize:13,color:"#40566B",lineHeight:1.6}}>{mode==="accept-partner"?"Create your secure password and choose a unique referral code.":"Your existing Ekhaya account and password will remain unchanged. Choose a unique referral code."} Your link will be yours to share with prospective sellers.</p><input value={partnerLinkCode} onChange={e=>setPartnerLinkCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,20))} placeholder="Your unique link code (5–20 letters/numbers)" style={field}/></>}
+      {!signedIn&&mode==="signup"&&accountType==="seller"&&<div style={{marginTop:14,padding:12,border:"1px solid #DCE8F1",borderRadius:8,background:"#F4F8FC"}}>
+        <p style={{fontSize:12,fontWeight:700,color:"#071B31",margin:"0 0 8px"}}>Which marketplaces do you currently sell on or plan to use? Select at least one. *</p>
+        {([{id:"takealot",label:"Takealot"},{id:"amazon",label:"Amazon South Africa"},{id:"makro",label:"Makro Marketplace"}] as const).map(item=><label key={item.id} style={{display:"flex",gap:9,alignItems:"center",fontSize:12,color:"#40566B",marginTop:8}}>
+          <input type="checkbox" checked={selectedMarketplaces.includes(item.id)} onChange={e=>setSelectedMarketplaces(current=>e.target.checked?[...current,item.id]:current.filter(m=>m!==item.id))}/>
+          <span>{item.label}</span>
+        </label>)}
+      </div>}
+      {!signedIn&&mode==="signup"&&accountType==="seller"&&<div style={{marginTop:10,padding:12,border:"1px solid #DCE8F1",borderRadius:8,background:"#F4F8FC"}}><p style={{fontSize:12,color:"#40566B",lineHeight:1.6,margin:0}}>{incomingReferralCode?<>Partner referral link detected: <strong>{referralPartners.find(partner=>partner.referral_code.toUpperCase()===incomingReferralCode)?.partner_name??"Verifying partner…"}</strong>. Your registration will be attributed to this partner after successful signup.</>:<>Were you referred by an Ekhaya partner? Open the partner’s unique registration link before signing up. Referrals are only recorded when registration starts through that link; selecting a partner manually does not qualify.</>}</p>{incomingReferralCode&&!referralPartners.some(partner=>partner.referral_code.toUpperCase()===incomingReferralCode)?<p role="status" style={{fontSize:11,color:"#9A5B00",lineHeight:1.5,margin:"8px 0 0"}}>We detected referral code {incomingReferralCode}, but that exact partner programme is not currently active. Please contact the partner or Ekhaya support before completing registration.</p>:null}</div>}
+      {!signedIn&&mode==="signup"&&accountType==="seller"&&<div style={{fontSize:12,lineHeight:1.6,color:"#40566B",marginTop:14}}><label style={{display:"flex",gap:9,alignItems:"flex-start"}}><input type="checkbox" checked={privacyAccepted} onChange={e=>setPrivacyAccepted(e.target.checked)} style={{marginTop:3}}/><span>I have read and acknowledge the <Link href="/privacy/" target="_blank">Ekhaya Privacy Notice</Link>. I understand how my account information will be processed. *</span></label><label style={{display:"flex",gap:9,alignItems:"flex-start",marginTop:10}}><input type="checkbox" checked={marketplaceFeesAccepted} onChange={e=>setMarketplaceFeesAccepted(e.target.checked)} style={{marginTop:3}}/><span>I understand that marketplace fees, charges, net payouts and estimated profits are estimates only and are not final marketplace charges. Actual fees vary by category, fulfilment, seller terms and marketplace policy. I will confirm actual fees in my marketplace seller portal before making purchasing or pricing decisions. *</span></label><label style={{display:"flex",gap:9,alignItems:"flex-start",marginTop:10}}><input type="checkbox" checked={marketingOptIn} onChange={e=>setMarketingOptIn(e.target.checked)} style={{marginTop:3}}/><span>Optional: Send me product news and offers. I can opt out at any time.</span></label></div>}
+      {(mode==="accept-partner"||mode==="accept-existing-partner")&&recoveryToken&&<><p style={{fontSize:13,color:"#40566B",lineHeight:1.6}}>{mode==="accept-partner"||partnerPasswordSetupRequired?"Create your secure password and choose a unique referral code.":"Your existing Ekhaya account and password will remain unchanged. Choose a unique referral code."} Your link will be yours to share with prospective sellers.</p><input value={partnerLinkCode} onChange={e=>setPartnerLinkCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,20))} placeholder="Your unique link code (5–20 letters/numbers)" style={field}/></>}
       {!signedIn&&mode!=="new-password"&&mode!=="accept-partner"&&mode!=="accept-existing-partner"&&<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address" style={field}/>}
-      {((!signedIn&&mode!=="accept-existing-partner")||mode==="new-password"||mode==="accept-partner")&&mode!=="reset"&&<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="new-password"?"New password (at least 8 characters)":"Password (at least 8 characters)"} style={field}/>}
-      {!signedIn&&<button onClick={submit} disabled={busy||(mode!=="new-password"&&mode!=="accept-partner"&&mode!=="accept-existing-partner"&&!email)||((mode!=="reset"&&mode!=="accept-existing-partner")&&password.length<8)||((mode==="accept-partner"||mode==="accept-existing-partner")&&partnerLinkCode.length<5)||(mode==="signup"&&accountType!=="seller")} style={{width:"100%",padding:14,background:"#079BD3",border:0,borderRadius:8,color:"#fff",fontWeight:700,marginTop:12,cursor:"pointer"}}>{busy?"Please wait…":mode==="signup"?"Create seller account":mode==="reset"?"Send reset link":mode==="new-password"?"Update password":mode==="accept-partner"?"Accept invitation & create account":mode==="accept-existing-partner"?"Accept partner invitation":"Sign in"}</button>}
+      {showPasswordInput&&<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder={passwordPlaceholder} style={field}/>}
+      {!signedIn && !((mode==="accept-partner"||mode==="accept-existing-partner")&&!recoveryToken)&&<button onClick={submit} disabled={submitDisabled} style={{width:"100%",padding:14,background:"#079BD3",border:0,borderRadius:8,color:"#fff",fontWeight:700,marginTop:12,cursor:"pointer"}}>{submitLabel}</button>}
       {!signedIn&&mode==="signin"&&<button onClick={()=>{setMode("reset");setMessage("");}} style={{width:"100%",padding:10,background:"transparent",border:0,color:"#079BD3",fontWeight:700,cursor:"pointer"}}>Forgot password?</button>}
       {!signedIn&&mode!=="accept-partner"&&mode!=="accept-existing-partner"&&<button onClick={()=>{setMode(mode==="signup"?"signin":mode==="signin"?"signup":"signin");setMessage("");}} style={{width:"100%",padding:12,background:"transparent",border:0,color:"#079BD3",fontWeight:700,cursor:"pointer"}}>{mode==="signup"?"Already registered? Sign in":mode==="reset"||mode==="new-password"?"Back to sign in":accountType==="seller"?"New to Ekhaya? Create a seller account":"Partner and Admin/Owner access are invitation-only"}</button>}
       {signedIn&&<button onClick={signOut} style={{width:"100%",padding:10,border:"1px solid #DCE8F1",borderRadius:8,background:"#fff",color:"#071B31"}}>Sign out</button>}

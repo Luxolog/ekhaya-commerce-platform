@@ -42,11 +42,17 @@ Deno.serve(async (req: Request) => {
     if (!userId) return json({ error: "Authentication required.", code: "AUTH_REQUIRED" }, 401);
 
     const adminHeaders = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
-    const profileResponse = await fetch(new URL(`/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=account_status`, supabaseUrl), { headers: adminHeaders });
+    const profileResponse = await fetch(new URL(`/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=account_status,plan_code`, supabaseUrl), { headers: adminHeaders });
     if (!profileResponse.ok) return json({ error: "Could not verify your seller account status." }, 503);
     const profiles = await profileResponse.json();
     if (!Array.isArray(profiles) || profiles[0]?.account_status !== "active") {
       return json({ error: "Your seller account is not active. Please contact support.", code: "ACCOUNT_INACTIVE" }, 403);
+    }
+    const planCode = String(profiles[0]?.plan_code ?? "beginner").trim().toLowerCase();
+    // Photograph recognition is a paid-plan entitlement. Beginner accounts may
+    // still use barcode lookup, but cannot invoke the paid photo/OCR provider.
+    if (planCode === "beginner" && (await req.clone().json().catch(() => ({})))?.mode === "photo") {
+      return json({ error: "Photograph search is not included in the Beginner plan. Upgrade to Starter or above to use this feature.", code: "PHOTO_SEARCH_PLAN_REQUIRED" }, 403);
     }
 
     const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";

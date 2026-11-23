@@ -21,6 +21,7 @@ const muted: React.CSSProperties = { color: "#60758A", fontSize: 12 };
 export default function PartnerDashboardPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [partner, setPartner] = useState<Partner | null>(null);
+  const [ekhayaAccountId, setEkhayaAccountId] = useState<string>("");
   const [partnerOptions, setPartnerOptions] = useState<Partner[]>([]);
   const [selectedPartnerId, setSelectedPartnerId] = useState("");
   const [referrals, setReferrals] = useState<Referral[]>([]);
@@ -29,7 +30,7 @@ export default function PartnerDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
-  const [tab, setTab] = useState<"overview" | "referrals" | "commissions" | "statements">("overview");
+  const [tab, setTab] = useState<"overview" | "referrals" | "commissions" | "statements" | "support">("overview");
   const [isOwner, setIsOwner] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteContactName, setInviteContactName] = useState("");
@@ -67,6 +68,9 @@ export default function PartnerDashboardPage() {
         const userResponse = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: ANON_KEY, Authorization: `Bearer ${session.access_token}` }, cache: "no-store" });
         if (!userResponse.ok) throw new Error("Your sign-in session has expired. Please sign in again.");
         const user = await userResponse.json();
+        const profileRows = await api(`profiles?select=account_id&id=eq.${user.id}&limit=1`);
+        if (!live) return;
+        setEkhayaAccountId((profileRows as {account_id?:string}[])[0]?.account_id ?? "");
         const ownerRows = await api(`partner_owner_access?select=user_id&user_id=eq.${user.id}&limit=1`);
         const ownerMode = (ownerRows as {user_id:string}[]).length > 0;
         if (!live) return;
@@ -133,7 +137,7 @@ export default function PartnerDashboardPage() {
 
   return <main style={{ minHeight: "100vh", background: "#F4F8FC", color: "#071B31", padding: "28px clamp(16px,4vw,56px) 60px" }}>
     <header style={{ maxWidth: 1240, margin: "0 auto 34px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", borderBottom: "1px solid #DCE8F1", paddingBottom: 18 }}>
-      <div><Link href="/" style={{ color: "#079BD3", fontWeight: 800, fontSize: 12, letterSpacing: 1 }}>EKHAYA TECHNOLOGIES</Link><div style={{ fontSize: 25, fontWeight: 800, marginTop: 7 }}>Partner Portal</div><div style={muted}>Referral performance · Commission transparency</div></div>
+      <div><Link href="/" style={{ color: "#079BD3", fontWeight: 800, fontSize: 12, letterSpacing: 1 }}>EKHAYA TECHNOLOGIES</Link><div style={{ fontSize: 25, fontWeight: 800, marginTop: 7 }}>Partner Portal</div><div style={muted}>Referral performance · Commission transparency</div>{ekhayaAccountId && <div style={{ ...muted, marginTop: 5 }}>Ekhaya Account ID: <strong style={{ color: "#071B31" }}>{ekhayaAccountId}</strong></div>}</div>
       <div style={{ display: "flex", gap: 16, alignItems: "center" }}><Link href="/account/security/" style={{ color: "#079BD3", fontWeight: 700, fontSize: 13 }}>Security settings</Link><Link href="/account/" style={{ color: "#079BD3", fontWeight: 700, fontSize: 13 }}>Seller account</Link><button onClick={() => { localStorage.removeItem("ekhaya_session"); window.location.href = "/account/"; }} style={{ border: "1px solid #DCE8F1", background: "#fff", borderRadius: 8, padding: "10px 14px", cursor: "pointer" }}>Sign out</button></div>
     </header>
     <section style={{ maxWidth: 1240, margin: "0 auto" }}>
@@ -153,7 +157,7 @@ export default function PartnerDashboardPage() {
           <div><p style={{ color: "#079BD3", fontSize: 11, fontWeight: 800, letterSpacing: 1, margin: "0 0 6px" }}>PARTNER OVERVIEW</p><h1 style={{ fontSize: 32, margin: 0 }}>{partner.partner_name}</h1><p style={muted}>Programme status: {partner.status} · Launch date: {date(partner.program_live_at)}</p></div>
           <div style={{ ...card, minWidth: 320, flex: "0 1 430px" }}><div style={{ fontWeight: 800, marginBottom: 7 }}>Your unique seller onboarding link</div><div style={{ background: "#F4F8FC", border: "1px solid #DCE8F1", padding: 11, borderRadius: 8, fontSize: 12, overflowWrap: "anywhere" }}>{referralUrl}</div>{partner.status === "active" ? <button onClick={copyLink} style={{ marginTop: 10, background: "#079BD3", color: "#fff", border: 0, borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}>{copied ? "Copied" : "Copy referral link"}</button> : <p style={{ ...muted, marginBottom: 0 }}>The permanent referral link will be enabled once the authorised partner account is activated.</p>}</div>
         </div>
-        <nav style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>{(["overview","referrals","commissions","statements"] as const).map(x => <button key={x} onClick={() => setTab(x)} style={{ padding: "10px 15px", borderRadius: 8, border: "1px solid #DCE8F1", background: tab === x ? "#071B31" : "#fff", color: tab === x ? "#fff" : "#40566B", textTransform: "capitalize", fontWeight: 700, cursor: "pointer" }}>{x}</button>)}</nav>
+        <nav style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>{(["overview","referrals","commissions","statements","support"] as const).map(x => <button key={x} onClick={() => setTab(x)} style={{ padding: "10px 15px", borderRadius: 8, border: "1px solid #DCE8F1", background: tab === x ? "#071B31" : "#fff", color: tab === x ? "#fff" : "#40566B", textTransform: "capitalize", fontWeight: 700, cursor: "pointer" }}>{x}</button>)}</nav>
         {tab === "overview" && <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 14, marginBottom: 18 }}>
             {[["Registered sellers", totals.registered],["Active paying referred sellers",totals.paying],["Commission earned",money(totals.earned)],["Pending / approved",money(totals.pending)],["Commission paid",money(totals.paid)]].map(([label,value])=><article key={String(label)} style={card}><div style={muted}>{label}</div><div style={{ fontSize: 25, fontWeight: 800, marginTop: 12 }}>{value}</div></article>)}
@@ -162,6 +166,7 @@ export default function PartnerDashboardPage() {
           <div style={card}><h2 style={{ fontSize: 18, marginTop: 0 }}>Latest commission activity</h2><CommissionTable rows={commissions.slice(0,6)} /></div>
         </>}
         {tab === "referrals" && <div style={card}><h2 style={{ marginTop: 0 }}>Referred sellers</h2><p style={muted}>Seller identity details are not displayed here; this view provides referral attribution and first-payment status.</p>{referrals.length === 0 ? <p style={muted}>No referrals have been recorded yet.</p> : <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Referral reference","Registered","First successful payment","Status"].map(x=><th key={x} style={{ textAlign: "left", padding: 10, background: "#071B31", color: "#fff" }}>{x}</th>)}</tr></thead><tbody>{referrals.map((r,i)=><tr key={r.id}><td style={{ padding: 11, borderBottom: "1px solid #DCE8F1" }}>Seller {String(i+1).padStart(3,"0")}</td><td style={{ padding: 11, borderBottom: "1px solid #DCE8F1" }}>{date(r.registered_at)}</td><td style={{ padding: 11, borderBottom: "1px solid #DCE8F1" }}>{date(r.first_paid_at)}</td><td style={{ padding: 11, borderBottom: "1px solid #DCE8F1" }}>{r.first_paid_at ? "Paying history recorded" : "Registered"}</td></tr>)}</tbody></table></div>}</div>}
+        {tab === "support" && <div style={card}><p style={{ color: "#079BD3", fontSize: 11, fontWeight: 800, letterSpacing: 1 }}>PARTNER SUPPORT</p><h2 style={{ marginTop: 0 }}>Seller support desk</h2><p style={{ color: "#60758A", lineHeight: 1.7 }}>Partner-managed seller support is planned. SupportDesk is not live yet, so ticket creation, assignment and replies are not available from this portal at this stage.</p><div style={{ border: "1px solid #DCE8F1", borderRadius: 10, padding: 16, background: "#F4F8FC" }}><strong>Coming when SupportDesk launches</strong><ul style={{ color: "#60758A", lineHeight: 1.8, paddingLeft: 20, marginBottom: 0 }}><li>View and respond to support requests from your referred sellers only</li><li>Track ticket status and response history</li><li>Escalate cases to Ekhaya Technologies</li></ul></div></div>}
         {tab === "commissions" && <div style={card}><h2 style={{ marginTop: 0 }}>Commission ledger</h2><CommissionTable rows={commissions} /></div>}
         {tab === "statements" && <div style={card}><h2 style={{ marginTop: 0 }}>Monthly statements</h2>{statements.length === 0 ? <p style={muted}>Monthly statements will appear here after reconciliation.</p> : <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Month","Active sellers","Qualifying revenue","Commission","Due on","Status"].map(x=><th key={x} style={{ textAlign: "left", padding: 10, background: "#071B31", color: "#fff" }}>{x}</th>)}</tr></thead><tbody>{statements.map(s=><tr key={s.id}>{[date(s.statement_month),String(s.active_referred_sellers),money(Number(s.qualifying_revenue)),money(Number(s.commission_total)+Number(s.adjustment_total)),date(s.payment_due_date),s.status].map((v,i)=><td key={i} style={{ padding: 11, borderBottom: "1px solid #DCE8F1" }}>{v}</td>)}</tr>)}</tbody></table></div>}</div>}
       </>}

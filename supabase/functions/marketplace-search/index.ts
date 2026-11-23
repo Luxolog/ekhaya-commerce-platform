@@ -1,3 +1,5 @@
+import { understandProductQuery, rankMarketplaceProducts, selectAdditionalDiscoveryQueries } from "./search-relevance.ts";
+import { canSearchAccount, resolveSearchEntitlement } from "./search-entitlements.ts";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const cors = {
@@ -52,7 +54,7 @@ Deno.serve(async (req: Request) => {
     responseCount?: number; providerRequestId?: string | null; actorId?: string | null;
   }) => {
     try {
-      await fetch(new URL("/rest/v1/api_usage_ledger", supabaseUrl), {
+      const response = await fetch(new URL("/rest/v1/api_usage_ledger", supabaseUrl), {
         method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
         body: JSON.stringify({
           provider: "reefapi", action: "search", marketplace: entry.marketplace, lookup_key: entry.lookupKey,
@@ -61,6 +63,9 @@ Deno.serve(async (req: Request) => {
           actor_id: entry.actorId ?? null,
         }),
       });
+      if (!response.ok) {
+        console.error("ReefAPI usage ledger rejected an attempt:", response.status, await response.text());
+      }
     } catch (error) {
       console.error("Could not write ReefAPI usage ledger:", error);
     }
@@ -80,6 +85,17 @@ Deno.serve(async (req: Request) => {
   const appMetadata = (user.app_metadata ?? {}) as Record<string, unknown>;
   const isOwner = appMetadata.role === "owner" || appMetadata.is_owner === true;
 
+  // Partner identity is resolved from the database, never from user-editable metadata.
+  const partnerLookup = new URL("/rest/v1/partner_programs", supabaseUrl);
+  partnerLookup.searchParams.set("partner_user_id", "eq." + userId);
+  partnerLookup.searchParams.set("select", "id,status");
+  const partnerResponse = await fetch(partnerLookup, { headers: adminHeaders });
+  if (!partnerResponse.ok) return json({ error: "Could not verify partner support access." }, 503);
+  const partnerPrograms = await partnerResponse.json();
+  const isLinkedPartner = Array.isArray(partnerPrograms) && partnerPrograms.length > 0;
+  const isActivePartner = isLinkedPartner && partnerPrograms.some((p: Record<string, unknown>) => p.status === "active");
+
+
   let body: { marketplace?: string; query?: string; request_id?: string; action?: string; cache_ttl_minutes?: number; refresh_enabled?: boolean; force_refresh?: boolean; [key: string]: unknown };
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
   // Backward-compatible action names used by the current owner dashboard.
@@ -89,16 +105,17 @@ Deno.serve(async (req: Request) => {
     body.target_user_id = body.target_user_id ?? body.user_id;
   }
 
+  let ownerSessionId = "";
   if (typeof body.action === "string" && body.action.startsWith("owner_")) {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
-    let sessionId = "";
+    ownerSessionId = "";
     try {
       const jwtPart = accessToken.split(".")[1] ?? "";
       const normalized = jwtPart.replace(/-/g, "+").replace(/_/g, "/");
       const claims = JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")));
-      sessionId = typeof claims.session_id === "string" ? claims.session_id : "";
+      ownerSessionId = typeof claims.session_id === "string" ? claims.session_id : "";
     } catch { /* invalid claims fail closed below */ }
-    if (!sessionId) return json({ error: "A valid owner session is required." }, 401);
+    if (!ownerSessionId) return json({ error: "A valid owner session is required." }, 401);
     const securityUrl = new URL("/rest/v1/account_security_settings", supabaseUrl);
     securityUrl.searchParams.set("user_id", "eq." + userId);
     securityUrl.searchParams.set("select", "email_otp_enabled");
@@ -106,10 +123,10 @@ Deno.serve(async (req: Request) => {
     const securityResponse = await fetch(securityUrl, { headers: adminHeaders });
     if (!securityResponse.ok) return json({ error: "Could not verify owner security settings." }, 503);
     const securityRows = await securityResponse.json();
-    if (securityRows?.[0]?.email_otp_enabled === true) {
+    if (securityRows?.[0]?.email_otp_enabled === true && body.action !== "owner_set_user_plan") {
       const verifiedUrl = new URL("/rest/v1/email_otp_verified_sessions", supabaseUrl);
       verifiedUrl.searchParams.set("user_id", "eq." + userId);
-      verifiedUrl.searchParams.set("session_id", "eq." + sessionId);
+      verifiedUrl.searchParams.set("session_id", "eq." + ownerSessionId);
       verifiedUrl.searchParams.set("expires_at", "gt." + new Date().toISOString());
       verifiedUrl.searchParams.set("select", "session_id");
       verifiedUrl.searchParams.set("limit", "1");
@@ -125,7 +142,7 @@ Deno.serve(async (req: Request) => {
     const [usersResponse, pilotResponse, profilesResponse] = await Promise.all([
       fetch(new URL("/auth/v1/admin/users?page=1&per_page=1000", supabaseUrl), { headers: adminHeaders }),
       fetch(new URL("/rest/v1/seller_pilot_access?select=user_id,started_at,ends_at,status,daily_limit,total_limit,pilot_label", supabaseUrl), { headers: adminHeaders }),
-      fetch(new URL("/rest/v1/profiles?select=id,display_name,plan_code,account_status", supabaseUrl), { headers: adminHeaders })
+      fetch(new URL("/rest/v1/profiles?select=id,account_id,display_name,plan_code,account_status", supabaseUrl), { headers: adminHeaders })
     ]);
     if (!usersResponse.ok || !pilotResponse.ok || !profilesResponse.ok) {
       return json({ error: "Could not load registered users.", details: { auth: usersResponse.status, pilots: pilotResponse.status, profiles: profilesResponse.status } }, 502);
@@ -149,6 +166,7 @@ Deno.serve(async (req: Request) => {
         last_sign_in_at: u.last_sign_in_at ?? null,
         email_confirmed_at: u.email_confirmed_at ?? null,
         role: app.role ?? (app.is_owner === true ? "owner" : "seller"),
+        account_id: profile.account_id ?? null,
         account_status: profile.account_status ?? "pending",
         plan_code: profile.plan_code ?? "free",
         pilot: pilotById.get(String(u.id)) ?? null
@@ -168,6 +186,38 @@ Deno.serve(async (req: Request) => {
     const [events, identities, blocked_domains] = await Promise.all([eventsResponse.json(), identitiesResponse.json(), domainsResponse.json()]);
     return json({ ok: true, events, identities, blocked_domains });
   }
+  if (body.action === "owner_set_user_plan") {
+    if (!isOwner) return json({ error: "Owner permission required." }, 403);
+    const targetId = typeof body.target_user_id === "string" ? body.target_user_id : "";
+    const nextPlan = String(body.plan_code ?? "").toLowerCase();
+    if (!targetId || !["free", "starter", "growth", "pro", "business"].includes(nextPlan)) {
+      return json({ error: "Choose a valid seller and subscription plan." }, 400);
+    }
+    if (targetId === userId) return json({ error: "You cannot change your own owner plan from seller management." }, 403);
+    const targetResponse = await fetch(new URL("/auth/v1/admin/users/" + encodeURIComponent(targetId), supabaseUrl), { headers: adminHeaders });
+    if (!targetResponse.ok) return json({ error: "Registered seller account not found." }, 404);
+    const targetUser = await targetResponse.json();
+    const targetApp = targetUser.app_metadata ?? {};
+    if (targetApp.role === "owner" || targetApp.is_owner === true) return json({ error: "Owner accounts cannot be changed from seller management." }, 403);
+
+    const applyResponse = await fetch(new URL("/rest/v1/rpc/owner_set_seller_plan", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_user_id: targetId, p_plan_code: nextPlan, p_owner_id: userId, p_session_id: ownerSessionId })
+    });
+    const applied = applyResponse.ok ? await applyResponse.json() : null;
+    if (!applyResponse.ok || applied?.ok !== true) {
+      const detail = applyResponse.ok ? applied : await applyResponse.text();
+      const message = String(detail?.message ?? detail ?? "");
+      if (message.includes("OWNER_PLAN_CHANGE_OTP_REQUIRED")) return json({ error: "A fresh six-digit OTP sent to luxolog@ekhayatech.co.za is required before every plan change.", code: "EMAIL_OTP_REQUIRED" }, 403);
+      if (message.includes("PLAN_ALLOWANCE_NOT_CONFIGURED")) return json({ error: "This plan has no configured monthly search allowance. Configure it before assigning the plan." }, 409);
+      if (message.includes("SELLER_NOT_FOUND")) return json({ error: "Registered seller account not found." }, 404);
+      return json({ error: "The seller subscription could not be changed atomically.", detail }, 500);
+    }
+
+    return json({ ...applied, target_user_id: targetId });
+  }
+
   if (body.action === "owner_set_user_status") {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
     const targetId = typeof body.target_user_id === "string" ? body.target_user_id : "";
@@ -199,7 +249,7 @@ Deno.serve(async (req: Request) => {
 
     let pilotResult: Record<string, unknown> | null = null;
     let approvalEmail: "sent" | "queued" | "already_queued" | "dispatch_failed" | "not_applicable" = "not_applicable";
-    if (nextStatus === "active") {
+    if (nextStatus === "active" && previousStatus === "pending") {
       const activated = await fetch(new URL("/rest/v1/rpc/activate_seller_pilot", supabaseUrl), {
         method: "POST",
         headers: { ...adminHeaders, "Content-Type": "application/json" },
@@ -365,12 +415,12 @@ Deno.serve(async (req: Request) => {
     // This is the central owner view: all registered users, all seller searches,
     // provider usage, subscriptions, payments and partner programme records.
     const paths = [
-      "/rest/v1/partner_programs?select=id,partner_name,partner_slug,referral_code,partner_user_id,status,program_live_at,created_at&order=created_at.desc",
+      "/rest/v1/partner_programs?select=id,partner_code,partner_name,partner_slug,referral_code,partner_user_id,status,program_live_at,created_at&order=created_at.desc",
       "/rest/v1/partner_referrals?select=id,partner_id,referred_user_id,referral_code,registered_at,first_paid_at&order=registered_at.desc&limit=10000",
       "/rest/v1/partner_commission_ledger?select=id,partner_id,referral_id,referred_user_id,payment_month,plan_code,qualifying_amount,active_referred_sellers,commission_band,commission_rate,commission_amount,status,paid_at,created_at&order=created_at.desc&limit=10000",
       "/rest/v1/partner_monthly_statements?select=id,partner_id,statement_month,active_referred_sellers,qualifying_revenue,commission_total,adjustment_total,payment_due_date,status,paid_at&order=statement_month.desc&limit=5000",
       "/rest/v1/seller_pilot_activity?select=user_id,marketplace,query,result_count,result_status,source,created_at&order=created_at.desc&limit=10000",
-      "/rest/v1/profiles?select=id,display_name,plan_code,account_status,created_at",
+      "/rest/v1/profiles?select=id,seller_code,account_id,display_name,plan_code,account_status,created_at",
       "/rest/v1/plan_search_allowances?select=plan_code,monthly_search_credits",
       "/rest/v1/user_monthly_search_usage?select=user_id,period_start,searches_used&order=period_start.desc&limit=20000",
       "/rest/v1/user_free_search_usage?select=user_id,searches_used&limit=20000",
@@ -395,6 +445,12 @@ Deno.serve(async (req: Request) => {
     const partnerById = new Map<string, Record<string, unknown>>(partners.map((p: Record<string, unknown>) => [String(p.id), p]));
     const referralByUser = new Map<string, Record<string, unknown>>(referrals.map((r: Record<string, unknown>) => [String(r.referred_user_id), r]));
     const profileById = new Map<string, Record<string, unknown>>(profiles.map((p: Record<string, unknown>) => [String(p.id), p]));
+    const partnersWithAccountIds = partners.map((partner: Record<string, unknown>) => ({
+      ...partner,
+      account_id: partner.partner_user_id
+        ? (profileById.get(String(partner.partner_user_id))?.account_id ?? null)
+        : null
+    }));
     const latestSubscription = new Map<string, Record<string, unknown>>();
     for (const sub of subscriptions) if (!latestSubscription.has(String(sub.user_id))) latestSubscription.set(String(sub.user_id), sub);
     const userPayments = new Map<string, Record<string, unknown>[]>();
@@ -430,7 +486,7 @@ Deno.serve(async (req: Request) => {
       const searchStats = sellerSearchCounts.get(String(u.id)) ?? { searches: 0, failures: 0, last_search: null };
       const sub = latestSubscription.get(String(u.id));
       return {
-        id: u.id, email: u.email ?? null,
+        id: u.id, seller_code: profile?.seller_code ?? null, account_id: profile?.account_id ?? null, email: u.email ?? null,
         display_name: profile?.display_name ?? asRecord(u.user_metadata).display_name ?? asRecord(u.user_metadata).full_name ?? null,
         created_at: u.created_at ?? null, last_sign_in_at: u.last_sign_in_at ?? null,
         email_confirmed_at: u.email_confirmed_at ?? null,
@@ -465,12 +521,33 @@ Deno.serve(async (req: Request) => {
       const referral = referralByUser.get(String(item.user_id));
       const partner = referral ? partnerById.get(String(referral.partner_id)) as Record<string, unknown> | undefined : undefined;
       return { ...item, seller_email: seller?.email ?? null, seller_display_name: seller?.display_name ?? null,
-        seller_plan: seller?.plan_code ?? "free", partner_name: partner?.partner_name ?? null, event_type: "seller_search" };
+        seller_code: seller?.seller_code ?? null, seller_plan: seller?.plan_code ?? "free", partner_name: partner?.partner_name ?? null, event_type: "seller_search" };
     });
     const providerActivity = apiUsage.map((item: Record<string, unknown>) => {
-      const seller = item.actor_id ? sellers.find((s: Record<string, unknown>) => s.id === item.actor_id) as Record<string, unknown> | undefined : undefined;
-      return { ...item, user_id: item.actor_id ?? null, seller_email: seller?.email ?? null,
+      let seller = item.actor_id
+        ? sellers.find((s: Record<string, unknown>) => s.id === item.actor_id) as Record<string, unknown> | undefined
+        : undefined;
+      // Older ledger rows did not persist actor_id for pilot/partner-funded searches.
+      // Recover only an unambiguous nearby match; never guess when multiple sellers qualify.
+      if (!seller && !item.actor_id) {
+        const lookupKey = String(item.lookup_key ?? "").toLowerCase();
+        const eventTime = new Date(String(item.created_at ?? "")).getTime();
+        const candidates = allActivity.filter((activity: Record<string, unknown>) => {
+          const activityTime = new Date(String(activity.created_at ?? "")).getTime();
+          const activityQuery = String(activity.query ?? "").trim().toLowerCase();
+          return activity.marketplace === item.marketplace && activityQuery.length >= 2 &&
+            lookupKey.includes(activityQuery) && Number.isFinite(eventTime) &&
+            Math.abs(eventTime - activityTime) <= 5 * 60 * 1000;
+        });
+        const candidateIds = [...new Set(candidates.map((activity: Record<string, unknown>) => String(activity.user_id)))];
+        if (candidateIds.length === 1) {
+          seller = sellers.find((s: Record<string, unknown>) => s.id === candidateIds[0]) as Record<string, unknown> | undefined;
+        }
+      }
+      return { ...item, user_id: seller?.id ?? item.actor_id ?? null,
+        seller_code: seller?.seller_code ?? null, seller_email: seller?.email ?? null,
         seller_display_name: seller?.display_name ?? null, seller_plan: seller?.plan_code ?? "unknown",
+        source: item.actor_id ? "ledger" : seller ? "matched_legacy_activity" : "unattributed_legacy",
         query: item.lookup_key ?? "", result_count: item.response_count ?? 0, result_status: item.request_status ?? "unknown",
         event_type: "provider_usage" };
     });
@@ -499,7 +576,7 @@ Deno.serve(async (req: Request) => {
         monthly_searches_remaining: sellers.filter((s: Record<string, unknown>) => s.role !== "owner").reduce((sum: number, s: Record<string, unknown>) => sum + Number(s.monthly_searches_remaining ?? 0), 0)
       },
       sellers, all_activity: allPlatformActivity.slice(0, 20000), api_usage: apiUsage,
-      partners, referrals: referrals.map((r: Record<string, unknown>) => {
+      partners: partnersWithAccountIds, referrals: referrals.map((r: Record<string, unknown>) => {
         const partner = partnerById.get(String(r.partner_id)) as Record<string, unknown> | undefined;
         const profile = profileById.get(String(r.referred_user_id)) as Record<string, unknown> | undefined;
         return { ...r, partner_name: partner?.partner_name ?? "Unknown partner", seller_display_name: profile?.display_name ?? null,
@@ -623,11 +700,23 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, settings: (await saved.json())[0] });
   }
 
+  // Pending, suspended and inactive seller accounts must not search, including cache hits.
+  // The server is authoritative; hiding the search UI is not an access control.
+  if (!isOwner) {
+    const profileStatusResponse = await fetch(new URL("/rest/v1/profiles?id=eq." + encodeURIComponent(userId) + "&select=account_status&limit=1", supabaseUrl), { headers: adminHeaders });
+    if (!profileStatusResponse.ok) return json({ error: "Could not verify your account approval status." }, 503);
+    const profileStatusRows = await profileStatusResponse.json();
+    const accountStatus = profileStatusRows?.[0]?.account_status;
+    if (!canSearchAccount({ isOwner, accountStatus })) return json({ error: "Your account is not approved for marketplace searches. Please wait for Ekhaya support to approve your application.", code: "ACCOUNT_NOT_APPROVED", account_status: accountStatus ?? "missing" }, 403);
+  }
+
   const marketplace = typeof body.marketplace === "string" ? body.marketplace : "";
   const query = typeof body.query === "string" ? body.query.trim().slice(0, 160) : "";
   if (query.length < 2) {
     return json({ error: "Enter at least 2 search characters." }, 400);
   }
+  const intent = understandProductQuery(query);
+  const providerQuery = intent.normalizedQuery;
   if (testingMarketplaces[marketplace ?? ""]) {
     return json({ error: testingMarketplaces[marketplace ?? ""], code: "MARKETPLACE_TESTING", marketplace }, 501);
   }
@@ -636,24 +725,17 @@ Deno.serve(async (req: Request) => {
   }
   if (body.force_refresh && !isOwner) return json({ error: "Only the Ekhaya owner can force a live cache refresh." }, 403);
 
-  let pilotCharged = false;
-  const pilotUsageDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(new Date());
-  if (!isOwner) {
-    const pilotReserve = await fetch(new URL("/rest/v1/rpc/reserve_seller_pilot_search", supabaseUrl), {
-      method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
-      body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace }),
-    });
-    const pilot = pilotReserve.ok ? await pilotReserve.json() : null;
-    if (!pilotReserve.ok) return json({ error: "Could not verify pilot search allowance. Please try again." }, 503);
-    if (pilot?.allowed === true) pilotCharged = true;
-    else if (pilot?.reason === "PILOT_DAILY_LIMIT") return json({ error: "You have used all your marketplace searches for today. Your allowance resets at midnight South African time.", code: "PILOT_DAILY_LIMIT", usage: pilot }, 429);
-    else if (pilot?.reason === "PILOT_TOTAL_LIMIT") return json({ error: "You have used all 50 searches included in your five-day pilot.", code: "PILOT_TOTAL_LIMIT", usage: pilot }, 402);
-    else if (pilot?.reason === "PILOT_EXPIRED") return json({ error: "Your five-day seller pilot has ended.", code: "PILOT_EXPIRED", usage: pilot }, 402);
-    else if (pilot?.reason !== "PILOT_NOT_ACTIVE") return json({ error: "Your seller pilot access is not available for this marketplace.", code: pilot?.reason ?? "PILOT_ACCESS_ERROR", usage: pilot }, 403);
+  // Validate marketplace-specific input before reserving any seller or partner allowance.
+  const postalCode = typeof body.postal_code === "string" ? body.postal_code.trim() : "";
+  if (marketplace === "makro" && postalCode && !/^\d{4}$/.test(postalCode)) {
+    return json({ error: "Enter a valid four-digit South African postal code.", code: "INVALID_POSTAL_CODE" }, 400);
   }
 
-  const postalCode = typeof body.postal_code === "string" ? body.postal_code.trim() : "";
-  if (marketplace === "makro" && postalCode && !/^\d{4}$/.test(postalCode)) return json({ error: "Enter a valid four-digit South African postal code.", code: "INVALID_POSTAL_CODE" }, 400);
+  if (isLinkedPartner && !isActivePartner) {
+    return json({ error: "Your partner programme is not active. Partner support searches are unavailable.", code: "PARTNER_PROGRAM_INACTIVE" }, 403);
+  }
+  let partnerSupportCharged = false;
+  let pilotCharged = false;
   const requestId = body.request_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.request_id)
     ? body.request_id : crypto.randomUUID();
   const lookupKey = query.toLowerCase().replace(/\s+/g, " ") + (marketplace === "makro" && postalCode ? `:postal:${postalCode}` : "");
@@ -672,48 +754,59 @@ Deno.serve(async (req: Request) => {
     const settingsRows = settingsResponse.ok ? await settingsResponse.json() : [];
     const settings = settingsRows?.[0] ?? { refresh_enabled: true, cache_ttl_minutes: 360 };
     const fresh = cache && new Date(cache.expires_at) > new Date();
-    if (cache && !body.force_refresh && (fresh || settings.refresh_enabled === false)) {
-      const cachedProducts = cache.source_payload?.products ?? [];
-      let cacheCreditCharged = false;
-      if (!isOwner && !pilotCharged) {
-        const reserve = await fetch(new URL("/rest/v1/rpc/reserve_monthly_search_credit", supabaseUrl), {
-          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
-          body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace, p_request_id: requestId }),
-        });
-        const reservation = reserve.ok ? await reserve.json() : null;
-        if (!reserve.ok || reservation?.allowed !== true) return json({ error: "You have used all your available marketplace search credits. Purchase another allocation to continue.", code: reservation?.reason ?? "CREDIT_RESERVATION_FAILED", usage: reservation }, 402);
-        if (reservation.duplicate) return json({ error: "This search request has already been processed. Please start a new search.", code: "DUPLICATE_REQUEST" }, 409);
-        cacheCreditCharged = true;
-      }
-      if (cachedProducts.length === 0 && cacheCreditCharged) {
-        await fetch(new URL("/rest/v1/rpc/refund_monthly_search_credit", supabaseUrl), {
-          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
-          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
-        });
-        cacheCreditCharged = false;
-      }
-      if (cachedProducts.length > 0 && cacheCreditCharged) {
-        await fetch(new URL("/rest/v1/rpc/complete_monthly_search_credit", supabaseUrl), {
-          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
-          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
-        });
-      }
-      if (cachedProducts.length === 0 && pilotCharged) {
-        await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
-          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
-          body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }),
-        });
-        pilotCharged = false;
-      }
-      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:cachedProducts.length,result_status:"success",source:fresh?"cache":"stale-cache"})});
+    const cacheHit = Boolean(cache && !body.force_refresh && (fresh || settings.refresh_enabled === false));
+    const entitlement = resolveSearchEntitlement({
+      isOwner, isLinkedPartner, isActivePartner, cacheHit,
+    });
+    if (cacheHit && entitlement === "free_cache") {
+      const cachedRanked = rankMarketplaceProducts(cache.source_payload?.raw_products ?? cache.source_payload?.products ?? [], intent);
+      const cachedProducts = cachedRanked.products;
+      const cachedRelated = cachedRanked.related_products;
+      const cachedAccessories = cachedRanked.accessories;
+      const cachedTotal = cachedProducts.length + cachedRelated.length + cachedAccessories.length;
+      // Shared cache responses are free: no seller, pilot or partner allowance is reserved.
+      const cacheCreditCharged = false;
+      if (!isOwner && !isActivePartner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:cachedTotal,result_status:cachedTotal?"success":"empty",source:fresh?"cache":"stale-cache"})});
       return json({
         source: fresh ? "cache" : "stale-cache",
         marketplace,
         fetched_at: cache.fetched_at,
         products: cachedProducts,
+        related_products: cachedRelated,
+        accessories: cachedAccessories,
+        query_understanding: { brand: intent.brand, category: intent.category, normalized_query: providerQuery },
         refresh_paused: !fresh,
         credit_charged: cacheCreditCharged,
       });
+    }
+
+    // Reserve a single entitlement only after a cache miss has been confirmed.
+    // A cache hit never consumes a seller credit, pilot search or partner support search.
+    if (entitlement === "partner_support") {
+      const supportReserve = await fetch(new URL("/rest/v1/rpc/reserve_partner_support_search", supabaseUrl), {
+        method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace, p_request_id: requestId, p_search_query: query }),
+      });
+      const support = supportReserve.ok ? await supportReserve.json() : null;
+      if (!supportReserve.ok) return json({ error: "Could not verify partner support search allowance. Please try again." }, 503);
+      if (support?.allowed !== true) return json({ error: "Partner support search allowance is unavailable.", code: support?.reason ?? "PARTNER_SUPPORT_DENIED", usage: support }, 403);
+      if (support?.duplicate) return json({ error: "This partner support search request has already been processed. Please start a new search.", code: "DUPLICATE_REQUEST" }, 409);
+      partnerSupportCharged = true;
+    } else if (entitlement === "seller_pilot_or_monthly" && !isLinkedPartner) {
+      const pilotReserve = await fetch(new URL("/rest/v1/rpc/reserve_seller_pilot_search", supabaseUrl), {
+        method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ p_user_id: userId, p_marketplace: marketplace, p_request_id: requestId }),
+      });
+      const pilot = pilotReserve.ok ? await pilotReserve.json() : null;
+      if (!pilotReserve.ok) return json({ error: "Could not verify pilot search allowance. Please try again." }, 503);
+      if (pilot?.allowed === true && pilot?.duplicate === true) {
+        return json({ error: "This pilot search request has already been processed. Please start a new search.", code: "DUPLICATE_REQUEST" }, 409);
+      }
+      if (pilot?.allowed === true) pilotCharged = true;
+      else if (pilot?.reason === "PILOT_DAILY_LIMIT") return json({ error: "You have used all your marketplace searches for today. Your allowance resets at midnight South African time.", code: "PILOT_DAILY_LIMIT", usage: pilot }, 429);
+      else if (pilot?.reason === "PILOT_TOTAL_LIMIT") return json({ error: "You have used all 50 searches included in your five-day pilot.", code: "PILOT_TOTAL_LIMIT", usage: pilot }, 402);
+      else if (pilot?.reason === "PILOT_EXPIRED") return json({ error: "Your five-day seller pilot has ended.", code: "PILOT_EXPIRED", usage: pilot }, 402);
+      else if (pilot?.reason !== "PILOT_NOT_ACTIVE") return json({ error: "Your seller pilot access is not available for this marketplace.", code: pilot?.reason ?? "PILOT_ACCESS_ERROR", usage: pilot }, 403);
     }
 
     const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
@@ -725,13 +818,20 @@ Deno.serve(async (req: Request) => {
     });
     if (!quotaResponse.ok || await quotaResponse.json() !== true) {
       if (pilotCharged) {
-        await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), { method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" }, body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }) });
+        await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), { method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" }, body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }) });
         pilotCharged = false;
+      }
+      if (partnerSupportCharged) {
+        await fetch(new URL("/rest/v1/rpc/refund_partner_support_search", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }),
+        });
+        partnerSupportCharged = false;
       }
       return json({ error: "Search limit reached. Please try again in an hour." }, 429);
     }
 
-    let charged = !isOwner && !pilotCharged;
+    let charged = !isOwner && !pilotCharged && !partnerSupportCharged;
     if (charged) {
       const reserve = await fetch(new URL("/rest/v1/rpc/reserve_monthly_search_credit", supabaseUrl), {
         method: "POST",
@@ -759,34 +859,69 @@ Deno.serve(async (req: Request) => {
         providerAttempted = true;
         const upstream = await fetch("https://api.reefapi.com/makro/v1/search", {
           method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
-          body: JSON.stringify({ query, page: 1, ...(postalCode ? { postal_code: postalCode } : {}) }),
+          body: JSON.stringify({ query: providerQuery, page: 1, ...(postalCode ? { postal_code: postalCode } : {}) }),
           signal: AbortSignal.timeout(15000),
         });
         payload = await upstream.json() as ProviderResponse;
         providerPayload = payload;
+        await recordProviderUsage({
+          marketplace, lookupKey: `search:${lookupKey}:attempt:1`,
+          credits: Number(payload?.meta?.charged_credits ?? 0),
+          status: upstream.ok && payload?.ok !== false ? "success" : "failed",
+          responseCount: upstream.ok && payload?.ok !== false ? (payload?.data?.products?.length ?? 0) : 0,
+          providerRequestId: typeof payload?.meta?.request_id === "string" ? payload.meta.request_id : null,
+          actorId: userId,
+        });
+        providerUsageLogged = true;
         if (!upstream.ok || payload?.ok === false) throw new Error(payload?.error?.message ?? payload?.error?.detail ?? upstream.statusText ?? "ReefAPI Makro search failed");
         raw = payload?.data?.products ?? [];
       } else if (marketplace === "amazon") {
         if (!reefKey) throw new Error("Amazon search is not configured. Add REEFAPI_KEY to Supabase Edge Function secrets.");
-        const searchParams = { query, marketplace: "co.za", page: 1 };
+        const searchParams = { query: providerQuery, marketplace: "co.za", page: 1 };
+        let amazonAttempt = 0;
         const callAmazon = async () => {
           providerAttempted = true;
-          const upstream = await fetch("https://api.reefapi.com/amazon/v1/search", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
-            body: JSON.stringify(searchParams),
-            signal: AbortSignal.timeout(15000),
-          });
-          const result = await upstream.json() as ProviderResponse;
-          providerPayload = result;
-          if (!upstream.ok || result?.ok === false) {
-            const providerError = result?.error ?? {};
-            const failure = new Error(String(providerError.message ?? providerError.detail ?? upstream.statusText ?? "ReefAPI Amazon search failed"));
-            (failure as Error & { retryable?: boolean }).retryable =
-              providerError.retryable === true || upstream.status === 429 || upstream.status >= 500;
-            throw failure;
+          amazonAttempt += 1;
+          let attemptRecorded = false;
+          try {
+            const upstream = await fetch("https://api.reefapi.com/amazon/v1/search", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
+              body: JSON.stringify(searchParams),
+              signal: AbortSignal.timeout(15000),
+            });
+            const result = await upstream.json() as ProviderResponse;
+            providerPayload = result;
+            const succeeded = upstream.ok && result?.ok !== false;
+            await recordProviderUsage({
+              marketplace, lookupKey: `search:${lookupKey}:attempt:${amazonAttempt}`,
+              credits: Number(result?.meta?.charged_credits ?? 0),
+              status: succeeded ? "success" : "failed",
+              responseCount: succeeded ? (result?.data?.results?.length ?? result?.data?.products?.length ?? 0) : 0,
+              providerRequestId: typeof result?.meta?.request_id === "string" ? result.meta.request_id : null,
+              actorId: userId,
+            });
+            attemptRecorded = true;
+            providerUsageLogged = true;
+            if (!succeeded) {
+              const providerError = result?.error ?? {};
+              const failure = new Error(String(providerError.message ?? providerError.detail ?? upstream.statusText ?? "ReefAPI Amazon search failed"));
+              (failure as Error & { retryable?: boolean }).retryable =
+                providerError.retryable === true || upstream.status === 429 || upstream.status >= 500;
+              throw failure;
+            }
+            return result;
+          } catch (error) {
+            if (!attemptRecorded) {
+              await recordProviderUsage({
+                marketplace, lookupKey: `search:${lookupKey}:attempt:${amazonAttempt}`,
+                credits: 0, status: "failed", responseCount: 0,
+                providerRequestId: null, actorId: userId,
+              });
+              providerUsageLogged = true;
+            }
+            throw error;
           }
-          return result;
         };
         try {
           payload = await callAmazon();
@@ -817,17 +952,87 @@ Deno.serve(async (req: Request) => {
         })) as Record<string, unknown>[];
       } else {
         if (!reefKey) throw new Error("Takealot search is not configured. Add REEFAPI_KEY to Supabase Edge Function secrets.");
-        providerAttempted = true;
-        const upstream = await fetch("https://api.reefapi.com/takealot/v1/search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
-          body: JSON.stringify({ query, country: "za" }),
-          signal: AbortSignal.timeout(9000),
-        });
-        payload = await upstream.json();
+        // One seller request/credit reservation may use at most three bounded provider
+        // queries. Additional discovery is sequential, deduplicated and best-effort.
+        const usedQueries = [providerQuery];
+        let providerCreditsTotal = 0;
+        const callTakealot = async (searchQuery: string): Promise<ProviderResponse> => {
+          providerAttempted = true;
+          let attemptRecorded = false;
+          let attemptCredits = 0;
+          let attemptRequestId: string | null = null;
+          try {
+            const upstream = await fetch("https://api.reefapi.com/takealot/v1/search", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
+              body: JSON.stringify({ query: searchQuery, country: "za" }),
+              signal: AbortSignal.timeout(9000),
+            });
+            const result = await upstream.json() as ProviderResponse;
+            attemptCredits = Math.max(0, Number(result.meta?.charged_credits) || 0);
+            attemptRequestId = typeof result.meta?.request_id === "string" ? result.meta.request_id : null;
+            providerCreditsTotal += attemptCredits;
+            providerPayload = result;
+            const succeeded = upstream.ok && result?.ok !== false;
+            await recordProviderUsage({
+              marketplace, lookupKey: `search:${lookupKey}:${searchQuery}`,
+              credits: attemptCredits, status: succeeded ? "success" : "failed",
+              responseCount: succeeded ? (result.data?.results?.length ?? result.data?.products?.length ?? 0) : 0,
+              providerRequestId: attemptRequestId, actorId: userId,
+            });
+            attemptRecorded = true;
+            providerUsageLogged = true;
+            if (!succeeded) {
+              throw new Error(result?.error?.message ?? result?.error?.detail ?? upstream.statusText ?? "Provider lookup failed");
+            }
+            return result;
+          } catch (error) {
+            if (!attemptRecorded) {
+              await recordProviderUsage({
+                marketplace, lookupKey: `search:${lookupKey}:${searchQuery}`,
+                credits: attemptCredits, status: "failed", responseCount: 0,
+                providerRequestId: attemptRequestId, actorId: userId,
+              });
+              providerUsageLogged = true;
+            }
+            throw error;
+          }
+        };
+
+        payload = await callTakealot(providerQuery);
         providerPayload = payload;
-        if (!upstream.ok || payload?.ok === false) throw new Error(payload?.error?.message ?? upstream.statusText ?? "Provider lookup failed");
-        raw = payload?.data?.results ?? [];
+        raw = [...(payload?.data?.results ?? [])];
+
+        let discoveryRanked = rankMarketplaceProducts(raw, intent);
+        for (let additionalAttempt = 0; additionalAttempt < 2; additionalAttempt++) {
+          const currentResults = [...discoveryRanked.products, ...discoveryRanked.related_products, ...discoveryRanked.accessories];
+          const discoveryQuery = selectAdditionalDiscoveryQueries(intent, currentResults, usedQueries, 1)[0];
+          if (!discoveryQuery) break;
+          usedQueries.push(discoveryQuery);
+          try {
+            const additionalPayload = await callTakealot(discoveryQuery);
+            providerPayload = additionalPayload;
+            payload = {
+              ...additionalPayload,
+              meta: {
+                ...(additionalPayload.meta ?? {}),
+                charged_credits: providerCreditsTotal,
+              },
+            };
+            raw.push(...(additionalPayload.data?.results ?? []));
+            discoveryRanked = rankMarketplaceProducts(raw, intent);
+          } catch (discoveryError) {
+            console.warn("Additional Takealot discovery query failed; preserving successful results:", discoveryQuery, discoveryError);
+          }
+        }
+        payload = {
+          ...payload,
+          meta: {
+            ...(payload.meta ?? {}),
+            charged_credits: providerCreditsTotal,
+            discovery_queries: usedQueries,
+          },
+        };
       }
 
       const parsePrice = (value: unknown): number | null => {
@@ -838,7 +1043,7 @@ Deno.serve(async (req: Request) => {
         const parsed = Number(cleaned);
         return Number.isFinite(parsed) ? parsed : null;
       };
-      const products = raw.map((p: Record<string, unknown>) => {
+      const normalizedProducts = raw.map((p: Record<string, unknown>) => {
         const isAmazon = marketplace === "amazon";
         const isMakro = marketplace === "makro";
         const asin = typeof p.asin === "string" ? p.asin : null;
@@ -873,19 +1078,26 @@ Deno.serve(async (req: Request) => {
           variant_selection_required: p.variant_selection_required ?? p.has_variations ?? false,
         };
       });
-      await recordProviderUsage({
-        marketplace, lookupKey: `search:${lookupKey}`, credits: Number(payload.meta?.charged_credits ?? 0),
-        status: "success", responseCount: products.length, providerRequestId: typeof payload.meta?.request_id === "string" ? payload.meta.request_id : null,
-        actorId: charged ? userId : null,
-      });
-      providerUsageLogged = true;
+      const ranked = rankMarketplaceProducts(normalizedProducts, intent);
+      const products = ranked.products;
+      const relatedProducts = ranked.related_products;
+      const accessories = ranked.accessories;
+      const totalResults = products.length + relatedProducts.length + accessories.length;
+      if (marketplace !== "takealot" && !providerUsageLogged) {
+        await recordProviderUsage({
+          marketplace, lookupKey: `search:${lookupKey}`, credits: Number(payload.meta?.charged_credits ?? 0),
+          status: "success", responseCount: totalResults, providerRequestId: typeof payload.meta?.request_id === "string" ? payload.meta.request_id : null,
+          actorId: userId,
+        });
+        providerUsageLogged = true;
+      }
       const now = new Date();
       const ttl = Math.max(5, Math.min(10080, Number(settings.cache_ttl_minutes) || 360));
       const expires = new Date(now.getTime() + ttl * 60 * 1000);
       const cacheRow = {
         marketplace, lookup_key: `search:${lookupKey}`, product_title: `Search: ${query}`,
         price: null, currency: "ZAR", fetched_at: now.toISOString(), expires_at: expires.toISOString(),
-        source_payload: { products, provider_meta: payload.meta ?? null }, last_error: null,
+        source_payload: { products, related_products: relatedProducts, accessories, raw_products: normalizedProducts, provider_meta: payload.meta ?? null }, last_error: null,
       };
       const cacheWrite = await fetch(new URL("/rest/v1/marketplace_price_cache?on_conflict=marketplace,lookup_key", supabaseUrl), {
         method: "POST",
@@ -894,11 +1106,18 @@ Deno.serve(async (req: Request) => {
       });
       if (!cacheWrite.ok) throw new Error("Marketplace data was found but could not be saved to shared cache.");
 
-      if (products.length === 0) {
+      if (totalResults === 0) {
+        if (partnerSupportCharged) {
+          await fetch(new URL("/rest/v1/rpc/refund_partner_support_search", supabaseUrl), {
+            method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }),
+          });
+          partnerSupportCharged = false;
+        }
         if (pilotCharged) {
           await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
             method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
-            body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }),
+            body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }),
           });
           pilotCharged = false;
         }
@@ -910,6 +1129,22 @@ Deno.serve(async (req: Request) => {
           charged = false;
         }
       }
+      if (partnerSupportCharged && totalResults > 0) {
+        const supportComplete = await fetch(new URL("/rest/v1/rpc/complete_partner_support_search", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }),
+        });
+        if (!supportComplete.ok) console.error("Could not complete partner support reservation:", await supportComplete.text());
+        else partnerSupportCharged = false;
+      }
+      if (pilotCharged && totalResults > 0) {
+        const pilotComplete = await fetch(new URL("/rest/v1/rpc/complete_seller_pilot_search", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }),
+        });
+        if (!pilotComplete.ok) console.error("Could not complete seller pilot reservation:", await pilotComplete.text());
+        else pilotCharged = false;
+      }
       if (charged) {
         await fetch(new URL("/rest/v1/rpc/complete_monthly_search_credit", supabaseUrl), {
           method: "POST",
@@ -917,22 +1152,29 @@ Deno.serve(async (req: Request) => {
           body: JSON.stringify({ p_user_id: userId, p_request_id: requestId, p_marketplace: marketplace }),
         });
       }
-      if (!isOwner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:products.length,result_status:"success",source:"live"})});
-      return json({ source: "live", marketplace, fetched_at: now.toISOString(), products, provider_meta: payload.meta ?? null, credit_charged: charged });
+      if (!isOwner && !isActivePartner) await fetch(new URL("/rest/v1/seller_pilot_activity",supabaseUrl), {method:"POST",headers:{...adminHeaders,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({user_id:userId,marketplace,query,result_count:totalResults,result_status:totalResults?"success":"empty",source:"live"})});
+      return json({ source: "live", marketplace, fetched_at: now.toISOString(), products, related_products: relatedProducts, accessories, query_understanding: { brand: intent.brand, category: intent.category, normalized_query: providerQuery }, provider_meta: payload.meta ?? null, credit_charged: charged });
     } catch (error) {
-      if (providerAttempted && !providerUsageLogged) {
+      if (providerAttempted && !providerUsageLogged && marketplace !== "takealot") {
         await recordProviderUsage({
           marketplace, lookupKey: `search:${lookupKey}`,
           credits: Number(providerPayload?.meta?.charged_credits ?? 0), status: "failed",
           responseCount: 0, providerRequestId: typeof providerPayload?.meta?.request_id === "string" ? providerPayload.meta.request_id : null,
-          actorId: charged ? userId : null,
+          actorId: userId,
         });
         providerUsageLogged = true;
+      }
+      if (partnerSupportCharged) {
+        await fetch(new URL("/rest/v1/rpc/refund_partner_support_search", supabaseUrl), {
+          method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }),
+        });
+        partnerSupportCharged = false;
       }
       if (pilotCharged) {
         await fetch(new URL("/rest/v1/rpc/refund_seller_pilot_search", supabaseUrl), {
           method: "POST", headers: { ...adminHeaders, "Content-Type": "application/json" },
-          body: JSON.stringify({ p_user_id: userId, p_usage_date: pilotUsageDate }),
+          body: JSON.stringify({ p_user_id: userId, p_request_id: requestId }),
         });
         pilotCharged = false;
       }

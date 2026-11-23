@@ -2,6 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const allowedOrigins = new Set([
+  "https://ekhayatech.co.za",
+  "https://www.ekhayatech.co.za",
   "https://pricechecker.ekhayatech.co.za",
   "https://ekhaya-commerce-platform-8ewwsmmvz-luxolog.vercel.app",
   "https://ekhaya-commerce-platform-git-feature-sa-echamber-9c60e1-luxolog.vercel.app",
@@ -14,7 +16,7 @@ const corsFor = (req: Request) => {
   return {
   "Access-Control-Allow-Origin": isAllowedOrigin(origin) ? origin : "https://pricechecker.ekhayatech.co.za",
   "Vary": "Origin",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json",
   };
@@ -54,8 +56,69 @@ Deno.serve(async (req: Request) => {
     if (!verified) return new Response(JSON.stringify({ error: "Email verification is required to manage partner invitations.", code: "EMAIL_OTP_REQUIRED" }), { status: 403, headers: cors });
   }
 
-  let body: { action?: string; partner_id?: string; email?: string; contact_name?: string };
+  let body: { action?: string; partner_id?: string; email?: string; contact_name?: string; partner_name?: string; partner_slug?: string; referral_code?: string };
   try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid request body" }), { status: 400, headers: cors }); }
+
+  if (body.action === "create_partner") {
+    const partnerName = typeof body.partner_name === "string" ? body.partner_name.trim().replace(/\s+/g, " ") : "";
+    const requestedSlug = typeof body.partner_slug === "string" ? body.partner_slug.trim().toLowerCase() : "";
+    const requestedCode = typeof body.referral_code === "string" ? body.referral_code.trim().toUpperCase() : "";
+    const slug = (requestedSlug || partnerName.toLowerCase())
+      .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+    const referralCode = (requestedCode || slug.replace(/-/g, "").toUpperCase()).replace(/[^A-Z0-9]/g, "").slice(0, 24);
+    if (partnerName.length < 2 || partnerName.length > 120)
+      return new Response(JSON.stringify({ error: "Enter a partner organisation name between 2 and 120 characters." }), { status: 400, headers: cors });
+    if (!slug || slug.length < 2 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug))
+      return new Response(JSON.stringify({ error: "Enter a valid partner slug using letters, numbers and hyphens." }), { status: 400, headers: cors });
+    if (referralCode.length < 4 || referralCode.length > 24)
+      return new Response(JSON.stringify({ error: "Referral codes must contain 4 to 24 letters or numbers." }), { status: 400, headers: cors });
+    const { data: existing, error: lookupError } = await admin.from("partner_programs")
+      .select("id,partner_name,partner_slug,referral_code")
+      .or("partner_slug.eq." + slug + ",referral_code.eq." + referralCode);
+    if (lookupError) return new Response(JSON.stringify({ error: "Could not check existing partner names and referral codes." }), { status: 500, headers: cors });
+    if (existing?.length) {
+      const slugTaken = existing.some(item => item.partner_slug === slug);
+      const codeTaken = existing.some(item => item.referral_code === referralCode);
+      return new Response(JSON.stringify({ error: slugTaken ? "That partner slug is already in use." : codeTaken ? "That referral code is already in use." : "A partner with those details already exists." }), { status: 409, headers: cors });
+    }
+    const { data: partner, error: createError } = await admin.from("partner_programs")
+      .insert({ partner_name: partnerName, partner_slug: slug, referral_code: referralCode, status: "pending" })
+      .select("id,partner_name,partner_slug,referral_code,partner_user_id,status,program_live_at,created_at")
+      .single();
+    if (createError || !partner) {
+      if (createError?.code === "23505") return new Response(JSON.stringify({ error: "The partner slug or referral code is already registered. Refresh and try different values." }), { status: 409, headers: cors });
+      console.error("Partner programme creation failed:", createError);
+      return new Response(JSON.stringify({ error: "Could not register the partner programme." }), { status: 500, headers: cors });
+    }
+    return new Response(JSON.stringify({ success: true, partner, message: "Partner programme registered in pending status. It will not attribute referrals until activated." }), { status: 201, headers: cors });
+  }
+
+  if (body.action === "activate_partner") {
+    const partnerId = typeof body.partner_id === "string" ? body.partner_id.trim() : "";
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(partnerId)) {
+      return new Response(JSON.stringify({ error: "Select a valid partner programme." }), { status: 400, headers: cors });
+    }
+    const { data: partner, error: partnerError } = await admin.from("partner_programs")
+      .select("id,partner_name,partner_slug,referral_code,partner_user_id,status,program_live_at")
+      .eq("id", partnerId).maybeSingle();
+    if (partnerError || !partner) return new Response(JSON.stringify({ error: "Partner programme not found." }), { status: 404, headers: cors });
+    if (partner.status === "active") return new Response(JSON.stringify({ success: true, partner, message: "This partner programme is already active." }), { status: 200, headers: cors });
+    if (!partner.partner_user_id) return new Response(JSON.stringify({ error: "The partner owner must accept the invitation and link their Ekhaya account before activation." }), { status: 409, headers: cors });
+    const { data: acceptedInvite, error: acceptedInviteError } = await admin.from("partner_invitations")
+      .select("id").eq("partner_id", partnerId).eq("status", "accepted").limit(1).maybeSingle();
+    if (acceptedInviteError || !acceptedInvite) return new Response(JSON.stringify({ error: "No accepted partner invitation was found. Activation is blocked until the invitation is accepted." }), { status: 409, headers: cors });
+    const activatedAt = new Date().toISOString();
+    const { data: activated, error: activationError } = await admin.from("partner_programs")
+      .update({ status: "active", program_live_at: activatedAt, updated_at: activatedAt })
+      .eq("id", partnerId).eq("partner_user_id", partner.partner_user_id)
+      .select("id,partner_name,partner_slug,referral_code,partner_user_id,status,program_live_at,created_at").maybeSingle();
+    if (activationError || !activated) {
+      console.error("Partner activation failed:", activationError);
+      return new Response(JSON.stringify({ error: "Could not activate this partner programme. Refresh and try again." }), { status: 500, headers: cors });
+    }
+    return new Response(JSON.stringify({ success: true, partner: activated, message: "Partner programme activated. New referrals can now be attributed." }), { status: 200, headers: cors });
+  }
 
   if (body.action === "list") {
     const { data, error } = await admin.from("partner_invitations")
@@ -85,8 +148,9 @@ Deno.serve(async (req: Request) => {
   const { data: existing } = await admin.from("partner_invitations")
     .select("id,status,expires_at").eq("partner_id", partner.id).eq("invited_email", email).maybeSingle();
   if (existing?.status === "accepted") return new Response(JSON.stringify({ error: "This email has already accepted the partner invitation" }), { status: 409, headers: cors });
-  if (existing?.status === "pending" && new Date(existing.expires_at) > new Date())
-    return new Response(JSON.stringify({ error: "A valid invitation is already pending for this email" }), { status: 409, headers: cors });
+  // Reuse the existing invitation row when an owner resends. The database
+  // invitation may still be valid even when its one-time Auth email token expired.
+  // A resend issues a fresh Auth link without creating duplicate partner records.
 
   const { data: invitation, error: insertError } = await admin.from("partner_invitations").upsert({
     ...(existing?.id ? { id: existing.id } : {}),
@@ -102,7 +166,7 @@ Deno.serve(async (req: Request) => {
   if (insertError || !invitation) return new Response(JSON.stringify({ error: "Could not create invitation record" }), { status: 500, headers: cors });
 
   const requestOrigin = req.headers.get("Origin") || "";
-  const redirectOrigin = isAllowedOrigin(requestOrigin) ? requestOrigin : "https://pricechecker.ekhayatech.co.za";
+  const redirectOrigin = isAllowedOrigin(requestOrigin) ? requestOrigin : "https://ekhayatech.co.za";
   const redirectTo = redirectOrigin + "/account/?partner_invite=" + invitation.id;
   // Existing Ekhaya users keep their current account and password. Send a
   // magic sign-in link that returns them to the partner invitation acceptance.
@@ -113,10 +177,17 @@ Deno.serve(async (req: Request) => {
   }
   const existingUser = authUsers.users.find(item => item.email?.toLowerCase() === email);
   if (existingUser) {
+    // Supabase Admin User deliberately does not expose password hashes or
+    // encrypted_password. Never infer password state or overwrite an existing
+    // account's password during an invitation resend. The recipient signs in
+    // through this one-time magic link; password recovery remains available if
+    // they need to establish or reset a password.
+    const needsPasswordSetup = false;
+    const existingAccountRedirect = redirectTo + (needsPasswordSetup ? "&password_setup=1" : "");
     const mailClient = createClient(url, anon);
     const { error: magicLinkError } = await mailClient.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
+      options: { emailRedirectTo: existingAccountRedirect, shouldCreateUser: false },
     });
     if (magicLinkError) {
       await admin.from("partner_invitations").update({ status: "revoked" }).eq("id", invitation.id);
@@ -129,7 +200,10 @@ Deno.serve(async (req: Request) => {
       invited_email: email,
       expires_in_days: 14,
       existing_account: true,
-      message: "Partner invitation sign-in link sent. The recipient will keep their existing Ekhaya account and password.",
+      password_setup_required: needsPasswordSetup,
+      message: needsPasswordSetup
+        ? "A fresh partner sign-in link was sent. This invited account still needs its first password."
+        : "Partner invitation sign-in link sent. The recipient can keep their existing Ekhaya password.",
     }), { status: 200, headers: cors });
   }
 
