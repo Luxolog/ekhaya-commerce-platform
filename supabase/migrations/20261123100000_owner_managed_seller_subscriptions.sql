@@ -7,10 +7,31 @@ alter table public.email_otp_verified_sessions
   add column if not exists target_user_id uuid references auth.users(id) on delete cascade,
   add column if not exists plan_code text;
 
--- Owner-managed subscription overrides are applied atomically after OTP verification.
+-- The monthly entitlement function reads this table for every seller plan.
+-- Include every plan exposed by the owner dashboard, including Growth.
+alter table public.plan_search_allowances
+  drop constraint if exists plan_search_allowances_plan_code_check;
+alter table public.plan_search_allowances
+  add constraint plan_search_allowances_plan_code_check
+  check (plan_code in ('free','starter','growth','pro','business'));
+
+insert into public.plan_search_allowances(plan_code, monthly_search_credits)
+values
+  ('free', 5),
+  ('starter', 50),
+  ('growth', 100),
+  ('pro', 250),
+  ('business', 350)
+on conflict (plan_code) do update
+set monthly_search_credits = excluded.monthly_search_credits,
+    updated_at = now();
+
+-- Consume the exact seller/plan OTP and apply the subscription in one transaction.
 create or replace function public.owner_set_seller_plan(
   p_user_id uuid,
-  p_plan_code text
+  p_plan_code text,
+  p_owner_id uuid,
+  p_session_id uuid
 ) returns jsonb
 language plpgsql
 security definer
@@ -25,13 +46,19 @@ begin
     raise exception 'INVALID_PLAN';
   end if;
 
-  if p_plan_code = 'free' then
-    v_allowance := 5;
-  else
-    select monthly_search_credits into v_allowance
-    from public.plan_search_allowances
-    where plan_code = p_plan_code;
+  delete from public.email_otp_verified_sessions
+  where user_id = p_owner_id
+    and session_id = p_session_id
+    and target_user_id = p_user_id
+    and plan_code = p_plan_code
+    and expires_at > now();
+  if not found then
+    raise exception 'OWNER_PLAN_CHANGE_OTP_REQUIRED';
   end if;
+
+  select monthly_search_credits into v_allowance
+  from public.plan_search_allowances
+  where plan_code = p_plan_code;
 
   if v_allowance is null then
     raise exception 'PLAN_ALLOWANCE_NOT_CONFIGURED';
@@ -74,5 +101,5 @@ begin
 end;
 $$;
 
-revoke all on function public.owner_set_seller_plan(uuid,text) from public, anon, authenticated;
-grant execute on function public.owner_set_seller_plan(uuid,text) to service_role;
+revoke all on function public.owner_set_seller_plan(uuid,text,uuid,uuid) from public, anon, authenticated;
+grant execute on function public.owner_set_seller_plan(uuid,text,uuid,uuid) to service_role;
