@@ -329,7 +329,7 @@ export default function EkhayaOwnerDashboard() {
       .owner-content [role="dialog"] > section { border:1px solid var(--ekhaya-line); box-shadow:0 24px 70px #07182C55 !important; }
       @media (max-width:760px) {
         main.ekhaya-owner > header { align-items:flex-start !important; padding:16px !important; }
-        .owner-brand { gap:12px; flex-wrap:wrap; }
+        .owner-brand { gap:12px; flex-wrap:wrap; }\n        .owner-logo-link { width:190px; height:62px; }
         .owner-brand-divider { display:none; }
         .owner-heading h1 { font-size:21px !important; }
         .owner-content nav[aria-label="Owner dashboard sections"] { overflow-x:auto; flex-wrap:nowrap !important; }
@@ -343,7 +343,7 @@ export default function EkhayaOwnerDashboard() {
       }
     `}</style>
     <header style={{ maxWidth: 1440, margin: "0 auto 28px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", borderBottom: "1px solid #DDE6EF", paddingBottom: 18 }}>
-      <div className="owner-brand"><Link href="/" aria-label="Go to Ekhaya Technologies home" className="owner-wordmark"><span className="owner-mark">E</span><span><strong>EKHAYA</strong><small>TECHNOLOGIES</small></span></Link><span className="owner-brand-divider" /><div className="owner-heading"><h1>Owner Dashboard</h1><div>Central administration · Sellers · Partners · Activity · Commissions</div></div></div>
+      <div className="owner-brand"><Link href="/" aria-label="Go to Ekhaya Technologies home" className="owner-logo-link"><img src="/ekhaya-technologies-logo.svg" alt="Ekhaya Technologies — Digital solutions. Built around you." /></Link><span className="owner-brand-divider" /><div className="owner-heading"><h1>Owner Dashboard</h1><div>Central administration · Sellers · Partners · Activity · Commissions</div></div></div>
       <nav style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", fontSize: 13 }}>
         <Link href="/account/security/" className="owner-header-link">Security settings</Link>
         <Link href="/owner/users/" className="owner-header-link">Users</Link>
