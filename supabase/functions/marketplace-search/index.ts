@@ -209,51 +209,23 @@ Deno.serve(async (req: Request) => {
     const targetApp = targetUser.app_metadata ?? {};
     if (targetApp.role === "owner" || targetApp.is_owner === true) return json({ error: "Owner accounts cannot be changed from seller management." }, 403);
 
-    const allowanceUrl = new URL("/rest/v1/plan_search_allowances", supabaseUrl);
-    allowanceUrl.searchParams.set("plan_code", "eq." + nextPlan);
-    allowanceUrl.searchParams.set("select", "monthly_search_credits");
-    allowanceUrl.searchParams.set("limit", "1");
-    const allowanceResponse = await fetch(allowanceUrl, { headers: adminHeaders });
-    if (!allowanceResponse.ok) return json({ error: "Could not verify the search allowance for this plan." }, 503);
-    const allowanceRows = await allowanceResponse.json();
-    if (!allowanceRows?.length) return json({ error: "This plan has no configured monthly search allowance. Configure it before assigning the plan." }, 409);
-
-    const profileResponse = await fetch(new URL("/rest/v1/profiles?id=eq." + encodeURIComponent(targetId), supabaseUrl), {
-      method: "PATCH",
-      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=representation" },
-      body: JSON.stringify({ plan_code: nextPlan, updated_at: new Date().toISOString() })
+    const applyResponse = await fetch(new URL("/rest/v1/rpc/owner_set_seller_plan", supabaseUrl), {
+      method: "POST",
+      headers: { ...adminHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_user_id: targetId, p_plan_code: nextPlan })
     });
-    if (!profileResponse.ok) return json({ error: "Could not update the seller plan.", detail: await profileResponse.text() }, 500);
-
-    const cancelUrl = new URL("/rest/v1/subscriptions", supabaseUrl);
-    cancelUrl.searchParams.set("user_id", "eq." + targetId);
-    cancelUrl.searchParams.set("status", "in.(pending,active,past_due)");
-    const cancelResponse = await fetch(cancelUrl, {
-      method: "PATCH",
-      headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
-      body: JSON.stringify({ status: "cancelled", updated_at: new Date().toISOString() })
-    });
-    if (!cancelResponse.ok) return json({ error: "The plan was updated, but previous subscription records could not be closed. Contact support before retrying." }, 500);
-
-    if (nextPlan !== "free") {
-      const now = new Date();
-      const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
-      const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
-      const createResponse = await fetch(new URL("/rest/v1/subscriptions", supabaseUrl), {
-        method: "POST",
-        headers: { ...adminHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
-        body: JSON.stringify({
-          user_id: targetId, payment_provider: "manual_owner",
-          provider_subscription_id: crypto.randomUUID(), plan_code: nextPlan, status: "active",
-          current_period_start: periodStart, current_period_end: periodEnd
-        })
-      });
-      if (!createResponse.ok) return json({ error: "The profile plan was changed, but its active subscription record could not be created. Contact support before retrying.", detail: await createResponse.text() }, 500);
+    const applied = applyResponse.ok ? await applyResponse.json() : null;
+    if (!applyResponse.ok || applied?.ok !== true) {
+      const detail = applyResponse.ok ? applied : await applyResponse.text();
+      const message = String(detail?.message ?? detail ?? "");
+      if (message.includes("PLAN_ALLOWANCE_NOT_CONFIGURED")) return json({ error: "This plan has no configured monthly search allowance. Configure it before assigning the plan." }, 409);
+      if (message.includes("SELLER_NOT_FOUND")) return json({ error: "Registered seller account not found." }, 404);
+      return json({ error: "The seller subscription could not be changed atomically.", detail }, 500);
     }
 
     // Consume this verification so each subsequent plan change requires a new OTP.
     await fetch(verifiedUrl, { method: "DELETE", headers: { ...adminHeaders, Prefer: "return=minimal" } });
-    return json({ ok: true, target_user_id: targetId, plan_code: nextPlan, monthly_search_allowance: allowanceRows[0].monthly_search_credits, activated_immediately: true });
+    return json({ ...applied, target_user_id: targetId });
   }
 
   if (body.action === "owner_set_user_status") {
