@@ -13,6 +13,33 @@ type Seller = { id: string; seller_code: string | null; account_id: string | nul
 type PlatformActivity = { user_id: string | null; seller_code?: string | null; seller_email: string | null; seller_display_name: string | null; seller_plan: string; marketplace?: string; query: string; result_count: number; result_status: string; source?: string; provider?: string; action?: string; credits_charged?: number; event_type: string; partner_name?: string | null; created_at: string };
 type Data = { generated_at: string; totals: { users: number; sellers: number; active_sellers: number; paying_sellers: number; total_searches: number; total_search_failures: number; provider_api_events: number; total_payments: number; partners: number; active_partners: number; registered_referred_sellers: number; paying_referred_sellers: number; total_commission_recorded: number; pending_commission: number; commission_paid: number; partner_searches: number; partner_search_failures: number; monthly_search_allowance: number; monthly_searches_used: number; monthly_searches_remaining: number }; sellers: Seller[]; all_activity: PlatformActivity[]; api_usage: Record<string, unknown>[]; partners: Partner[]; referrals: Referral[]; commissions: Commission[]; statements: Record<string, unknown>[]; activity: Activity[] };
 
+
+const STATUS_STYLES: Record<string, { background: string; color: string; label: string }> = {
+  active: { background: "#E3F5EC", color: "#16734B", label: "Active" },
+  approved: { background: "#E3F5EC", color: "#16734B", label: "Approved" },
+  success: { background: "#E3F5EC", color: "#16734B", label: "Success" },
+  paid: { background: "#E3F5EC", color: "#16734B", label: "Paid" },
+  pending: { background: "#FFF2D9", color: "#94600D", label: "Pending" },
+  suspended: { background: "#FDE9E8", color: "#B33D3D", label: "Suspended" },
+  inactive: { background: "#EEF1F5", color: "#586B7D", label: "Inactive" },
+  failed: { background: "#FDE9E8", color: "#B33D3D", label: "Failed" },
+  declined: { background: "#FDE9E8", color: "#B33D3D", label: "Declined" },
+  free: { background: "#E8F1FF", color: "#285FA8", label: "Free" },
+  starter: { background: "#E6F4F8", color: "#176B83", label: "Starter" },
+  growth: { background: "#EDE8FF", color: "#6346A8", label: "Growth" },
+  pro: { background: "#F0E9FF", color: "#6941A5", label: "Pro" },
+  business: { background: "#FFF0D8", color: "#8B5A13", label: "Business" },
+  none: { background: "#F0F2F5", color: "#68798A", label: "—" }
+};
+
+function DashboardBadge({ value, kind = "status" }: { value?: string | null; kind?: "status" | "plan" }) {
+  const key = String(value || "none").toLowerCase();
+  const style = STATUS_STYLES[key] || (kind === "plan"
+    ? { background: "#EDF1F7", color: "#465A70", label: key.charAt(0).toUpperCase() + key.slice(1) }
+    : { background: "#EEF1F5", color: "#586B7D", label: key.charAt(0).toUpperCase() + key.slice(1) });
+  return <span className="owner-badge" style={{ background: style.background, color: style.color }}>{style.label}</span>;
+}
+
 const money = (n: number) => new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(Number(n) || 0);
 const when = (v?: string | null) => v ? new Intl.DateTimeFormat("en-ZA", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Johannesburg" }).format(new Date(v)) + " SAST" : "—";
 const shell: React.CSSProperties = { minHeight: "100vh", background: "#F3F6FA", color: "#10243A", fontFamily: "Arial,sans-serif", padding: "26px clamp(16px,4vw,56px) 60px" };
@@ -247,19 +274,86 @@ export default function EkhayaOwnerDashboard() {
   };
   const total = data?.totals;
 
-  return <main style={shell}>
+  return <main className="ekhaya-owner" style={shell}>
+    <style jsx global>{`
+      :root {
+        --ekhaya-navy: #10243A;
+        --ekhaya-gold: #D6A63A;
+        --ekhaya-bg: #F4F7FB;
+        --ekhaya-line: #E1E8F0;
+        --ekhaya-muted: #687B90;
+        --ekhaya-blue: #3978D8;
+        --ekhaya-green: #159A75;
+        --ekhaya-amber: #E9A23B;
+        --ekhaya-red: #D94B50;
+        --ekhaya-purple: #8064C9;
+        --ekhaya-teal: #159BA6;
+      }
+      main.ekhaya-owner { padding:0 !important; min-height:100vh; background:var(--ekhaya-bg) !important; color:var(--ekhaya-navy); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif !important; }
+      main.ekhaya-owner > header { max-width:none !important; margin:0 0 0 !important; padding:18px clamp(18px,4vw,58px) !important; min-height:88px; box-sizing:border-box; background:linear-gradient(112deg,#0D2035 0%,#173B58 58%,#10243A 100%); border:0 !important; border-bottom:3px solid var(--ekhaya-gold) !important; color:white; box-shadow:0 5px 20px #10243A20; }
+      .owner-brand { display:flex; align-items:center; gap:24px; min-width:280px; }
+      .owner-wordmark { display:flex; align-items:center; gap:11px; color:#fff !important; text-decoration:none; letter-spacing:1.8px; }
+      .owner-wordmark strong { display:block; font-size:19px; line-height:1.1; font-weight:900; }
+      .owner-wordmark small { display:block; margin-top:3px; font-size:9px; letter-spacing:3px; color:#D6E0EA; font-weight:700; }
+      .owner-mark { display:grid; place-items:center; width:42px; height:42px; border-radius:12px 5px 12px 5px; background:linear-gradient(145deg,#F2C65C,#C58B1F); color:#10243A; font-size:28px; font-weight:950; box-shadow:0 5px 14px #0003; }
+      .owner-brand-divider { width:2px; height:44px; background:#D6A63A; opacity:.9; }
+      .owner-heading h1 { margin:0 0 4px !important; color:#fff; font-size:25px !important; letter-spacing:-.5px; }
+      .owner-heading div { color:#C8D6E3; font-size:12px; }
+      .owner-header-link { color:#D9E8F4 !important; font-weight:700; text-decoration:none; transition:color .18s ease; }
+      .owner-header-link:hover { color:#F2C65C !important; }
+      .ekhaya-owner > section.owner-content { max-width:1500px !important; padding:24px clamp(16px,3vw,42px) 42px; box-sizing:border-box; }
+      .owner-content [style*="border-radius: 14px"] { border-color:var(--ekhaya-line) !important; border-radius:16px !important; box-shadow:0 5px 18px #18334D0A; }
+      .owner-content .owner-tabs { top:0; z-index:30; padding:12px 14px !important; margin:0 0 20px !important; border:1px solid var(--ekhaya-line); border-radius:14px; background:#FFFFFFF2 !important; backdrop-filter:blur(12px); box-shadow:0 6px 20px #10243A0C; }
+      .owner-tabs button { border:1px solid #DFE7F0 !important; border-radius:10px !important; background:#fff !important; color:#435970 !important; padding:10px 14px !important; font-size:12px; transition:all .18s ease; }
+      .owner-tabs button:hover { border-color:#D6A63A !important; color:#10243A !important; transform:translateY(-1px); box-shadow:0 4px 12px #10243A12; }
+      .owner-tabs button[aria-current="page"] { background:#10243A !important; border-color:#D6A63A !important; color:#fff !important; box-shadow:inset 0 -3px 0 #D6A63A,0 4px 12px #10243A20; }
+      .owner-content h2,.owner-content h3 { letter-spacing:-.25px; color:#142B43; }
+      .owner-content p { line-height:1.55; }
+      .owner-table { border-collapse:separate !important; border-spacing:0; }
+      .owner-content table th { background:#142C44 !important; color:#F8FAFC !important; font-size:11px; font-weight:800; letter-spacing:.2px; padding:13px 11px !important; border-bottom:2px solid #D6A63A; }
+      .owner-content table th:first-child { border-radius:8px 0 0 0; }
+      .owner-content table th:last-child { border-radius:0 8px 0 0; }
+      .owner-content table td { padding:12px 11px !important; border-bottom:1px solid #EAF0F5 !important; font-size:12px; color:#253C52; }
+      .owner-content table tbody tr:nth-child(even) td { background:#F8FAFD; }
+      .owner-content table tbody tr:hover td { background:#F0F6FC; }
+      .owner-badge { display:inline-flex; align-items:center; justify-content:center; min-width:58px; padding:5px 10px; border-radius:999px; font-size:10px; line-height:1.2; font-weight:850; letter-spacing:.15px; white-space:nowrap; }
+      .owner-id { display:inline-flex; align-items:center; padding:5px 9px; border-radius:7px; background:#E6F0FF; color:#285FA8; font-size:11px; font-weight:900; letter-spacing:.3px; white-space:nowrap; }
+      .owner-content button { transition:filter .16s ease,transform .16s ease,box-shadow .16s ease; }
+      .owner-content button:hover:not(:disabled) { filter:brightness(1.04); transform:translateY(-1px); box-shadow:0 4px 12px #10243A18; }
+      .owner-content button:focus-visible,.owner-content a:focus-visible,.owner-content input:focus-visible,.owner-content select:focus-visible { outline:3px solid #D6A63A !important; outline-offset:2px; }
+      .owner-content input,.owner-content select { min-height:42px; border-color:#D8E2EC !important; border-radius:9px !important; background:#fff; color:#19334D; }
+      .owner-content input:focus,.owner-content select:focus { border-color:#3978D8 !important; box-shadow:0 0 0 3px #3978D822; outline:none; }
+      .owner-content article { transition:transform .18s ease,box-shadow .18s ease; }
+      .owner-content article:hover { transform:translateY(-2px); box-shadow:0 10px 24px #10243A12; }
+      .owner-content [role="alert"] { border-left:4px solid var(--ekhaya-red) !important; }
+      .owner-content [role="dialog"] > section { border:1px solid var(--ekhaya-line); box-shadow:0 24px 70px #07182C55 !important; }
+      @media (max-width:760px) {
+        main.ekhaya-owner > header { align-items:flex-start !important; padding:16px !important; }
+        .owner-brand { gap:12px; flex-wrap:wrap; }
+        .owner-brand-divider { display:none; }
+        .owner-heading h1 { font-size:21px !important; }
+        .owner-content nav[aria-label="Owner dashboard sections"] { overflow-x:auto; flex-wrap:nowrap !important; }
+        .owner-tabs button { flex:0 0 auto; }
+        .owner-content table { min-width:760px; }
+        .owner-content [role="dialog"] { overflow-y:auto; align-items:start !important; }
+        .owner-content [role="dialog"] > section { margin:auto 0; }
+      }
+      @media (prefers-reduced-motion:reduce) {
+        .owner-content *,main.ekhaya-owner * { scroll-behavior:auto !important; transition:none !important; animation:none !important; }
+      }
+    `}</style>
     <header style={{ maxWidth: 1440, margin: "0 auto 28px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", borderBottom: "1px solid #DDE6EF", paddingBottom: 18 }}>
-      <div><Link href="/" aria-label="Go to Ekhaya Technologies home" style={{ color: "#078FC4", fontWeight: 800, fontSize: 11, letterSpacing: 2, textDecoration: "none" }}>EKHAYA TECHNOLOGIES ↗</Link><h1 style={{ fontSize: 30, margin: "7px 0 4px" }}>Owner Dashboard</h1><div style={small}>Central administration · Partners · Sellers · Activity · Commissions</div></div>
+      <div className="owner-brand"><Link href="/" aria-label="Go to Ekhaya Technologies home" className="owner-wordmark"><span className="owner-mark">E</span><span><strong>EKHAYA</strong><small>TECHNOLOGIES</small></span></Link><span className="owner-brand-divider" /><div className="owner-heading"><h1>Owner Dashboard</h1><div>Central administration · Sellers · Partners · Activity · Commissions</div></div></div>
       <nav style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", fontSize: 13 }}>
-        <Link href="/account/security/" style={{ color: "#078FC4", fontWeight: 700 }}>Security settings</Link>
-        <Link href="/owner/users/" style={{ color: "#078FC4", fontWeight: 700 }}>Users</Link>
-        <Link href="/owner/cache/" style={{ color: "#078FC4", fontWeight: 700 }}>Cache controls</Link>
-        <Link href="/price-checker/" style={{ color: "#078FC4", fontWeight: 700 }}>Price Checker</Link>
+        <Link href="/account/security/" className="owner-header-link">Security settings</Link>
+        <Link href="/owner/users/" className="owner-header-link">Users</Link>
+        <Link href="/owner/cache/" className="owner-header-link">Cache controls</Link>
+        <Link href="/price-checker/" className="owner-header-link">Price Checker</Link>
         <button onClick={() => void load()} disabled={busy} style={{ border: 0, borderRadius: 8, background: "#10243A", color: "#fff", padding: "11px 15px", fontWeight: 700, cursor: "pointer" }}>{busy ? "Refreshing…" : "Refresh data"}</button>
       </nav>
     </header>
 
-    <section style={{ maxWidth: 1440, margin: "0 auto" }}>
+    <section className="owner-content" style={{ maxWidth: 1440, margin: "0 auto" }}>
       {error && <div role="alert" style={{ ...panel, borderColor: "#E5B9B9", color: "#8A2E2E", marginBottom: 18 }}><b>Owner access / data error</b><p style={{ marginBottom: 0 }}>{error}</p>{error.toLowerCase().includes("sign in") && <Link href="/account/" style={{ display: "inline-block", marginTop: 12, color: "#078FC4", fontWeight: 700 }}>Go to sign in →</Link>}</div>}
       {loading && <div style={panel}>Loading owner dashboard…</div>}
       {data && total && <>
@@ -267,7 +361,7 @@ export default function EkhayaOwnerDashboard() {
           <div style={small}>Live partner data · Last refreshed {when(data.generated_at)}</div>
           <div style={{ ...small, color: "#16835D", fontWeight: 700 }}>Owner-only data access</div>
         </div>
-        <nav aria-label="Owner dashboard sections" style={{ position: "sticky", top: 0, zIndex: 30, display: "flex", flexWrap: "wrap", gap: 8, margin: "0 0 18px", padding: "12px 0", background: "#F3F6FA", borderBottom: "1px solid #DDE6EF" }}>
+        <nav className="owner-tabs" aria-label="Owner dashboard sections" style={{ position: "sticky", top: 0, zIndex: 30, display: "flex", flexWrap: "wrap", gap: 8, margin: "0 0 18px", padding: "12px 0", background: "#F3F6FA", borderBottom: "1px solid #DDE6EF" }}>
           {OWNER_TABS.map(x => <button key={x} aria-current={tab === x ? "page" : undefined} onClick={() => navigateToTab(x)} style={{ padding: "10px 15px", borderRadius: 8, border: tab === x ? "1px solid #10243A" : "1px solid #DDE6EF", background: tab === x ? "#10243A" : "#fff", color: tab === x ? "#fff" : "#3C5368", textTransform: "capitalize", fontWeight: 700, cursor: "pointer" }}>{x}</button>)}
         </nav>
         {tab === "overview" && <div style={{ display: "grid", gap: 18 }}>
@@ -331,7 +425,7 @@ export default function EkhayaOwnerDashboard() {
           <section style={{ ...panel, overflowX: "auto" }}>
             <h2 style={{ marginTop: 0, fontSize: 18 }}>Pending seller applications</h2>
             <p style={small}>Review new seller accounts here. Approval requires a verified email and an available pilot seat. Declining marks the account inactive; it does not delete the account.</p>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Seller","Email","Email verification","Joined","Review"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.sellers.filter(s=>s.role!=="owner" && s.account_status==="pending").map(s=><tr key={s.id}><td style={td}><b>{s.display_name || "Seller"}</b><div style={small}>Seller ID: {s.seller_code || "Pending assignment"}</div></td><td style={td}>{s.email || "—"}</td><td style={td}>{s.email_confirmed_at ? "Verified" : "Not verified"}</td><td style={td}>{when(s.created_at)}</td><td style={td}><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button type="button" aria-label={"Approve "+(s.email||"seller")} title="Approve seller" disabled={sellerReviewBusyId===s.id || !s.email_confirmed_at} onClick={()=>void reviewSeller(s,"active")} style={{border:0,borderRadius:7,padding:"8px 12px",background:s.email_confirmed_at?"#16835D":"#E8EDF2",color:s.email_confirmed_at?"#fff":"#65788A",fontWeight:800,cursor:s.email_confirmed_at?"pointer":"not-allowed"}}>✓ Approve</button><button type="button" aria-label={"Decline "+(s.email||"seller")} title="Decline seller application" disabled={sellerReviewBusyId===s.id} onClick={()=>void reviewSeller(s,"inactive")} style={{border:0,borderRadius:7,padding:"8px 12px",background:"#9B3D3D",color:"#fff",fontWeight:800,cursor:"pointer"}}>✕ Decline</button></div></td></tr>)}</tbody></table>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Seller","Email","Email verification","Joined","Review"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.sellers.filter(s=>s.role!=="owner" && s.account_status==="pending").map(s=><tr key={s.id}><td style={td}><b>{s.display_name || "Seller"}</b><div style={small}>Seller ID: {s.seller_code || "Pending assignment"}</div></td><td style={td}>{s.email || "—"}</td><td style={td}><DashboardBadge value={s.email_confirmed_at ? "approved" : "pending"} /></td><td style={td}>{when(s.created_at)}</td><td style={td}><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button type="button" aria-label={"Approve "+(s.email||"seller")} title="Approve seller" disabled={sellerReviewBusyId===s.id || !s.email_confirmed_at} onClick={()=>void reviewSeller(s,"active")} style={{border:0,borderRadius:7,padding:"8px 12px",background:s.email_confirmed_at?"#16835D":"#E8EDF2",color:s.email_confirmed_at?"#fff":"#65788A",fontWeight:800,cursor:s.email_confirmed_at?"pointer":"not-allowed"}}>✓ Approve</button><button type="button" aria-label={"Decline "+(s.email||"seller")} title="Decline seller application" disabled={sellerReviewBusyId===s.id} onClick={()=>void reviewSeller(s,"inactive")} style={{border:0,borderRadius:7,padding:"8px 12px",background:"#9B3D3D",color:"#fff",fontWeight:800,cursor:"pointer"}}>✕ Decline</button></div></td></tr>)}</tbody></table>
             {!data.sellers.some(s=>s.role!=="owner" && s.account_status==="pending") && <p style={small}>There are no pending seller applications.</p>}
             {sellerReviewFeedback && <p role="status" style={{...small,marginTop:10}}>{sellerReviewFeedback}</p>}
           </section>
@@ -342,7 +436,7 @@ export default function EkhayaOwnerDashboard() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 1160 }}>
               <thead><tr>{["Seller","Email","Plan","Subscription","Account","Partner","Searches","Failures","Last search","Payments","Joined","Last sign-in","Actions"].map(x=><th key={x} style={x==="Actions"?{...th,position:"sticky",right:0,zIndex:2}:th}>{x}</th>)}</tr></thead>
               <tbody>{data.sellers.filter(s=>s.role!=="owner").map(s=><tr key={s.id}>
-                <td style={td}><b>{s.display_name || "Seller"}</b><div style={small}>Seller ID: {s.seller_code || "Pending assignment"}</div></td><td style={td}>{s.email || "—"}</td><td style={td}>{s.plan_code}</td><td style={td}>{s.subscription_status}</td><td style={td}>{s.account_status}</td><td style={td}>{s.partner_name || "Direct"}</td><td style={td}>{s.searches}</td><td style={td}>{s.search_failures}</td><td style={td}>{when(s.last_search)}</td><td style={td}>{s.payments_count} · {money(s.payments_total)}</td><td style={td}>{when(s.created_at)}</td><td style={td}>{when(s.last_sign_in_at)}</td>
+                <td style={td}><span className="owner-id">{s.seller_code || "Pending"}</span></td><td style={td}><b>{s.display_name || "Seller"}</b></td><td style={td}>{s.email || "—"}</td><td style={td}><DashboardBadge value={s.plan_code} kind="plan" /></td><td style={td}><DashboardBadge value={s.subscription_status} /></td><td style={td}><DashboardBadge value={s.account_status} /></td><td style={td}>{s.partner_name || "Direct"}</td><td style={td}>{s.searches}</td><td style={td}>{s.search_failures}</td><td style={td}>{when(s.last_search)}</td><td style={td}>{s.payments_count} · {money(s.payments_total)}</td><td style={td}>{when(s.created_at)}</td><td style={td}>{when(s.last_sign_in_at)}</td>
                 <td style={{...td,minWidth:210,position:"sticky",right:0,background:"#fff",zIndex:1,boxShadow:"-8px 0 10px -10px #10243A"}}><div style={{display:"grid",gap:7}}>
                   <button type="button" disabled={managementBusyId===s.id} onClick={()=>{setPlanSeller(s);setSelectedPlan(s.plan_code);setPlanOtp("");setPlanOtpSent(false);}} style={{border:0,borderRadius:7,padding:"8px 10px",background:"#087EAC",color:"#fff",fontWeight:700,cursor:"pointer"}}>Change subscription</button>
                   {s.account_status==="suspended" || s.account_status==="inactive" ? <button type="button" disabled={managementBusyId===s.id} onClick={()=>void changeSellerStatus(s,"active")} style={{border:0,borderRadius:7,padding:"8px 10px",background:"#16835D",color:"#fff",fontWeight:700,cursor:"pointer"}}>Activate account</button> :
@@ -373,7 +467,7 @@ export default function EkhayaOwnerDashboard() {
 
         {tab === "searches" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All seller marketplace searches</h2><p style={small}>Search history across all sellers, including marketplace, search term, result count, status and timestamp.</p><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Date","Seller","Email","Plan","Marketplace","Search query","Results","Status","Source","Partner"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.all_activity.filter(a=>a.event_type==="seller_search").map((a,i)=><tr key={String(a.user_id)+a.created_at+i}><td style={td}>{when(a.created_at)}</td><td style={td}>{a.seller_display_name || a.user_id || "Unknown"}</td><td style={td}>{a.seller_email || (a.event_type === "provider_usage" && !a.user_id ? "System event · no seller account" : "—")}</td><td style={td}>{a.seller_plan}</td><td style={td}>{a.marketplace || "—"}</td><td style={td}>{a.query}</td><td style={td}>{a.result_count}</td><td style={td}>{a.result_status}</td><td style={td}>{a.source || "—"}</td><td style={td}>{a.partner_name || "Direct"}</td></tr>)}</tbody></table>{!data.all_activity.some(a=>a.event_type==="seller_search") && <p style={small}>No seller search events recorded yet.</p>}</div>}
 
-        {tab === "platform activity" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All platform activity</h2><p style={small}>Owner-only event feed combining seller search activity and marketplace provider API usage.</p><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Date","Event","Seller","Email","Marketplace","Details","Results / credits","Status","Partner"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.all_activity.map((a,i)=><tr key={String(a.user_id)+a.created_at+a.event_type+i}><td style={td}>{when(a.created_at)}</td><td style={td}>{a.event_type === "seller_search" ? "Seller search" : "Provider API usage"}</td><td style={td}>{a.seller_display_name || a.user_id || (a.event_type === "provider_usage" ? "Unattributed legacy API event" : "Unknown account")}{a.seller_code && <div style={small}>Seller ID: {a.seller_code}</div>}</td><td style={td}>{a.seller_email || (a.event_type === "provider_usage" && !a.user_id ? "No actor recorded on legacy event" : "—")}</td><td style={td}>{a.marketplace || "—"}</td><td style={td}>{a.query || a.action || "—"}</td><td style={td}>{a.event_type === "seller_search" ? a.result_count : a.credits_charged ?? 0}</td><td style={td}>{a.result_status}</td><td style={td}>{a.partner_name || "—"}</td></tr>)}</tbody></table>{!data.all_activity.length && <p style={small}>No platform activity recorded yet.</p>}</div>}
+        {tab === "platform activity" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All platform activity</h2><p style={small}>Owner-only event feed combining seller search activity and marketplace provider API usage.</p><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Date","Event","Seller","Email","Marketplace","Details","Results / credits","Status","Partner"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.all_activity.map((a,i)=><tr key={String(a.user_id)+a.created_at+a.event_type+i}><td style={td}>{when(a.created_at)}</td><td style={td}>{a.event_type === "seller_search" ? "Seller search" : "Provider API usage"}</td><td style={td}>{a.seller_display_name || a.user_id || (a.event_type === "provider_usage" ? "Unattributed legacy API event" : "Unknown account")}{a.seller_code && <div style={small}>Seller ID: {a.seller_code}</div>}</td><td style={td}>{a.seller_email || (a.event_type === "provider_usage" && !a.user_id ? "No actor recorded on legacy event" : "—")}</td><td style={td}>{a.marketplace || "—"}</td><td style={td}>{a.query || a.action || "—"}</td><td style={td}>{a.event_type === "seller_search" ? a.result_count : a.credits_charged ?? 0}</td><td style={td}><DashboardBadge value={a.result_status} /></td><td style={td}>{a.partner_name || "—"}</td></tr>)}</tbody></table>{!data.all_activity.length && <p style={small}>No platform activity recorded yet.</p>}</div>}
 
         {tab === "api usage" && <div style={{ display: "grid", gap: 16 }}>
           <header><h2 style={{ margin: 0, fontSize: 22 }}>API usage and remaining search credits</h2><p style={small}>Usage and allowance for your registered sellers, with provider calls shown separately from Ekhaya search credits.</p></header>
@@ -388,7 +482,7 @@ export default function EkhayaOwnerDashboard() {
           <div style={{ ...panel, overflowX: "auto" }}>
             <h2 style={{ marginTop: 0, fontSize: 18 }}>Seller API and search-credit usage</h2>
             <p style={small}>Monthly marketplace search credits are calculated from the active plan allowance and this month’s recorded usage. Provider API calls are counted separately from seller search credits.</p>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Seller ID","Seller","Email","Plan","Monthly allowance","Used this month","Remaining","Provider API calls (all time)"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.sellers.filter(s=>s.role!=="owner").map(s=><tr key={s.id}><td style={td}><b>{s.seller_code || "Pending ID"}</b></td><td style={td}><b>{s.display_name || "Seller"}</b></td><td style={td}>{s.email || "—"}</td><td style={td}>{s.plan_code}</td><td style={td}>{s.monthly_search_allowance}</td><td style={td}>{s.monthly_searches_used}</td><td style={td}><b>{s.monthly_searches_remaining}</b></td><td style={td}>{s.provider_api_calls}</td></tr>)}</tbody></table>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Seller ID","Seller","Email","Plan","Monthly allowance","Used this month","Remaining","Provider API calls (all time)"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.sellers.filter(s=>s.role!=="owner").map(s=><tr key={s.id}><td style={td}><b>{s.seller_code || "Pending ID"}</b></td><td style={td}><b>{s.display_name || "Seller"}</b></td><td style={td}>{s.email || "—"}</td><td style={td}><DashboardBadge value={s.plan_code} kind="plan" /></td><td style={td}>{s.monthly_search_allowance}</td><td style={td}>{s.monthly_searches_used}</td><td style={td}><b>{s.monthly_searches_remaining}</b></td><td style={td}>{s.provider_api_calls}</td></tr>)}</tbody></table>
           </div>
           <div style={{ ...panel, borderColor: "#E8D8B5" }}><b>Important distinction</b><p style={{ ...small, marginBottom: 0 }}>Remaining means the seller’s remaining platform search credits for the current month. The connected marketplace provider’s own external account quota is not exposed in the current integration, so it is not represented as a remaining provider quota.</p></div>
         </div>}
@@ -432,7 +526,7 @@ export default function EkhayaOwnerDashboard() {
           </section>
           <section style={{ ...panel, overflowX: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All partner accounts</h2><button onClick={()=>void loadPartnerInvitations()} style={{ border: "1px solid #DDE6EF", background: "#fff", borderRadius: 8, padding: "8px 12px", fontWeight: 700, cursor: "pointer" }}>Refresh invitations</button></div>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Partner","Referral code","Status","Linked owner user","Go-live date","Created"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.partners.map(p=><tr key={p.id}><td style={td}><b>{p.partner_name}</b><div style={small}>Partner ID: {p.partner_code || "Pending assignment"}</div><div style={small}>{p.partner_slug}</div></td><td style={td}>{p.referral_code}</td><td style={td}><b>{p.status}</b>{p.status!=="active"&&<div style={{marginTop:7}}><button type="button" onClick={()=>void activatePartner(p.id)} disabled={!p.partner_user_id||activationBusyId===p.id} title={!p.partner_user_id?"Partner owner must accept the invitation first":"Activate this partner programme"} style={{border:0,borderRadius:7,padding:"7px 10px",background:p.partner_user_id?"#16835D":"#E8EDF2",color:p.partner_user_id?"#fff":"#65788A",fontSize:11,fontWeight:700,cursor:p.partner_user_id?"pointer":"not-allowed"}}>{activationBusyId===p.id?"Activating…":p.partner_user_id?"Activate programme":"Awaiting owner"}</button>{!p.partner_user_id&&<div style={{...small,marginTop:5,color:partnerInvitations.some(inv=>inv.partner_id===p.id)?"#9A641B":"#A33B32"}}>{partnerInvitations.some(inv=>inv.partner_id===p.id)?"Invitation recorded; email delivery is not confirmed here.":"No invitation record — no invitation email is recorded as sent."}</div>}</div>}</td><td style={td}>{p.account_id || (p.partner_user_id ? "ET ID pending" : "Not linked")}</td><td style={td}>{when(p.program_live_at)}</td><td style={td}>{when(p.created_at)}</td></tr>)}</tbody></table>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Partner","Referral code","Status","Linked owner user","Go-live date","Created"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.partners.map(p=><tr key={p.id}><td style={td}><b>{p.partner_name}</b><div style={small}>Partner ID: {p.partner_code || "Pending assignment"}</div><div style={small}>{p.partner_slug}</div></td><td style={td}>{p.referral_code}</td><td style={td}><DashboardBadge value={p.status} />{p.status!=="active"&&<div style={{marginTop:7}}><button type="button" onClick={()=>void activatePartner(p.id)} disabled={!p.partner_user_id||activationBusyId===p.id} title={!p.partner_user_id?"Partner owner must accept the invitation first":"Activate this partner programme"} style={{border:0,borderRadius:7,padding:"7px 10px",background:p.partner_user_id?"#16835D":"#E8EDF2",color:p.partner_user_id?"#fff":"#65788A",fontSize:11,fontWeight:700,cursor:p.partner_user_id?"pointer":"not-allowed"}}>{activationBusyId===p.id?"Activating…":p.partner_user_id?"Activate programme":"Awaiting owner"}</button>{!p.partner_user_id&&<div style={{...small,marginTop:5,color:partnerInvitations.some(inv=>inv.partner_id===p.id)?"#9A641B":"#A33B32"}}>{partnerInvitations.some(inv=>inv.partner_id===p.id)?"Invitation recorded; email delivery is not confirmed here.":"No invitation record — no invitation email is recorded as sent."}</div>}</div>}</td><td style={td}>{p.account_id || (p.partner_user_id ? "ET ID pending" : "Not linked")}</td><td style={td}>{when(p.program_live_at)}</td><td style={td}>{when(p.created_at)}</td></tr>)}</tbody></table>
             {activationFeedback && <p role="status" style={{ ...small, marginTop: 10 }}>{activationFeedback}</p>}
             <h3 style={{ fontSize: 16, margin: "22px 0 10px" }}>Partner invitations</h3>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 900 }}><thead><tr>{["Partner","Partner contact","Contact email","Linked Ekhaya account","Invited","Accepted (SAST)","Expires","Status"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{partnerInvitations.map(inv=>{const partner=data.partners.find(p=>p.id===inv.partner_id);return <tr key={inv.id}><td style={td}>{partner?.partner_name || "Partner"}<div style={small}>Partner ID: {partner?.partner_code || "Pending assignment"}</div><div style={small}>{partner?.referral_code || "Referral code pending"}</div></td><td style={td}>{inv.contact_name || "—"}</td><td style={td}>{inv.invited_email}</td><td style={td}>{partner?.account_id || (partner?.partner_user_id ? "ET ID pending" : inv.status==="accepted"?"Account link pending":"Not linked yet")}</td><td style={td}>{when(inv.invited_at)}</td><td style={td}>{when(inv.accepted_at)}</td><td style={td}>{when(inv.expires_at)}</td><td style={td}>{inv.status}</td></tr>;})}</tbody></table>
@@ -440,11 +534,11 @@ export default function EkhayaOwnerDashboard() {
           </section>
         </div>}
 
-        {tab === "referrals" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All referred sellers</h2><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Partner","Seller","Plan","Account status","Registered","First payment"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.referrals.map(r=><tr key={r.id}><td style={td}>{r.partner_name}</td><td style={td}>{r.seller_display_name || r.referred_user_id}</td><td style={td}>{r.seller_plan}</td><td style={td}>{r.seller_account_status}</td><td style={td}>{when(r.registered_at)}</td><td style={td}>{when(r.first_paid_at)}</td></tr>)}</tbody></table>{!data.referrals.length && <p style={small}>No referred sellers recorded yet.</p>}</div>}
+        {tab === "referrals" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All referred sellers</h2><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Partner","Seller","Plan","Account status","Registered","First payment"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.referrals.map(r=><tr key={r.id}><td style={td}>{r.partner_name}</td><td style={td}>{r.seller_display_name || r.referred_user_id}</td><td style={td}>{r.seller_plan}</td><td style={td}><DashboardBadge value={r.seller_account_status} /></td><td style={td}>{when(r.registered_at)}</td><td style={td}>{when(r.first_paid_at)}</td></tr>)}</tbody></table>{!data.referrals.length && <p style={small}>No referred sellers recorded yet.</p>}</div>}
 
-        {tab === "activity" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>Partner-referred seller activity</h2><p style={small}>Marketplace searches made by sellers attributed to a partner. This view does not mix in unrelated seller activity.</p><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Date","Partner","Seller","Marketplace","Search query","Results","Status","Source"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.activity.map((a,i)=><tr key={a.user_id+a.created_at+i}><td style={td}>{when(a.created_at)}</td><td style={td}>{a.partner_name}</td><td style={td}>{a.seller_display_name || a.user_id}</td><td style={td}>{a.marketplace}</td><td style={td}>{a.query}</td><td style={td}>{a.result_count}</td><td style={td}>{a.result_status}</td><td style={td}>{a.source}</td></tr>)}</tbody></table>{!data.activity.length && <p style={small}>No partner-referred seller activity recorded yet.</p>}</div>}
+        {tab === "activity" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>Partner-referred seller activity</h2><p style={small}>Marketplace searches made by sellers attributed to a partner. This view does not mix in unrelated seller activity.</p><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Date","Partner","Seller","Marketplace","Search query","Results","Status","Source"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.activity.map((a,i)=><tr key={a.user_id+a.created_at+i}><td style={td}>{when(a.created_at)}</td><td style={td}>{a.partner_name}</td><td style={td}>{a.seller_display_name || a.user_id}</td><td style={td}>{a.marketplace}</td><td style={td}>{a.query}</td><td style={td}>{a.result_count}</td><td style={td}><DashboardBadge value={a.result_status} /></td><td style={td}>{a.source}</td></tr>)}</tbody></table>{!data.activity.length && <p style={small}>No partner-referred seller activity recorded yet.</p>}</div>}
 
-        {tab === "commissions" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All partner commissions</h2><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Payment month","Partner","Plan","Qualifying amount","Rate","Commission","Status","Paid on"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.commissions.map(c=><tr key={c.id}><td style={td}>{when(c.payment_month)}</td><td style={td}>{data.partners.find(p=>p.id===c.partner_id)?.partner_name ?? c.partner_id}</td><td style={td}>{c.plan_code}</td><td style={td}>{money(c.qualifying_amount)}</td><td style={td}>{(Number(c.commission_rate)*100).toFixed(2)}%</td><td style={td}>{money(c.commission_amount)}</td><td style={td}>{c.status}</td><td style={td}>{when(c.paid_at)}</td></tr>)}</tbody></table>{!data.commissions.length && <p style={small}>No commission entries recorded yet.</p>}</div>}
+        {tab === "commissions" && <div style={{ ...panel, overflowX: "auto" }}><h2 style={{ marginTop: 0, fontSize: 18 }}>All partner commissions</h2><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr>{["Payment month","Partner","Plan","Qualifying amount","Rate","Commission","Status","Paid on"].map(x=><th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{data.commissions.map(c=><tr key={c.id}><td style={td}>{when(c.payment_month)}</td><td style={td}>{data.partners.find(p=>p.id===c.partner_id)?.partner_name ?? c.partner_id}</td><td style={td}>{c.plan_code}</td><td style={td}>{money(c.qualifying_amount)}</td><td style={td}>{(Number(c.commission_rate)*100).toFixed(2)}%</td><td style={td}>{money(c.commission_amount)}</td><td style={td}><DashboardBadge value={c.status} /></td><td style={td}>{when(c.paid_at)}</td></tr>)}</tbody></table>{!data.commissions.length && <p style={small}>No commission entries recorded yet.</p>}</div>}
       </>}
       <footer style={{ ...small, marginTop: 24, textAlign: "center" }}>Ekhaya Owner Dashboard · Permanent administration portal · Data is restricted to authorised owner accounts</footer>
     </section>
