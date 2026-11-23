@@ -188,7 +188,7 @@ Deno.serve(async (req: Request) => {
     if (!isOwner) return json({ error: "Owner permission required." }, 403);
     const targetId = typeof body.target_user_id === "string" ? body.target_user_id : "";
     const nextPlan = String(body.plan_code ?? "").toLowerCase();
-    if (!targetId || !["free", "starter", "pro", "business"].includes(nextPlan)) {
+    if (!targetId || !["free", "starter", "growth", "pro", "business"].includes(nextPlan)) {
       return json({ error: "Choose a valid seller and subscription plan." }, 400);
     }
     if (targetId === userId) return json({ error: "You cannot change your own owner plan from seller management." }, 403);
