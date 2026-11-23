@@ -287,7 +287,7 @@ Deno.serve(async (req: Request) => {
 
     let pilotResult: Record<string, unknown> | null = null;
     let approvalEmail: "sent" | "queued" | "already_queued" | "dispatch_failed" | "not_applicable" = "not_applicable";
-    if (nextStatus === "active") {
+    if (nextStatus === "active" && previousStatus === "pending") {
       const activated = await fetch(new URL("/rest/v1/rpc/activate_seller_pilot", supabaseUrl), {
         method: "POST",
         headers: { ...adminHeaders, "Content-Type": "application/json" },
