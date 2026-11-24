@@ -181,11 +181,12 @@ export default function PriceCheckerPage() {
       } catch { /* No readable barcode: continue with text recognition. */ }
       finally { URL.revokeObjectURL(objectUrl); }
       const base64=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]??"");reader.onerror=()=>reject(new Error("Could not read image"));reader.readAsDataURL(file);});
-      const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/product-identify",{method:"POST",headers:await getSupabaseHeaders(),body:JSON.stringify({mode:"photo",file_b64:base64,filename:file.name})});
+      const response=await fetch("https://itxxnhcjjiynrmivexcb.supabase.co/functions/v1/product-identify",{method:"POST",headers:await getSupabaseHeaders(),body:JSON.stringify({mode:"photo",file_b64:base64,filename:file.name,mime_type:file.type||"image/jpeg"})});
       const payload=await response.json();if(!response.ok)throw new Error(payload.error??"Photo recognition failed");
-      setPhotoText(payload.text??"");
-      if(!payload.text)setError("No readable barcode or product text found. Enter the barcode or product name manually.");
-      else setError("No barcode detected. Check the recognised text and search by product name.");
+      const recognised=String(payload.product?.search_query??"").trim();
+      setPhotoText(recognised);
+      if(!payload.identified||!recognised)setError(payload.message??"We could not identify this product. Try a clearer photo or enter the product name manually.");
+      else setError("Product recognised. Check or edit the suggested product name before searching.");
     } catch(e){setError(e instanceof Error?e.message:"Photo recognition failed");}
     finally{setPhotoBusy(false);}
   }
