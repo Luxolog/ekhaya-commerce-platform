@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "cap:sync": "cap sync android",
-    "android:debug": "cap sync android && cd android && ./gradlew assembleDebug"
+    "android:debug": "cap sync android && cd android && ./gradlew assembleDebug",
+    "test:photo:mobile": "node scripts/mobile-photo-test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",
