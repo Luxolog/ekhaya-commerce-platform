@@ -72,10 +72,11 @@ Deno.serve(async (req: Request) => {
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
 
   let endpoint = "";
+  let reefKey = "";
   let params: Record<string, unknown> = {};
   if (body.mode === "barcode") {
-    const key = Deno.env.get("REEFAPI_KEY");
-    if (!key) return json({ error: "Server configuration incomplete", missing: ["REEFAPI_KEY"] }, 503);
+    reefKey = Deno.env.get("REEFAPI_KEY") ?? "";
+    if (!reefKey) return json({ error: "Server configuration incomplete", missing: ["REEFAPI_KEY"] }, 503);
     const barcode = String(body.barcode ?? "").replace(/[\s-]/g, "");
     if (!/^\d{8,14}$/.test(barcode)) return json({ error: "Enter a valid 8–14 digit barcode." }, 400);
     endpoint = "https://api.reefapi.com/barcode/v1/lookup";
@@ -90,7 +91,7 @@ Deno.serve(async (req: Request) => {
   try {
     const upstream = await fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${reefKey}` },
       body: JSON.stringify(params),
       signal: AbortSignal.timeout(18000),
     });
