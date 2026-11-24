@@ -97,7 +97,7 @@ Inspect the actual image visually. Identify the complete product shown, not mere
 Return exactly one JSON object with fields: identified (boolean), brand (string or null), product_name (string or null), model_or_variant (string or null), search_query (string), category (string or null), confidence (number 0 to 1), visual_evidence (string array), message (string).
 Rules: identify from visible product shape, packaging, logo, label and text together. Never invent brand, model, size or variant. If unclear or not a product, identified=false, confidence below 0.5 and search_query="". If brand/model cannot be verified, leave null and use only a reliable generic description. Keep search_query concise for Takealot, Amazon South Africa and Makro. Return valid JSON only.`;
     try {
-      const upstream = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", {
+      const upstream = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
         body: JSON.stringify({
