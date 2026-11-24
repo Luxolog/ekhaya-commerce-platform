@@ -68,14 +68,14 @@ Deno.serve(async (req: Request) => {
   } catch {
     return json({ error: "Could not verify your seller account or rate limit." }, 503);
   }
-  const key = Deno.env.get("REEFAPI_KEY");
-  if (!key) return json({ error: "Server configuration incomplete", missing: ["REEFAPI_KEY"] }, 503);
   let body: { mode?: string; barcode?: string; file_b64?: string; filename?: string };
   try { body = await req.json(); } catch { return json({ error: "Valid JSON required" }, 400); }
 
   let endpoint = "";
   let params: Record<string, unknown> = {};
   if (body.mode === "barcode") {
+    const key = Deno.env.get("REEFAPI_KEY");
+    if (!key) return json({ error: "Server configuration incomplete", missing: ["REEFAPI_KEY"] }, 503);
     const barcode = String(body.barcode ?? "").replace(/[\s-]/g, "");
     if (!/^\d{8,14}$/.test(barcode)) return json({ error: "Enter a valid 8–14 digit barcode." }, 400);
     endpoint = "https://api.reefapi.com/barcode/v1/lookup";
